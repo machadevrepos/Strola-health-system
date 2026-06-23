@@ -1,0 +1,11 @@
+# Claude Code session/tooling config — not part of the product
+.claude/
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+
+# Each subproject (strola_health_admin_next, strola_health_super_admin_next,
+# strola_health_backend_fastApi, strola_health_flutter) has its own
+# .gitignore covering node_modules, .next, .venv, build artifacts, and env
+# files — this root file only covers things specific to the workspace root.

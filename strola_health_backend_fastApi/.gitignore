@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+.firebase/

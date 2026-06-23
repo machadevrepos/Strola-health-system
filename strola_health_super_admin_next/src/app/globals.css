@@ -1,0 +1,119 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Brand/semantic tokens beyond the shadcn defaults — see DESIGN.md */
+  --color-surface-2: var(--surface-2);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-foreground: var(--brand-accent-foreground);
+  --color-brand-accent-strong: var(--brand-accent-strong);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Light only. Colors are the mobile app's exact AppColors palette — accent
+   #E07A7A, accentSecondary #F6B1B1, bgDeep #FFF2F2, textPrimary #333333,
+   goalAmber #E9B44C, success #55A56B, error #E25858 — converted to OKLCH via
+   scripts/hex-to-oklch.mjs so the value is precise, not eyeballed. One brand
+   across every Strolla surface; see PRODUCT.md for why this superseded the
+   earlier neutral ops-tool direction. */
+:root {
+  --background: oklch(1 0 0);                    /* bgSurface #FFFFFF */
+  --foreground: oklch(0.321 0 0);                /* textPrimary #333333 */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.321 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.321 0 0);
+  --primary: oklch(0.693 0.127 20.85);            /* accent #E07A7A */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.971 0.014 17.398);         /* bgDeep #FFF2F2 */
+  --secondary-foreground: oklch(0.321 0 0);
+  --muted: oklch(0.971 0.014 17.398);             /* bgDeep #FFF2F2 */
+  --muted-foreground: oklch(0.545 0 0);           /* textSecondary, #333 @ 70% over white */
+  --accent: oklch(0.825 0.081 18.943 / 0.22);     /* accentSecondary #F6B1B1, tinted hover */
+  --accent-foreground: oklch(0.45 0.11 20);       /* darker coral for text on hover */
+  --destructive: oklch(0.641 0.173 23.304);       /* error #E25858 */
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.825 0.081 18.943 / 0.25);     /* accentSecondary @ 25% — exact FlatCard border spec */
+  --input: oklch(0.825 0.081 18.943 / 0.25);
+  --ring: oklch(0.693 0.127 20.85);               /* accent #E07A7A */
+  --chart-1: oklch(0.693 0.127 20.85);            /* accent */
+  --chart-2: oklch(0.8 0.134 81.415);             /* goalAmber */
+  --chart-3: oklch(0.656 0.117 150.94);           /* success */
+  --chart-4: oklch(0.748 0 0);                    /* textMuted */
+  --chart-5: oklch(0.641 0.173 23.304);           /* error */
+  --radius: 0.5rem;
+  --sidebar: oklch(0.971 0.014 17.398);           /* bgDeep #FFF2F2 */
+  --sidebar-foreground: oklch(0.321 0 0);
+  --sidebar-primary: oklch(0.693 0.127 20.85);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.825 0.081 18.943 / 0.3);
+  --sidebar-accent-foreground: oklch(0.45 0.11 20);
+  --sidebar-border: oklch(0.825 0.081 18.943 / 0.25);
+  --sidebar-ring: oklch(0.693 0.127 20.85);
+
+  /* Brand/semantic — see DESIGN.md. */
+  --surface-2: oklch(0.94 0.025 18.5);            /* deeper blush than bgDeep, for nested panels */
+  --brand-accent: oklch(0.8 0.134 81.415);        /* goalAmber #E9B44C — goal-reached / highlight only */
+  --brand-accent-foreground: oklch(0.321 0 0);    /* dark text reads better than white at this lightness */
+  --brand-accent-strong: oklch(0.473 0.125 46.201); /* deep amber — text on light brand-accent tints (chips) */
+  --success: oklch(0.656 0.117 150.94);           /* success #55A56B — BLE-connected-equivalent status only */
+  --success-foreground: oklch(1 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+  }
+}
