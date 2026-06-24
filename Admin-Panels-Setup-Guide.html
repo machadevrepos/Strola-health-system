@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strolla Health — Admin Panels Setup Guide</title>
+<style>
+  :root {
+    --accent: #E07A7A;
+    --accent-secondary: #F6B1B1;
+    --accent-glow: rgba(224, 122, 122, 0.2);
+    --bg-deep: #FFF2F2;
+    --bg-mid: #FFF7F7;
+    --bg-surface: #FFFFFF;
+    --amber: #E9B44C;
+    --success: #55A56B;
+    --error: #E25858;
+    --text-primary: #333333;
+    --text-secondary: rgba(51,51,51,0.7);
+    --text-muted: rgba(51,51,51,0.45);
+    --border-soft: rgba(246,177,177,0.4);
+    --radius-l: 18px;
+    --radius-m: 14px;
+    --radius-full: 999px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text-primary);
+    background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-deep) 45%, var(--bg-mid) 100%);
+    line-height: 1.55;
+  }
+
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  /* ---- Hero ---- */
+  .hero {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .wordmark {
+    display: inline-block;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.8px;
+    color: var(--accent);
+    margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin: 0 0 10px;
+  }
+  .hero p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    max-width: 540px;
+    margin: 0 auto;
+  }
+
+  /* ---- Overview cards ---- */
+  .overview {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 32px 0 44px;
+  }
+  .overview-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-l);
+    padding: 18px 16px;
+    box-shadow: 0 6px 18px rgba(224,122,122,0.08);
+  }
+  .overview-card .badge {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-full);
+    background: var(--accent-glow);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  .overview-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: -0.2px;
+  }
+  .overview-card p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  /* ---- Section ---- */
+  .section {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-l);
+    padding: 28px 28px 30px;
+    margin-bottom: 22px;
+    box-shadow: 0 6px 18px rgba(224,122,122,0.06);
+  }
+  .section-eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 0 0 6px;
+  }
+  .section h2 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    margin: 0 0 16px;
+  }
+  .section > p.lead {
+    color: var(--text-secondary);
+    margin-top: -6px;
+    margin-bottom: 18px;
+  }
+
+  /* ---- Steps ---- */
+  .step {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .step:last-child { margin-bottom: 0; }
+  .step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .step-body h4 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 4px 0 6px;
+  }
+  .step-body p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 10px;
+  }
+
+  /* ---- Code blocks ---- */
+  .code-block {
+    position: relative;
+    background: #2B2024;
+    border-radius: var(--radius-m);
+    margin: 8px 0 4px;
+    overflow: hidden;
+  }
+  .code-block .code-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.5);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .code-block pre {
+    margin: 0;
+    padding: 14px 16px 16px;
+    overflow-x: auto;
+    font-family: 'Consolas', 'SF Mono', monospace;
+    font-size: 13px;
+    color: #FFE3E3;
+    line-height: 1.7;
+  }
+  .copy-btn {
+    background: var(--accent-glow);
+    color: #FFD7D7;
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 3px 11px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 150ms ease;
+  }
+  .copy-btn:hover { background: rgba(224,122,122,0.4); }
+  .copy-btn.copied { background: var(--success); color: white; }
+
+  /* ---- Callouts ---- */
+  .callout {
+    border-radius: var(--radius-m);
+    padding: 14px 16px;
+    font-size: 13.5px;
+    margin: 10px 0;
+    border: 1px solid transparent;
+  }
+  .callout.tip {
+    background: rgba(85,165,107,0.08);
+    border-color: rgba(85,165,107,0.25);
+    color: #2F6F44;
+  }
+  .callout.warn {
+    background: rgba(226,88,88,0.08);
+    border-color: rgba(226,88,88,0.25);
+    color: #A93E3E;
+  }
+  .callout.amber {
+    background: rgba(233,180,76,0.12);
+    border-color: rgba(233,180,76,0.35);
+    color: #8A6418;
+  }
+  .callout strong { font-weight: 700; }
+
+  /* ---- Credentials box ---- */
+  .creds {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 6px;
+  }
+  .cred-card {
+    background: linear-gradient(135deg, rgba(233,180,76,0.14), rgba(233,180,76,0.05));
+    border: 1px solid rgba(233,180,76,0.35);
+    border-radius: var(--radius-m);
+    padding: 14px 16px;
+  }
+  .cred-card .role {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #8A6418;
+    margin-bottom: 6px;
+  }
+  .cred-card .email {
+    font-family: 'Consolas', 'SF Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    word-break: break-all;
+  }
+  .cred-card .password-row {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .cred-card .password-row code {
+    background: rgba(0,0,0,0.06);
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  /* ---- Links ---- */
+  .url-pill {
+    display: inline-block;
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-weight: 700;
+    font-family: 'Consolas', 'SF Mono', monospace;
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: var(--radius-full);
+  }
+
+  .divider-label {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 36px 0 18px;
+    position: relative;
+  }
+  .divider-label::before, .divider-label::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 30%;
+    height: 1px;
+    background: var(--border-soft);
+  }
+  .divider-label::before { left: 0; }
+  .divider-label::after { right: 0; }
+
+  footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin-top: 40px;
+  }
+
+  @media (max-width: 640px) {
+    .overview { grid-template-columns: 1fr; }
+    .creds { grid-template-columns: 1fr; }
+    .page { padding: 32px 16px 64px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="hero">
+    <div class="wordmark">strolla</div>
+    <h1>Admin Panels — Setup &amp; Testing Guide</h1>
+    <p>A walkthrough for running the Admin Panel and Super Admin Panel on your own computer, so you can click around and test everything yourself.</p>
+  </div>
+
+  <div class="overview">
+    <div class="overview-card">
+      <div class="badge">1</div>
+      <h3>Backend</h3>
+      <p>The engine room. Runs once in the background and feeds real data to both panels.</p>
+    </div>
+    <div class="overview-card">
+      <div class="badge">2</div>
+      <h3>Admin Panel</h3>
+      <p>Day-to-day staff console — users, posts, challenges, badges, analytics.</p>
+    </div>
+    <div class="overview-card">
+      <div class="badge">3</div>
+      <h3>Super Admin Panel</h3>
+      <p>Everything above, plus device fleet management and staff roles.</p>
+    </div>
+  </div>
+
+  <!-- BEFORE YOU START -->
+  <div class="section">
+    <p class="section-eyebrow">Before you start</p>
+    <h2>What you'll need installed</h2>
+    <p class="lead">Node.js is already on your machine. Three more free tools are needed — install these once and you're set for good.</p>
+
+    <div class="step">
+      <div class="step-number">✓</div>
+      <div class="step-body">
+        <h4>Node.js — already installed</h4>
+        <p>Nothing to do here.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-body">
+        <h4>Python</h4>
+        <p>Powers the backend. Download from <span class="url-pill">python.org</span> — during install, tick the box that says <strong>"Add Python to PATH."</strong></p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-body">
+        <h4>Firebase CLI</h4>
+        <p>Stands in for a real Firebase project on your computer, so no account or billing is needed. Open a terminal (see the tip below) and run:</p>
+        <div class="code-block">
+          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <pre>npm install -g firebase-tools</pre>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">3</div>
+      <div class="step-body">
+        <h4>Java (JRE)</h4>
+        <p>Only needed because the Firebase emulator itself runs on it. Download from <span class="url-pill">adoptium.net</span> (choose the latest LTS version). Skip this if Java is already on your machine for something else.</p>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <strong>How to open a terminal in a folder:</strong> open the folder in File Explorer, click into the address bar at the top, type <code>cmd</code>, and press Enter. A black Command Prompt window opens, already pointed at that folder.
+    </div>
+  </div>
+
+  <!-- DOWNLOAD -->
+  <div class="section">
+    <p class="section-eyebrow">Step 1</p>
+    <h2>Download the project</h2>
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-body">
+        <h4>Get the code</h4>
+        <p>Go to the project page and click the green <strong>Code</strong> button, then <strong>Download ZIP</strong>. Once downloaded, extract/unzip it somewhere easy to find, like your Desktop.</p>
+      </div>
+    </div>
+    <div class="callout amber">
+      Inside the unzipped folder you'll see four folders: <code>strola_health_backend_fastApi</code>, <code>strola_health_admin_next</code>, <code>strola_health_super_admin_next</code>, and <code>strola_health_flutter</code>. You only need the first three for this guide.
+    </div>
+  </div>
+
+  <!-- BACKEND -->
+  <div class="section">
+    <p class="section-eyebrow">Step 2 — do this once each time you test</p>
+    <h2>Start the backend</h2>
+    <p class="lead">Both panels show real data only while this is running. Leave its terminal window open the whole time you're testing.</p>
+
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-body">
+        <h4>Start the local Firestore/Auth emulator</h4>
+        <p>Open a terminal inside <code>strola_health_backend_fastApi</code> and run:</p>
+        <div class="code-block">
+          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <pre>firebase emulators:start --only firestore,auth</pre>
+        </div>
+        <p>The first run downloads some files (takes a minute). When ready, you'll see a table confirming it's listening. <strong>Leave this window open</strong> and open a <em>new</em> terminal window for the next step.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-body">
+        <h4>Set up the backend (first time only)</h4>
+        <p>In a new terminal, inside <code>strola_health_backend_fastApi</code>:</p>
+        <div class="code-block">
+          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <pre>python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env</pre>
+        </div>
+        <p>Then open the new <code>.env</code> file in Notepad and fill in just these three lines (everything else can stay blank):</p>
+        <div class="code-block">
+          <div class="code-label">.env<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <pre>FIRESTORE_EMULATOR_HOST=localhost:8080
+FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
+FIREBASE_PROJECT_ID=strolla-health-dev</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-number">3</div>
+      <div class="step-body">
+        <h4>Load sample data (first time only)</h4>
+        <p>With the emulator from step 1 still running, in the same terminal:</p>
+        <div class="code-block">
+          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <pre>python scripts/seed_emulator.py</pre>
+        </div>
+        <p>This fills the panels with realistic sample users, posts, devices, and challenges to click through — see the login details further down.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-number">4</div>
+      <div class="step-body">
+        <h4>Start the backend itself</h4>
+        <div class="code-block">
+          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <pre>uvicorn app.main:app --reload</pre>
+        </div>
+        <p>Leave this running too. You now have <strong>two</strong> terminal windows open (emulator + backend) and both should stay open while you test.</p>
+      </div>
+    </div>
+
+    <div class="callout amber">
+      <strong>Bonus — want to peek behind the curtain?</strong> With the backend running, open <span class="url-pill">http://localhost:8000/docs</span> in your browser. That's the live, interactive API reference (Swagger UI) — every action either panel can take, listed out, with a "Try it" button on each one.
+    </div>
+  </div>
+
+  <div class="divider-label">the backend above must stay running for either panel below to work</div>
+
+  <!-- ADMIN PANEL -->
+  <div class="section">
+    <p class="section-eyebrow">Step 3</p>
+    <h2>Run the Admin Panel</h2>
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-body">
+        <h4>Open a new terminal</h4>
+        <p>Inside <code>strola_health_admin_next</code>, run:</p>
+        <div class="code-block">
+          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <pre>npm install
+copy .env.local.example .env.local
+npm run dev</pre>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-body">
+        <h4>Open it in your browser</h4>
+        <p>Go to <span class="url-pill">http://localhost:3100</span> and log in with one of the accounts below.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUPER ADMIN PANEL -->
+  <div class="section">
+    <p class="section-eyebrow">Step 4</p>
+    <h2>Run the Super Admin Panel</h2>
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-body">
+        <h4>Open a new terminal</h4>
+        <p>Inside <code>strola_health_super_admin_next</code>, run:</p>
+        <div class="code-block">
+          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+          <pre>npm install
+copy .env.local.example .env.local
+npm run dev</pre>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-body">
+        <h4>Open it in your browser</h4>
+        <p>Go to <span class="url-pill">http://localhost:3200</span> and log in with the super admin account below.</p>
+      </div>
+    </div>
+    <div class="callout tip">
+      You can run both panels <strong>at the same time</strong> — they use different addresses (3100 and 3200), so just keep both terminal windows open alongside the backend ones.
+    </div>
+  </div>
+
+  <!-- LOGIN -->
+  <div class="section">
+    <p class="section-eyebrow">Logging in</p>
+    <h2>Test accounts</h2>
+    <p class="lead">Both were created by the sample-data step above. Same password for both.</p>
+    <div class="creds">
+      <div class="cred-card">
+        <div class="role">Admin panel</div>
+        <div class="email">support.maya@strollahealth.com</div>
+        <div class="password-row">Password: <code>StrollaDev123!</code></div>
+      </div>
+      <div class="cred-card">
+        <div class="role">Super Admin panel</div>
+        <div class="email">founder.sarah@strollahealth.com</div>
+        <div class="password-row">Password: <code>StrollaDev123!</code></div>
+      </div>
+    </div>
+    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 14px;">
+      The Super Admin account also works on the regular Admin Panel — it's the only one that can also see Fleet and Staff &amp; Roles on the Super Admin Panel.
+    </p>
+  </div>
+
+  <!-- TROUBLESHOOTING -->
+  <div class="section">
+    <p class="section-eyebrow">If something goes wrong</p>
+    <h2>Troubleshooting</h2>
+
+    <div class="callout warn">
+      <strong>"Address already in use"</strong> when starting something — another program on your computer is already using that port. Close other terminal windows from a previous attempt and try again.
+    </div>
+    <div class="callout warn">
+      <strong>Panel loads but every page shows an error</strong> — almost always means the backend or emulator terminal windows aren't running anymore. Check both are still open without errors.
+    </div>
+    <div class="callout warn">
+      <strong>Nothing happens when you type a command</strong> — make sure the terminal is open inside the right folder (the prompt should show the folder name).
+    </div>
+    <div class="callout tip">
+      Lost the login details? Re-run <code>python scripts/seed_emulator.py</code> — it's safe to run again any time and refills the same sample data.
+    </div>
+  </div>
+
+  <footer>Strolla Health — internal testing guide</footer>
+</div>
+
+<script>
+  function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    navigator.clipboard.writeText(pre.textContent.trim()).then(() => {
+      const original = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+</script>
+
+</body>
+</html>
