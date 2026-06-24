@@ -63,6 +63,22 @@ every repository/service is wired there.
    ```
    Visit `http://localhost:8000/docs`.
 
+## Seeding demo data (emulator only)
+
+`scripts/seed_emulator.py` populates the Firestore + Auth emulators with a
+realistic dataset (~25 users, devices, posts, challenges, badges, 30 days of
+analytics events) mirroring what both Next.js panels were designed against —
+useful for trying the admin panels against real API calls without a live
+Firebase project. Run it once, with the emulators already running:
+
+```
+python scripts/seed_emulator.py
+```
+
+Every seeded account shares the password printed at the end of the script.
+Two are staff: an `admin` and a `super_admin` — their emails are also printed
+at the end of the run, so log in with those for the admin panels.
+
 ## Creating the first super_admin
 
 There is deliberately no HTTP endpoint that promotes a user to `super_admin`

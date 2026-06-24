@@ -1,0 +1,3 @@
+.label, .nodeLabel, .edgeLabel, text, tspan, foreignObject div, foreignObject span {
+  font-family: 'Segoe UI', Helvetica, Arial, sans-serif !important;
+}

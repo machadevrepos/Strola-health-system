@@ -1,0 +1,59 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#FFFFFF",
+    "primaryTextColor": "#333333",
+    "primaryBorderColor": "#E07A7A",
+    "lineColor": "#E07A7A",
+    "secondaryColor": "#F6B1B1",
+    "secondaryTextColor": "#333333",
+    "secondaryBorderColor": "#E07A7A",
+    "tertiaryColor": "#FFF2F2",
+    "tertiaryTextColor": "#333333",
+    "tertiaryBorderColor": "#F6B1B1",
+    "background": "#FFFFFF",
+    "mainBkg": "#FFFFFF",
+    "nodeBorder": "#E07A7A",
+    "clusterBkg": "#FFF9F9",
+    "clusterBorder": "#E07A7A",
+    "titleColor": "#333333",
+    "edgeLabelBackground": "#FFFFFF",
+    "fontFamily": "Segoe UI, Helvetica, Arial, sans-serif",
+    "fontSize": "17px"
+  },
+  "flowchart": { "curve": "basis", "htmlLabels": true, "nodeSpacing": 50, "rankSpacing": 75 }
+}}%%
+flowchart TD
+  Start(["New User Signs Up"])
+  Trial["Free 30-Day Premium Trial<br/>starts automatically<br/>banner shown: 'You're on a free Premium trial'"]
+  Reminder["Day 25 Reminder<br/>'Your trial ends soon'"]
+  Decision{"Day 30 —<br/>Subscribe to keep Premium?"}
+  Subscribe["Subscribes via RevenueCat"]
+  Active["Premium Active<br/>Widget · Challenges · Insights unlocked"]
+  Free["Free Tier<br/>Widget removed · Challenges &amp; Insights locked"]
+  Cancel["Cancels via App Store /<br/>Google Play"]
+  EndAccess["Access ends at<br/>billing period close"]
+
+  Kickstarter["Kickstarter Backer<br/>redeems 6-month code at signup"]
+  AdminGrant["Admin Dashboard<br/>manually grants free Premium"]
+
+  Start --> Trial --> Reminder --> Decision
+  Decision -->|Yes| Subscribe --> Active
+  Decision -->|Doesn't renew| Free
+  Kickstarter --> Active
+  AdminGrant --> Active
+  Active --> Cancel --> EndAccess --> Free
+
+  classDef step fill:#FFFFFF,stroke:#E07A7A,stroke-width:2px,color:#333333
+  classDef decision fill:#F6B1B1,stroke:#E07A7A,stroke-width:2px,color:#333333,font-weight:700
+  classDef active fill:#55A56B,stroke:#55A56B,color:#FFFFFF,font-weight:700
+  classDef free fill:#E25858,stroke:#E25858,color:#FFFFFF,font-weight:700
+  classDef alt fill:#FFF2F2,stroke:#F6B1B1,stroke-width:1.5px,color:#333333
+  classDef trial fill:#E9B44C,stroke:#E9B44C,color:#FFFFFF,font-weight:700
+
+  class Start,Subscribe,Cancel,EndAccess step
+  class Decision decision
+  class Active active
+  class Free free
+  class Kickstarter,AdminGrant alt
+  class Trial,Reminder trial

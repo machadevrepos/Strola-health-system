@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Strolla Health — Backend Proposal</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { font-family: 'Segoe UI', -apple-system, sans-serif; color: #333333; }
+  .page {
+    width: 297mm; height: 209.5mm;
+    page-break-after: always;
+    position: relative; overflow: hidden;
+    background: linear-gradient(160deg, #FFFFFF 0%, #FFF7F7 55%, #FFF2F2 100%);
+    padding: 14mm 16mm;
+  }
+  .page:last-child { page-break-after: avoid; }
+
+  .brand { font-size: 15px; font-weight: 800; letter-spacing: -0.5px; color: #E07A7A; }
+  .brand span { color: #333333; font-weight: 400; }
+  .pagenum { position: absolute; bottom: 8mm; right: 16mm; font-size: 9px; color: #B3333333; }
+  .footer-line { position: absolute; bottom: 8mm; left: 16mm; font-size: 9px; color: #B3333333; }
+
+  h1 { font-size: 44px; font-weight: 800; letter-spacing: -2px; line-height: 1.05; }
+  h2 { font-size: 26px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4mm; }
+  h2 .accent { color: #E07A7A; }
+  .kicker { font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: #E07A7A; margin-bottom: 2mm; }
+  .sub { font-size: 13px; color: rgba(51,51,51,0.7); line-height: 1.5; }
+
+  .card {
+    background: #FFFFFF; border: 1px solid rgba(246,177,177,0.4);
+    border-radius: 14px; padding: 6mm;
+    box-shadow: 0 4px 14px rgba(224,122,122,0.08);
+  }
+  .pill {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    font-size: 9.5px; font-weight: 700;
+  }
+  .pill.ok   { background: rgba(85,165,107,0.12); color: #55A56B; }
+  .pill.mock { background: rgba(226,88,88,0.10);  color: #E25858; }
+  .pill.part { background: rgba(233,180,76,0.15); color: #C8922F; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { text-align: left; font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; color: #B3333333; padding: 2.5mm 3mm; border-bottom: 2px solid rgba(224,122,122,0.25); }
+  td { padding: 2.4mm 3mm; border-bottom: 1px solid rgba(246,177,177,0.25); vertical-align: top; }
+  td.feat { font-weight: 600; }
+
+  .cols { display: flex; gap: 6mm; }
+  .col { flex: 1; }
+
+  ul.tick { list-style: none; }
+  ul.tick li { font-size: 12px; line-height: 1.45; padding-left: 18px; position: relative; margin-bottom: 2.6mm; }
+  ul.tick li::before { content: "✓"; position: absolute; left: 0; color: #E07A7A; font-weight: 800; }
+  ul.cross li::before { content: "✕"; color: #E25858; }
+
+  .num-big { font-size: 34px; font-weight: 800; letter-spacing: -1.5px; color: #E07A7A; line-height: 1; }
+  .num-label { font-size: 10px; color: rgba(51,51,51,0.6); margin-top: 1.5mm; line-height: 1.35; }
+
+  svg text { font-family: 'Segoe UI', sans-serif; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════ PAGE 1 — COVER ════════════════════ -->
+<div class="page" style="display:flex; flex-direction:column; justify-content:center;">
+  <div style="position:absolute; top:14mm; left:16mm;" class="brand">strolla <span>health</span></div>
+  <div style="position:absolute; top:-30mm; right:-30mm; width:120mm; height:120mm; border-radius:50%; background:radial-gradient(circle, rgba(246,177,177,0.35), transparent 70%);"></div>
+  <div style="position:absolute; bottom:-40mm; left:-20mm; width:100mm; height:100mm; border-radius:50%; background:radial-gradient(circle, rgba(224,122,122,0.18), transparent 70%);"></div>
+
+  <div style="max-width:175mm;">
+    <div class="kicker">Technical Proposal · Part 1 of the Platform Roadmap</div>
+    <h1>The app is ready.<br>Now it needs a <span style="color:#E07A7A;">backend</span>.</h1>
+    <p class="sub" style="margin-top:6mm; font-size:15px; max-width:150mm;">
+      Strolla Health today is a beautifully finished Flutter app with live BLE step tracking,
+      GPS workouts, community, challenges and sharing — but almost everything social and historical
+      runs on <b>placeholder data that lives only on one phone</b>. This document shows exactly what a
+      Python backend unlocks, and how we deliver it in safe, demo-able phases.
+    </p>
+  </div>
+
+  <div style="display:flex; gap:8mm; margin-top:14mm; max-width:200mm;">
+    <div class="card" style="flex:1;"><div class="num-big">13</div><div class="num-label">screens already built &amp; polished in the app</div></div>
+    <div class="card" style="flex:1;"><div class="num-big">7+</div><div class="num-label">headline features currently running on mock data</div></div>
+    <div class="card" style="flex:1;"><div class="num-big">1</div><div class="num-label">phone — the only place a user's data exists today</div></div>
+    <div class="card" style="flex:1;"><div class="num-big">0</div><div class="num-label">user accounts. No login, no recovery, no sync</div></div>
+  </div>
+
+  <div class="footer-line">Prepared by MachaDev · Strolla Health Platform Proposal</div>
+  <div class="pagenum">01</div>
+</div>
+
+<!-- ════════════════════ PAGE 2 — CURRENT ARCHITECTURE ════════════════════ -->
+<div class="page">
+  <div class="kicker">Where we are today</div>
+  <h2>Everything lives — and dies — <span class="accent">on one phone</span></h2>
+  <p class="sub" style="max-width:230mm;">The hardware pipeline is real and works well. But there is no server: nothing is backed up, nothing is shared between users, and every social feature is a façade rendered from hard-coded data inside the app.</p>
+
+  <svg viewBox="0 0 1060 420" style="width:100%; height:118mm; margin-top:5mm;">
+    <defs>
+      <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#E07A7A"/></marker>
+      <marker id="arrg" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#55A56B"/></marker>
+    </defs>
+
+    <!-- BLE device -->
+    <rect x="20" y="130" width="180" height="120" rx="16" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/>
+    <text x="110" y="165" text-anchor="middle" font-size="15" font-weight="700" fill="#333">nRF7002 DK</text>
+    <text x="110" y="186" text-anchor="middle" font-size="11" fill="#777">Zephyr RTOS · MPU-6050</text>
+    <text x="110" y="216" text-anchor="middle" font-size="11" font-weight="700" fill="#55A56B">● REAL — works today</text>
+
+    <!-- BLE arrow -->
+    <line x1="200" y1="190" x2="285" y2="190" stroke="#55A56B" stroke-width="2.5" marker-end="url(#arrg)"/>
+    <text x="242" y="178" text-anchor="middle" font-size="10.5" fill="#55A56B" font-weight="600">BLE / NUS</text>
+
+    <!-- Phone -->
+    <rect x="290" y="40" width="330" height="330" rx="22" fill="#fff" stroke="#E07A7A" stroke-width="2"/>
+    <text x="455" y="72" text-anchor="middle" font-size="15" font-weight="800" fill="#333">Flutter App — the entire product</text>
+
+    <rect x="310" y="90" width="140" height="58" rx="10" fill="rgba(85,165,107,0.10)" stroke="#55A56B"/>
+    <text x="380" y="113" text-anchor="middle" font-size="11" font-weight="700" fill="#333">Step tracking</text>
+    <text x="380" y="130" text-anchor="middle" font-size="9.5" fill="#55A56B">REAL · live BLE</text>
+
+    <rect x="460" y="90" width="140" height="58" rx="10" fill="rgba(85,165,107,0.10)" stroke="#55A56B"/>
+    <text x="530" y="113" text-anchor="middle" font-size="11" font-weight="700" fill="#333">GPS workouts</text>
+    <text x="530" y="130" text-anchor="middle" font-size="9.5" fill="#55A56B">REAL · on-device</text>
+
+    <rect x="310" y="158" width="140" height="58" rx="10" fill="rgba(226,88,88,0.07)" stroke="#E25858" stroke-dasharray="5 3"/>
+    <text x="380" y="181" text-anchor="middle" font-size="11" font-weight="700" fill="#333">Community feed</text>
+    <text x="380" y="198" text-anchor="middle" font-size="9.5" fill="#E25858">MOCK · hard-coded</text>
+
+    <rect x="460" y="158" width="140" height="58" rx="10" fill="rgba(226,88,88,0.07)" stroke="#E25858" stroke-dasharray="5 3"/>
+    <text x="530" y="181" text-anchor="middle" font-size="11" font-weight="700" fill="#333">Challenges</text>
+    <text x="530" y="198" text-anchor="middle" font-size="9.5" fill="#E25858">MOCK · hard-coded</text>
+
+    <rect x="310" y="226" width="140" height="58" rx="10" fill="rgba(226,88,88,0.07)" stroke="#E25858" stroke-dasharray="5 3"/>
+    <text x="380" y="249" text-anchor="middle" font-size="11" font-weight="700" fill="#333">Notifications</text>
+    <text x="380" y="266" text-anchor="middle" font-size="9.5" fill="#E25858">MOCK · static list</text>
+
+    <rect x="460" y="226" width="140" height="58" rx="10" fill="rgba(226,88,88,0.07)" stroke="#E25858" stroke-dasharray="5 3"/>
+    <text x="530" y="249" text-anchor="middle" font-size="11" font-weight="700" fill="#333">Stats history</text>
+    <text x="530" y="266" text-anchor="middle" font-size="9.5" fill="#E25858">MOCK · fake 30 days</text>
+
+    <rect x="310" y="294" width="290" height="56" rx="10" fill="rgba(233,180,76,0.10)" stroke="#E9B44C"/>
+    <text x="455" y="316" text-anchor="middle" font-size="11" font-weight="700" fill="#333">SQLite (local only)</text>
+    <text x="455" y="333" text-anchor="middle" font-size="9.5" fill="#C8922F">Sessions saved — but trapped on this device</text>
+
+    <!-- The void -->
+    <line x1="620" y1="200" x2="730" y2="200" stroke="#E25858" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arr)"/>
+    <rect x="735" y="120" width="300" height="160" rx="16" fill="none" stroke="#E25858" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="885" y="170" text-anchor="middle" font-size="17" font-weight="800" fill="#E25858">NO SERVER</text>
+    <text x="885" y="198" text-anchor="middle" font-size="11.5" fill="#777">No accounts · No backups · No sync</text>
+    <text x="885" y="218" text-anchor="middle" font-size="11.5" fill="#777">No real friends, posts or leaderboards</text>
+    <text x="885" y="238" text-anchor="middle" font-size="11.5" fill="#777">No push notifications</text>
+
+    <!-- uninstall warning -->
+    <text x="455" y="400" text-anchor="middle" font-size="12.5" font-weight="700" fill="#E25858">⚠ User deletes the app → every step, workout and streak is gone forever</text>
+  </svg>
+
+  <div class="footer-line">Strolla Health · Backend Proposal</div>
+  <div class="pagenum">02</div>
+</div>
+
+<!-- ════════════════════ PAGE 3 — THE GAP ════════════════════ -->
+<div class="page">
+  <div class="kicker">The gap</div>
+  <h2>What the UI promises vs. <span class="accent">what actually works</span></h2>
+  <p class="sub">Audit of the shipped screens. The UI sets user expectations that the current app cannot honour.</p>
+
+  <div class="cols" style="margin-top:5mm;">
+    <div class="col card" style="padding:4mm 5mm;">
+      <table>
+        <tr><th>Feature in the app</th><th>Today</th><th>Why</th></tr>
+        <tr><td class="feat">BLE step counting</td><td><span class="pill ok">REAL</span></td><td>Live nRF7002 stream + mock fallback</td></tr>
+        <tr><td class="feat">GPS workout sessions</td><td><span class="pill ok">REAL</span></td><td>On-device GPS + local SQLite</td></tr>
+        <tr><td class="feat">Daily goal &amp; streaks</td><td><span class="pill part">PARTIAL</span></td><td>Streak computed from fake week data</td></tr>
+        <tr><td class="feat">Weekly / monthly stats</td><td><span class="pill mock">MOCK</span></td><td>30-day charts are hard-coded arrays</td></tr>
+        <tr><td class="feat">Community feed &amp; posts</td><td><span class="pill mock">MOCK</span></td><td>No server — posts go nowhere</td></tr>
+        <tr><td class="feat">Friends &amp; connections</td><td><span class="pill mock">MOCK</span></td><td>"842 connections" is a hard-coded string</td></tr>
+        <tr><td class="feat">Challenges &amp; leaderboards</td><td><span class="pill mock">MOCK</span></td><td>Join/create buttons store nothing</td></tr>
+        <tr><td class="feat">Notifications</td><td><span class="pill mock">MOCK</span></td><td>Static list; no push capability</td></tr>
+        <tr><td class="feat">Achievements &amp; records</td><td><span class="pill mock">MOCK</span></td><td>Badges hard-coded; PR logic stubbed</td></tr>
+        <tr><td class="feat">Share to social / community</td><td><span class="pill part">UI ONLY</span></td><td>Beautiful flow, no delivery</td></tr>
+        <tr><td class="feat">Accounts &amp; login</td><td><span class="pill mock">NONE</span></td><td>Profile is a local preferences file</td></tr>
+      </table>
+    </div>
+
+    <div class="col" style="flex:0.62; display:flex; flex-direction:column; gap:5mm;">
+      <div class="card">
+        <div style="font-size:13px; font-weight:800; margin-bottom:3mm;">What this means for launch</div>
+        <ul class="tick cross">
+          <li>Two users installing the app <b>see identical fake friends and posts</b> — trust is broken on day one</li>
+          <li>A lost or replaced phone <b>wipes the user's entire history</b></li>
+          <li>Marketing cannot run challenges, referral or retention campaigns</li>
+          <li>No analytics: we can't see usage, retention or device health</li>
+        </ul>
+      </div>
+      <div class="card" style="background:linear-gradient(135deg,#E07A7A,#F6B1B1); border:none;">
+        <div style="font-size:13px; font-weight:800; color:#fff; margin-bottom:2mm;">The good news</div>
+        <div style="font-size:11.5px; color:rgba(255,255,255,0.92); line-height:1.55;">
+          The hard part — a polished, feature-complete frontend — is <b>already done</b>.
+          The app was architected with clean repository layers that are explicitly
+          "backend-ready". We swap mock repositories for API calls; screens don't change.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-line">Strolla Health · Backend Proposal</div>
+  <div class="pagenum">03</div>
+</div>
+
+<!-- ════════════════════ PAGE 4 — PROPOSED ARCHITECTURE ════════════════════ -->
+<div class="page">
+  <div class="kicker">The proposal</div>
+  <h2>A Python backend that <span class="accent">switches every feature on</span></h2>
+  <p class="sub">FastAPI — the modern Python framework used by Netflix and Microsoft — fronting PostgreSQL, Redis and push services. One platform powers every screen that exists today.</p>
+
+  <svg viewBox="0 0 1060 410" style="width:100%; height:114mm; margin-top:4mm;">
+    <defs>
+      <marker id="a2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#E07A7A"/></marker>
+    </defs>
+
+    <!-- Device + phone -->
+    <rect x="15" y="150" width="135" height="90" rx="14" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/>
+    <text x="82" y="188" text-anchor="middle" font-size="12.5" font-weight="700" fill="#333">nRF7002 DK</text>
+    <text x="82" y="207" text-anchor="middle" font-size="9.5" fill="#777">BLE step counter</text>
+
+    <line x1="150" y1="195" x2="195" y2="195" stroke="#E07A7A" stroke-width="2" marker-end="url(#a2)"/>
+
+    <rect x="200" y="105" width="160" height="180" rx="18" fill="#fff" stroke="#E07A7A" stroke-width="2"/>
+    <text x="280" y="140" text-anchor="middle" font-size="13.5" font-weight="800" fill="#333">Flutter App</text>
+    <text x="280" y="160" text-anchor="middle" font-size="9.5" fill="#777">unchanged UI</text>
+    <rect x="216" y="178" width="128" height="40" rx="8" fill="rgba(224,122,122,0.08)" stroke="#F6B1B1"/>
+    <text x="280" y="195" text-anchor="middle" font-size="9.5" font-weight="700" fill="#333">Repository layer</text>
+    <text x="280" y="209" text-anchor="middle" font-size="8.5" fill="#E07A7A">mock → real API</text>
+    <rect x="216" y="226" width="128" height="40" rx="8" fill="rgba(233,180,76,0.10)" stroke="#E9B44C"/>
+    <text x="280" y="243" text-anchor="middle" font-size="9.5" font-weight="700" fill="#333">Offline-first cache</text>
+    <text x="280" y="257" text-anchor="middle" font-size="8.5" fill="#C8922F">SQLite sync queue</text>
+
+    <!-- HTTPS -->
+    <line x1="360" y1="195" x2="430" y2="195" stroke="#E07A7A" stroke-width="2.5" marker-end="url(#a2)"/>
+    <text x="395" y="181" text-anchor="middle" font-size="9.5" font-weight="700" fill="#E07A7A">HTTPS · JWT</text>
+    <text x="396" y="216" text-anchor="middle" font-size="8" fill="#999">REST · WebSocket</text>
+
+    <!-- API core -->
+    <rect x="435" y="55" width="300" height="290" rx="18" fill="#fff" stroke="#E07A7A" stroke-width="2.5"/>
+    <rect x="435" y="55" width="300" height="46" rx="18" fill="#E07A7A"/>
+    <rect x="435" y="83" width="300" height="18" fill="#E07A7A"/>
+    <text x="585" y="84" text-anchor="middle" font-size="14.5" font-weight="800" fill="#fff">Python API — FastAPI</text>
+
+    <g font-size="10" font-weight="600" fill="#333">
+      <rect x="450" y="113" width="130" height="34" rx="8" fill="rgba(224,122,122,0.07)" stroke="#F6B1B1"/><text x="515" y="134" text-anchor="middle">Auth &amp; Accounts</text>
+      <rect x="590" y="113" width="130" height="34" rx="8" fill="rgba(224,122,122,0.07)" stroke="#F6B1B1"/><text x="655" y="134" text-anchor="middle">Steps &amp; Sync</text>
+      <rect x="450" y="155" width="130" height="34" rx="8" fill="rgba(224,122,122,0.07)" stroke="#F6B1B1"/><text x="515" y="176" text-anchor="middle">Workouts &amp; Routes</text>
+      <rect x="590" y="155" width="130" height="34" rx="8" fill="rgba(224,122,122,0.07)" stroke="#F6B1B1"/><text x="655" y="176" text-anchor="middle">Community Feed</text>
+      <rect x="450" y="197" width="130" height="34" rx="8" fill="rgba(224,122,122,0.07)" stroke="#F6B1B1"/><text x="515" y="218" text-anchor="middle">Challenges</text>
+      <rect x="590" y="197" width="130" height="34" rx="8" fill="rgba(224,122,122,0.07)" stroke="#F6B1B1"/><text x="655" y="218" text-anchor="middle">Friends &amp; Social</text>
+      <rect x="450" y="239" width="130" height="34" rx="8" fill="rgba(224,122,122,0.07)" stroke="#F6B1B1"/><text x="515" y="260" text-anchor="middle">Achievements</text>
+      <rect x="590" y="239" width="130" height="34" rx="8" fill="rgba(224,122,122,0.07)" stroke="#F6B1B1"/><text x="655" y="260" text-anchor="middle">Notifications</text>
+      <rect x="450" y="281" width="270" height="34" rx="8" fill="rgba(233,180,76,0.10)" stroke="#E9B44C"/><text x="585" y="302" text-anchor="middle">Background jobs — streaks · leaderboards · insights (Celery)</text>
+    </g>
+
+    <!-- Data stores -->
+    <line x1="735" y1="140" x2="800" y2="120" stroke="#E07A7A" stroke-width="2" marker-end="url(#a2)"/>
+    <line x1="735" y1="200" x2="800" y2="205" stroke="#E07A7A" stroke-width="2" marker-end="url(#a2)"/>
+    <line x1="735" y1="260" x2="800" y2="290" stroke="#E07A7A" stroke-width="2" marker-end="url(#a2)"/>
+
+    <rect x="805" y="85" width="235" height="62" rx="12" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/>
+    <text x="922" y="111" text-anchor="middle" font-size="12" font-weight="700" fill="#333">PostgreSQL</text>
+    <text x="922" y="130" text-anchor="middle" font-size="9.5" fill="#777">users · steps · workouts · posts · challenges</text>
+
+    <rect x="805" y="172" width="235" height="62" rx="12" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/>
+    <text x="922" y="198" text-anchor="middle" font-size="12" font-weight="700" fill="#333">Redis</text>
+    <text x="922" y="217" text-anchor="middle" font-size="9.5" fill="#777">live leaderboards · sessions · rate limiting</text>
+
+    <rect x="805" y="259" width="235" height="62" rx="12" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/>
+    <text x="922" y="285" text-anchor="middle" font-size="12" font-weight="700" fill="#333">FCM / APNs Push</text>
+    <text x="922" y="304" text-anchor="middle" font-size="9.5" fill="#777">likes · comments · challenge &amp; goal alerts</text>
+
+    <!-- why python strip -->
+    <rect x="200" y="365" width="840" height="38" rx="10" fill="rgba(224,122,122,0.06)" stroke="#F6B1B1"/>
+    <text x="620" y="389" text-anchor="middle" font-size="11" fill="#555">
+      <tspan font-weight="800" fill="#E07A7A">Why Python/FastAPI:</tspan>  fastest path to production · automatic interactive API docs · first-class data &amp; analytics ecosystem for future health insights · huge talent pool
+    </text>
+  </svg>
+
+  <div class="footer-line">Strolla Health · Backend Proposal</div>
+  <div class="pagenum">04</div>
+</div>
+
+<!-- ════════════════════ PAGE 5 — FEATURE UNLOCK MAP ════════════════════ -->
+<div class="page">
+  <div class="kicker">Feature unlock map</div>
+  <h2>Every existing screen <span class="accent">comes alive</span></h2>
+  <p class="sub">No redesign needed — each screen below already exists. The backend simply replaces its fake data source.</p>
+
+  <svg viewBox="0 0 1060 395" style="width:100%; height:110mm; margin-top:4mm;">
+    <defs><marker id="a3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#E07A7A"/></marker></defs>
+
+    <!-- left column: screens -->
+    <text x="120" y="22" text-anchor="middle" font-size="11" font-weight="800" fill="#B3333333" letter-spacing="2">APP SCREENS (BUILT)</text>
+    <g font-size="11.5" font-weight="700" fill="#333">
+      <rect x="20" y="35"  width="200" height="40" rx="10" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/><text x="120" y="60" text-anchor="middle">Home — ring &amp; streaks</text>
+      <rect x="20" y="85"  width="200" height="40" rx="10" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/><text x="120" y="110" text-anchor="middle">Stats — 5 analytics tabs</text>
+      <rect x="20" y="135" width="200" height="40" rx="10" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/><text x="120" y="160" text-anchor="middle">Workout sessions</text>
+      <rect x="20" y="185" width="200" height="40" rx="10" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/><text x="120" y="210" text-anchor="middle">Community &amp; Friends</text>
+      <rect x="20" y="235" width="200" height="40" rx="10" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/><text x="120" y="260" text-anchor="middle">Challenges (3 tabs + wizard)</text>
+      <rect x="20" y="285" width="200" height="40" rx="10" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/><text x="120" y="310" text-anchor="middle">Profile &amp; Achievements</text>
+      <rect x="20" y="335" width="200" height="40" rx="10" fill="#fff" stroke="#F6B1B1" stroke-width="1.5"/><text x="120" y="360" text-anchor="middle">Notifications &amp; Sharing</text>
+    </g>
+
+    <!-- arrows -->
+    <g stroke="#E07A7A" stroke-width="1.8">
+      <line x1="220" y1="55"  x2="330" y2="75"  marker-end="url(#a3)"/>
+      <line x1="220" y1="105" x2="330" y2="105" marker-end="url(#a3)"/>
+      <line x1="220" y1="155" x2="330" y2="140" marker-end="url(#a3)"/>
+      <line x1="220" y1="205" x2="330" y2="205" marker-end="url(#a3)"/>
+      <line x1="220" y1="255" x2="330" y2="245" marker-end="url(#a3)"/>
+      <line x1="220" y1="305" x2="330" y2="290" marker-end="url(#a3)"/>
+      <line x1="220" y1="355" x2="330" y2="330" marker-end="url(#a3)"/>
+    </g>
+
+    <!-- middle column: API services -->
+    <text x="455" y="22" text-anchor="middle" font-size="11" font-weight="800" fill="#B3333333" letter-spacing="2">BACKEND SERVICE</text>
+    <g font-size="11" font-weight="600" fill="#333">
+      <rect x="335" y="58"  width="240" height="36" rx="10" fill="rgba(224,122,122,0.08)" stroke="#E07A7A"/><text x="455" y="81" text-anchor="middle">Step Sync API — per-user history</text>
+      <rect x="335" y="100" width="240" height="36" rx="10" fill="rgba(224,122,122,0.08)" stroke="#E07A7A"/><text x="455" y="123" text-anchor="middle">Analytics API — real 30-day trends</text>
+      <rect x="335" y="142" width="240" height="36" rx="10" fill="rgba(224,122,122,0.08)" stroke="#E07A7A"/><text x="455" y="165" text-anchor="middle">Workout API — routes &amp; PR detection</text>
+      <rect x="335" y="184" width="240" height="36" rx="10" fill="rgba(224,122,122,0.08)" stroke="#E07A7A"/><text x="455" y="207" text-anchor="middle">Social API — posts · likes · friends</text>
+      <rect x="335" y="226" width="240" height="36" rx="10" fill="rgba(224,122,122,0.08)" stroke="#E07A7A"/><text x="455" y="249" text-anchor="middle">Challenge engine — live leaderboards</text>
+      <rect x="335" y="268" width="240" height="36" rx="10" fill="rgba(224,122,122,0.08)" stroke="#E07A7A"/><text x="455" y="291" text-anchor="middle">Achievement engine — real badges</text>
+      <rect x="335" y="310" width="240" height="36" rx="10" fill="rgba(224,122,122,0.08)" stroke="#E07A7A"/><text x="455" y="333" text-anchor="middle">Push service — FCM / APNs</text>
+    </g>
+
+    <!-- right column: user value -->
+    <text x="810" y="22" text-anchor="middle" font-size="11" font-weight="800" fill="#B3333333" letter-spacing="2">WHAT THE USER GETS</text>
+    <g>
+      <line x1="575" y1="76"  x2="650" y2="76"  stroke="#55A56B" stroke-width="1.8" marker-end="url(#arrg2)"/>
+      <line x1="575" y1="118" x2="650" y2="118" stroke="#55A56B" stroke-width="1.8"/>
+      <line x1="575" y1="160" x2="650" y2="160" stroke="#55A56B" stroke-width="1.8"/>
+      <line x1="575" y1="202" x2="650" y2="202" stroke="#55A56B" stroke-width="1.8"/>
+      <line x1="575" y1="244" x2="650" y2="244" stroke="#55A56B" stroke-width="1.8"/>
+      <line x1="575" y1="286" x2="650" y2="286" stroke="#55A56B" stroke-width="1.8"/>
+      <line x1="575" y1="328" x2="650" y2="328" stroke="#55A56B" stroke-width="1.8"/>
+    </g>
+    <g font-size="10.5" fill="#555">
+      <rect x="655" y="58"  width="385" height="36" rx="10" fill="#fff" stroke="rgba(85,165,107,0.45)"/><text x="847" y="81" text-anchor="middle">Steps &amp; streaks safe forever — survives phone loss, syncs anywhere</text>
+      <rect x="655" y="100" width="385" height="36" rx="10" fill="#fff" stroke="rgba(85,165,107,0.45)"/><text x="847" y="123" text-anchor="middle">Genuine "vs last month" insights instead of invented numbers</text>
+      <rect x="655" y="142" width="385" height="36" rx="10" fill="#fff" stroke="rgba(85,165,107,0.45)"/><text x="847" y="165" text-anchor="middle">"New Record!" moments that are actually true</text>
+      <rect x="655" y="184" width="385" height="36" rx="10" fill="#fff" stroke="rgba(85,165,107,0.45)"/><text x="847" y="207" text-anchor="middle">A real community of UK women — the app's core promise</text>
+      <rect x="655" y="226" width="385" height="36" rx="10" fill="#fff" stroke="rgba(85,165,107,0.45)"/><text x="847" y="249" text-anchor="middle">Compete with real friends; private group challenges that work</text>
+      <rect x="655" y="268" width="385" height="36" rx="10" fill="#fff" stroke="rgba(85,165,107,0.45)"/><text x="847" y="291" text-anchor="middle">Earned badges &amp; milestones — the retention engine</text>
+      <rect x="655" y="310" width="385" height="36" rx="10" fill="#fff" stroke="rgba(85,165,107,0.45)"/><text x="847" y="333" text-anchor="middle">"Emma liked your post" arrives on the lock screen — brings users back</text>
+    </g>
+  </svg>
+
+  <div class="footer-line">Strolla Health · Backend Proposal</div>
+  <div class="pagenum">05</div>
+</div>
+
+<!-- ════════════════════ PAGE 6 — DELIVERY PLAN ════════════════════ -->
+<div class="page">
+  <div class="kicker">Delivery plan</div>
+  <h2>Three phases — each one <span class="accent">independently demo-able</span></h2>
+  <p class="sub">We never disappear for months. Every phase ends with a working build in your hands.</p>
+
+  <svg viewBox="0 0 1060 130" style="width:100%; height:36mm; margin-top:5mm;">
+    <line x1="30" y1="65" x2="1030" y2="65" stroke="#F6B1B1" stroke-width="3"/>
+    <g>
+      <circle cx="105" cy="65" r="13" fill="#E07A7A"/><text x="105" y="70" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">1</text>
+      <circle cx="450" cy="65" r="13" fill="#E07A7A"/><text x="450" y="70" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">2</text>
+      <circle cx="795" cy="65" r="13" fill="#E07A7A"/><text x="795" y="70" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">3</text>
+      <circle cx="1010" cy="65" r="10" fill="#55A56B"/><text x="1010" y="70" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">✓</text>
+    </g>
+    <text x="105" y="35" text-anchor="middle" font-size="12.5" font-weight="800" fill="#333">Foundation</text>
+    <text x="105" y="100" text-anchor="middle" font-size="10" fill="#777">Weeks 1–4</text>
+    <text x="450" y="35" text-anchor="middle" font-size="12.5" font-weight="800" fill="#333">Social Core</text>
+    <text x="450" y="100" text-anchor="middle" font-size="10" fill="#777">Weeks 5–8</text>
+    <text x="795" y="35" text-anchor="middle" font-size="12.5" font-weight="800" fill="#333">Engagement Engine</text>
+    <text x="795" y="100" text-anchor="middle" font-size="10" fill="#777">Weeks 9–12</text>
+    <text x="1010" y="35" text-anchor="middle" font-size="12.5" font-weight="800" fill="#55A56B">Launch-ready</text>
+  </svg>
+
+  <div class="cols" style="margin-top:4mm;">
+    <div class="col card">
+      <div style="font-size:13px; font-weight:800; color:#E07A7A; margin-bottom:2.5mm;">Phase 1 — Foundation</div>
+      <ul class="tick">
+        <li>Accounts: sign-up, login, password reset</li>
+        <li>Onboarding profile stored server-side</li>
+        <li>Step &amp; workout sync (offline-first queue)</li>
+        <li>Real weekly/monthly stats from real data</li>
+        <li>API documentation delivered</li>
+      </ul>
+      <div style="margin-top:3mm; font-size:10px; color:#B3333333;"><b>Demo:</b> log in on two phones — same data on both.</div>
+    </div>
+    <div class="col card">
+      <div style="font-size:13px; font-weight:800; color:#E07A7A; margin-bottom:2.5mm;">Phase 2 — Social Core</div>
+      <ul class="tick">
+        <li>Real community feed: posts, likes, comments</li>
+        <li>Friends: search, connect, block, report</li>
+        <li>Public profiles with privacy controls</li>
+        <li>Share-to-community goes live</li>
+        <li>Content moderation tools</li>
+      </ul>
+      <div style="margin-top:3mm; font-size:10px; color:#B3333333;"><b>Demo:</b> two real users interacting in the feed.</div>
+    </div>
+    <div class="col card">
+      <div style="font-size:13px; font-weight:800; color:#E07A7A; margin-bottom:2.5mm;">Phase 3 — Engagement</div>
+      <ul class="tick">
+        <li>Challenges: join, create, invite, live leaderboards</li>
+        <li>Achievement engine &amp; real PR detection</li>
+        <li>Push notifications (likes, goals, reminders)</li>
+        <li>Real notification inbox</li>
+        <li>Admin dashboard: users, content, metrics</li>
+      </ul>
+      <div style="margin-top:3mm; font-size:10px; color:#B3333333;"><b>Demo:</b> a live challenge between the whole team.</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:5mm; display:flex; align-items:center; gap:8mm; background:linear-gradient(135deg,#E07A7A,#EC9595); border:none;">
+    <div style="font-size:14px; font-weight:800; color:#fff; white-space:nowrap;">The bottom line</div>
+    <div style="font-size:11.5px; color:rgba(255,255,255,0.95); line-height:1.5;">
+      Strolla Health has a launch-quality frontend wrapped around placeholder data. A focused 12-week Python backend
+      turns every screen real, protects user data, and unlocks the community features the entire product is designed around.
+      <b>Without it, the app cannot honestly go to market.</b>
+    </div>
+  </div>
+
+  <div class="footer-line">Strolla Health · Backend Proposal · MachaDev</div>
+  <div class="pagenum">06</div>
+</div>
+
+</body>
+</html>

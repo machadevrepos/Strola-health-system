@@ -1,0 +1,60 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#FFFFFF",
+    "primaryTextColor": "#333333",
+    "primaryBorderColor": "#E07A7A",
+    "lineColor": "#E07A7A",
+    "secondaryColor": "#F6B1B1",
+    "secondaryTextColor": "#333333",
+    "secondaryBorderColor": "#E07A7A",
+    "tertiaryColor": "#FFF2F2",
+    "tertiaryTextColor": "#333333",
+    "tertiaryBorderColor": "#F6B1B1",
+    "background": "#FFFFFF",
+    "mainBkg": "#FFFFFF",
+    "nodeBorder": "#E07A7A",
+    "clusterBkg": "#FFF9F9",
+    "clusterBorder": "#E07A7A",
+    "titleColor": "#333333",
+    "edgeLabelBackground": "#FFFFFF",
+    "fontFamily": "Segoe UI, Helvetica, Arial, sans-serif",
+    "fontSize": "17px"
+  },
+  "flowchart": { "curve": "linear", "htmlLabels": true, "nodeSpacing": 60, "rankSpacing": 110 }
+}}%%
+flowchart LR
+  User(["Strolla User"])
+
+  subgraph OWNED["Owned 100% by Strolla Health Inc.  ·  full source code on GitHub, Strolla Health Inc. org"]
+    App["Flutter App<br/>iOS &amp; Android"]
+    Admin["Admin Dashboard"]
+    Backend["FastAPI Backend"]
+    DB[("PostgreSQL Database")]
+  end
+
+  subgraph EXT["Connected Services — under Strolla's own accounts"]
+    RC["RevenueCat<br/>Subscriptions"]
+    Health["Health Platforms<br/>Apple Health · Google Fit<br/>Samsung Health · Strava · Oura"]
+    Push["Push Notifications<br/>delivered to phone"]
+    Stores["App Store /<br/>Google Play"]
+  end
+
+  User --> App
+  App --> Backend
+  Admin --> Backend
+  Backend --> DB
+  Backend --> RC
+  Backend --> Push
+  App -- syncs steps --> Health
+  App --> Stores
+
+  classDef owned fill:#FFFFFF,stroke:#E07A7A,stroke-width:2px,color:#333333,font-weight:600
+  classDef ext fill:#FFF2F2,stroke:#F6B1B1,stroke-width:1.5px,color:#333333
+  classDef user fill:#E9B44C,stroke:#E9B44C,color:#FFFFFF,font-weight:700
+  classDef db fill:#FFFFFF,stroke:#55A56B,stroke-width:2px,color:#333333,font-weight:600
+
+  class App,Backend,Admin owned
+  class DB db
+  class RC,Health,Push,Stores ext
+  class User user

@@ -1,0 +1,56 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#FFFFFF",
+    "primaryTextColor": "#333333",
+    "primaryBorderColor": "#E07A7A",
+    "lineColor": "#E07A7A",
+    "secondaryColor": "#F6B1B1",
+    "secondaryTextColor": "#333333",
+    "secondaryBorderColor": "#E07A7A",
+    "tertiaryColor": "#FFF2F2",
+    "tertiaryTextColor": "#333333",
+    "tertiaryBorderColor": "#F6B1B1",
+    "background": "#FFFFFF",
+    "mainBkg": "#FFFFFF",
+    "nodeBorder": "#E07A7A",
+    "clusterBkg": "#FFF9F9",
+    "clusterBorder": "#E07A7A",
+    "titleColor": "#333333",
+    "edgeLabelBackground": "#FFFFFF",
+    "fontFamily": "Segoe UI, Helvetica, Arial, sans-serif",
+    "fontSize": "17px"
+  },
+  "flowchart": { "curve": "basis", "htmlLabels": true, "nodeSpacing": 50, "rankSpacing": 90 }
+}}%%
+flowchart LR
+  subgraph SOURCES["Possible Step Sources"]
+    direction TB
+    S1["Strolla Tracker<br/>Bluetooth"]
+    S2["Phone's Built-in<br/>Step Sensor"]
+    S3["Health Platforms<br/>Apple Health · Google Fit<br/>Samsung Health · Strava · Oura"]
+  end
+
+  Priority{{"Strolla Priority Logic<br/>1. Strolla Tracker, if connected<br/>2. Connected Health Platform<br/>3. Phone Sensor, as fallback"}}
+
+  Output["Today's<br/>Step Count<br/>not duplicated"]
+
+  Distance["Distance<br/>Stride length by default,<br/>GPS during a tracked outdoor walk/run"]
+  Calories["Calories<br/>Estimated from steps + weight —<br/>always labeled 'Estimated'"]
+
+  S1 --> Priority
+  S2 --> Priority
+  S3 --> Priority
+  Priority --> Output
+  Output --> Distance
+  Output --> Calories
+
+  classDef source fill:#FFF2F2,stroke:#F6B1B1,stroke-width:1.5px,color:#333333
+  classDef priority fill:#E9B44C,stroke:#E9B44C,color:#FFFFFF,font-weight:700
+  classDef output fill:#55A56B,stroke:#55A56B,color:#FFFFFF
+  classDef note fill:#FFFFFF,stroke:#E07A7A,stroke-width:1.5px,color:#333333
+
+  class S1,S2,S3 source
+  class Priority priority
+  class Output output
+  class Distance,Calories note

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    AppWidget metadata for the Strolla home-screen widget.
+    minWidth/Height → minimum widget size when first placed.
+    targetCellWidth/Height → ideal grid cells (3 wide × 2 tall).
+    updatePeriodMillis → Android clamps to 30 min min; real updates come
+    from HomeWidget.updateWidget() called by the Flutter app.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/strolla_widget"
+    android:widgetCategory="home_screen"
+    android:resizeMode="horizontal|vertical"
+    android:description="@string/strolla_widget_description" />
