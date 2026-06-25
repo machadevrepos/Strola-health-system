@@ -4,7 +4,9 @@ import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
+import 'package:strola_health/presentation/screens/challenge_of_the_month_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/header_actions.dart';
 
@@ -16,10 +18,13 @@ class ChallengesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // When shown as a shell tab (nothing to pop), keep the FAB and the list
-    // clear of the bottom nav bar that MainShell draws over the body.
+    // When shown as a shell tab (nothing to pop), keep the FAB clear of the
+    // bottom nav bar MainShell draws over the body — just enough to clear
+    // navBarHeight (64) plus a typical safe-area inset, not the generous
+    // 120 Home/Community use at the very end of a long scroll (here it sat
+    // at the top of mostly-empty space instead, pushing the FAB up high).
     final isTab = !Navigator.of(context).canPop();
-    final navClearance = isTab ? AppTheme.navBarHeight + AppTheme.spaceM : 0.0;
+    final navClearance = isTab ? 84.0 : 0.0;
 
     return Container(
       decoration: const BoxDecoration(gradient: AppColors.bgGradient),
@@ -72,6 +77,7 @@ class ChallengesScreen extends StatelessWidget {
           child: Builder(
             builder: (context) =>
                 FloatingActionButton(
+                      mini: true,
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const CreateChallengeScreen(),
@@ -83,7 +89,7 @@ class ChallengesScreen extends StatelessWidget {
                       child: const Icon(
                         AppIcons.add,
                         color: Colors.white,
-                        size: AppTheme.iconXXL,
+                        size: AppTheme.iconL,
                       ),
                     )
                     .animate()
@@ -227,11 +233,16 @@ class _PublicChallengesTab extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
       children: [
-        const _ChallengeOfTheMonthCard()
-            .animate()
-            .fadeIn(delay: 60.ms)
-            .slideY(begin: 0.06),
-        const SizedBox(height: 20),
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ChallengeOfTheMonthScreen(),
+            ),
+          ),
+          child: const _ChallengeOfTheMonthCard(),
+        ).animate().fadeIn(delay: 60.ms).slideY(begin: 0.06),
+        const SizedBox(height: 15), // sectionGap (14) + 10%
 
         // Last Month's Winners
         Row(
@@ -256,32 +267,34 @@ class _PublicChallengesTab extends StatelessWidget {
             letterSpacing: 0,
           ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Expanded(
-              child: _WinnerCard(
-                icon: AppIcons.steps,
-                title: 'Most Steps',
-                subtitle: 'Total steps in the challenge',
-                name: 'Sarah J.',
-                value: '284,932',
-                valueLabel: 'steps',
+        const SizedBox(height: 9), // spaceS (8) + 10%
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: const [
+              Expanded(
+                child: _WinnerCard(
+                  icon: AppIcons.steps,
+                  title: 'Most Steps',
+                  subtitle: 'Total steps in the challenge',
+                  name: 'Sarah J.',
+                  value: '284,932',
+                  valueLabel: 'steps',
+                ),
               ),
-            ),
-            SizedBox(width: 10),
-            Expanded(
-              child: _WinnerCard(
-                icon: AppIcons.target,
-                title: 'Highest Goal Completion',
-                subtitle: 'Highest average % of daily goal',
-                name: 'Emily R.',
-                value: '132%',
-                valueLabel: 'of goal',
+              SizedBox(width: 10),
+              Expanded(
+                child: _WinnerCard(
+                  icon: AppIcons.target,
+                  title: 'Highest Goal Completion',
+                  subtitle: 'Highest average % of daily goal',
+                  name: 'Emily R.',
+                  value: '132%',
+                  valueLabel: 'of goal',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ).animate().fadeIn(delay: 150.ms).slideY(begin: 0.06),
 
         const SizedBox(height: 14),
@@ -302,7 +315,7 @@ class _PublicChallengesTab extends StatelessWidget {
                   color: AppColors.accent.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(AppIcons.premium, color: AppColors.accent, size: AppTheme.iconM),
+                child: const Icon(AppIcons.trophy, color: AppColors.accent, size: AppTheme.iconM),
               ),
               const SizedBox(width: AppTheme.spaceM),
               Expanded(
@@ -342,165 +355,187 @@ class _ChallengeOfTheMonthCardState extends State<_ChallengeOfTheMonthCard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.bgDeep,
-            AppColors.accentSecondary.withValues(alpha: 0.35),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: AppColors.accentSecondary.withValues(alpha: 0.30),
         ),
+        boxShadow: AppTheme.cardShadow,
       ),
-      child: Stack(
-        children: [
-          const Positioned(
-            top: -6,
-            right: -6,
-            child: _ChallengePathIllustration(),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          children: [
+            // Pink hero zone — title, date, description + image placeholder.
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(18, 15, 18, 13),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.bgDeep,
+                    AppColors.accentSecondary.withValues(alpha: 0.35),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(AppIcons.trophy, color: AppColors.accent, size: 13),
-                    const SizedBox(width: AppTheme.spaceXS),
-                    Text(
-                      'Challenge of the Month',
-                      style: AppTypography.labelS.copyWith(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(AppIcons.trophy, color: AppColors.accent, size: 13),
+                              const SizedBox(width: AppTheme.spaceXS),
+                              Text(
+                                'Challenge of the Month',
+                                style: AppTypography.labelS.copyWith(
+                                  color: AppColors.accent,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 11),
+                        Text(
+                          'May Walking Challenge',
+                          style: AppTypography.titleL.copyWith(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.4,
+                            height: 1.15,
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        Row(
+                          children: [
+                            const Icon(AppIcons.calendar, color: AppColors.textMuted, size: 12),
+                            const SizedBox(width: 5),
+                            Text(
+                              'May 1 – May 31',
+                              style: AppTypography.labelM.copyWith(
+                                fontWeight: FontWeight.w400,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 9),
+                        Text(
+                          'Step more, move together, and finish May stronger '
+                          'than you started!',
+                          style: AppTypography.bodyS.copyWith(
+                            color: AppColors.textSecondary,
+                            letterSpacing: 0,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.spaceS),
+                  const _ChallengePathIllustration(),
+                ],
+              ),
+            ),
+
+            // White stats + CTA zone.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 13, 18, 15),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: _ChallengeStat(
+                          icon: AppIcons.groups,
+                          value: '1,248',
+                          label: 'Participants',
+                        ),
+                      ),
+                      const SizedBox(width: AppTheme.spaceM),
+                      Container(
+                        width: 1,
+                        height: 35,
+                        color: AppColors.accentSecondary.withValues(alpha: 0.25),
+                      ),
+                      const SizedBox(width: AppTheme.spaceM),
+                      const Expanded(
+                        child: _ChallengeStat(
+                          icon: AppIcons.star,
+                          value: '12 days left',
+                          label: 'to join and participate',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 13),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        HapticsHelper.lightImpact();
+                        setState(() => _joined = !_joined);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _joined
+                            ? AppColors.success
+                            : AppColors.accent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_joined) ...[
+                            const Icon(AppIcons.goalReached, color: Colors.white, size: AppTheme.iconS),
+                            const SizedBox(width: AppTheme.spaceS),
+                          ],
+                          Text(
+                            _joined ? 'Joined' : 'Join Challenge',
+                            style: AppTypography.bodyL.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.only(right: 64),
-                child: Text(
-                  'May Walking Challenge',
-                  style: AppTypography.titleL.copyWith(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.4,
-                    height: 1.15,
                   ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(AppIcons.calendar, color: AppColors.textMuted, size: 12),
-                  const SizedBox(width: 5),
+                  const SizedBox(height: 9),
                   Text(
-                    'May 1 – May 31',
-                    style: AppTypography.labelM.copyWith(
+                    'Join anytime! Your progress will count from the day you join.',
+                    textAlign: TextAlign.center,
+                    style: AppTypography.labelS.copyWith(
                       fontWeight: FontWeight.w400,
                       letterSpacing: 0,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Text(
-                  'Step more, move together, and finish May stronger than '
-                  'you started!',
-                  style: AppTypography.bodyS.copyWith(
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Row(
-                children: [
-                  Expanded(
-                    child: _ChallengeStat(
-                      icon: AppIcons.groups,
-                      value: '1,248',
-                      label: 'Participants',
-                    ),
-                  ),
-                  SizedBox(width: AppTheme.spaceM),
-                  Expanded(
-                    child: _ChallengeStat(
-                      icon: AppIcons.star,
-                      value: '12 days left',
-                      label: 'to join and participate',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    HapticsHelper.lightImpact();
-                    setState(() => _joined = !_joined);
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _joined
-                        ? AppColors.success
-                        : AppColors.accent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (_joined) ...[
-                        const Icon(AppIcons.goalReached, color: Colors.white, size: AppTheme.iconS),
-                        const SizedBox(width: AppTheme.spaceS),
-                      ],
-                      Text(
-                        _joined ? 'Joined' : 'Join Challenge',
-                        style: AppTypography.bodyL.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppTheme.spaceS),
-              Text(
-                'Join anytime! Your progress will count from the day you join.',
-                textAlign: TextAlign.center,
-                style: AppTypography.labelS.copyWith(
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 0,
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -540,7 +575,7 @@ class _ChallengeStat extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.bodyM.copyWith(
-                  color: AppColors.textPrimary,
+                  color: AppColors.accent,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
                 ),
@@ -563,46 +598,29 @@ class _ChallengeStat extends StatelessWidget {
   }
 }
 
-/// Decorative "walking path" motif (placeholder for a real illustration asset).
+/// Placeholder for the real "May Walking Challenge" illustration asset —
+/// swap the Icon for an Image.asset(...) once the art is ready.
 class _ChallengePathIllustration extends StatelessWidget {
   const _ChallengePathIllustration();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 90,
-      height: 90,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            top: 6,
-            right: 14,
-            child: Icon(
-              AppIcons.sun,
-              color: AppColors.goalAmber.withValues(alpha: 0.45),
-              size: 30,
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Icon(
-              AppIcons.park,
-              color: AppColors.accent.withValues(alpha: 0.30),
-              size: 50,
-            ),
-          ),
-          Positioned(
-            bottom: 6,
-            left: 0,
-            child: Icon(
-              AppIcons.flora,
-              color: AppColors.accentSecondary.withValues(alpha: 0.55),
-              size: 26,
-            ),
-          ),
-        ],
+    return Container(
+      width: 97,
+      height: 132,
+      decoration: BoxDecoration(
+        color: AppColors.accentSecondary.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(AppTheme.radiusL),
+        border: Border.all(
+          color: AppColors.accentSecondary.withValues(alpha: 0.5),
+        ),
+      ),
+      child: const Center(
+        child: Icon(
+          AppIcons.image,
+          color: AppColors.accent,
+          size: AppTheme.iconXL,
+        ),
       ),
     );
   }
@@ -629,18 +647,24 @@ class _WinnerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FlatCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 13,
+        vertical: 13,
+      ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 35,
+            height: 35,
             decoration: BoxDecoration(
               color: AppColors.accentSecondary.withValues(alpha: 0.20),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: AppColors.accent, size: 18),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 7),
           Text(
             title,
             textAlign: TextAlign.center,
@@ -661,13 +685,13 @@ class _WinnerCard extends StatelessWidget {
               height: 1.3,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 9),
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
                   color: AppColors.accentSecondary.withValues(alpha: 0.25),
                   shape: BoxShape.circle,
@@ -706,7 +730,7 @@ class _WinnerCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             name,
             style: AppTypography.labelM.copyWith(
@@ -715,7 +739,7 @@ class _WinnerCard extends StatelessWidget {
               letterSpacing: 0,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             value,
             style: AppTypography.titleM.copyWith(
@@ -1233,55 +1257,47 @@ class _MemberAvatars extends StatelessWidget {
 class _CompletedChallengesTab extends StatelessWidget {
   const _CompletedChallengesTab();
 
-  // (name, subtitle, dateRange, rank, icon, color)
-  static const _challenges = <(String, String, String, int, IconData, Color)>[
+  // (name, dateRange, rank, totalParticipants, totalSteps, color)
+  static const _challenges = <(String, String, int, int, int, Color)>[
+    (
+      'Spring Step Showdown',
+      'Apr 1 – Apr 14, 2024',
+      1,
+      12,
+      128543,
+      AppColors.goalAmber,
+    ),
     (
       '10K Steps a Day',
-      '7-day step challenge',
-      'Apr 29 – May 5, 2024',
-      1,
-      AppIcons.steps,
-      AppColors.error,
-    ),
-    (
-      'Run 20K This Week',
-      '7-day running challenge',
-      'Apr 22 – Apr 28, 2024',
+      'Mar 10 – Mar 23, 2024',
       2,
-      AppIcons.run,
-      AppColors.accentSecondary,
+      20,
+      157832,
+      Color(0xFF0891B2),
     ),
     (
-      '14 Day Streak',
-      'Streak challenge',
-      'Apr 10 – Apr 23, 2024',
+      'March Madness Steps',
+      'Feb 25 – Mar 9, 2024',
       3,
-      AppIcons.streak,
-      AppColors.accent,
+      15,
+      101245,
+      Color(0xFFD97706),
     ),
     (
-      'April Step Challenge',
-      'Monthly step challenge',
-      'Apr 1 – Apr 30, 2024',
-      1,
-      AppIcons.steps,
+      "Valentine's Step Challenge",
+      'Feb 1 – Feb 14, 2024',
+      4,
+      18,
+      88731,
       AppColors.success,
     ),
     (
-      'Active Hour Challenge',
-      '14-day active time challenge',
-      'Mar 15 – Mar 28, 2024',
-      2,
-      AppIcons.duration,
-      AppColors.accent,
-    ),
-    (
-      'Workout Warrior',
-      '7-day workout challenge',
-      'Mar 5 – Mar 11, 2024',
-      3,
-      AppIcons.treadmill,
-      AppColors.error,
+      'New Year, New Steps',
+      'Jan 1 – Jan 14, 2024',
+      1,
+      10,
+      112894,
+      Color(0xFF7C3AED),
     ),
   ];
 
@@ -1291,7 +1307,7 @@ class _CompletedChallengesTab extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
       children: [
-        const _CompletedBanner()
+        _CompletedBanner(completedCount: _challenges.length)
             .animate()
             .fadeIn(delay: 60.ms)
             .slideY(begin: 0.06),
@@ -1326,10 +1342,10 @@ class _CompletedChallengesTab extends StatelessWidget {
             child:
                 _CompletedChallengeCard(
                       name: e.value.$1,
-                      subtitle: e.value.$2,
-                      dateRange: e.value.$3,
-                      rank: e.value.$4,
-                      icon: e.value.$5,
+                      dateRange: e.value.$2,
+                      rank: e.value.$3,
+                      totalParticipants: e.value.$4,
+                      totalSteps: e.value.$5,
                       color: e.value.$6,
                     )
                     .animate(delay: Duration(milliseconds: 80 + e.key * 50))
@@ -1415,7 +1431,9 @@ class _CompletedChallengesTab extends StatelessWidget {
 }
 
 class _CompletedBanner extends StatelessWidget {
-  const _CompletedBanner();
+  const _CompletedBanner({required this.completedCount});
+
+  final int completedCount;
 
   @override
   Widget build(BuildContext context) {
@@ -1423,73 +1441,38 @@ class _CompletedBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.bgDeep,
-            AppColors.accentSecondary.withValues(alpha: 0.30),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.success.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.accentSecondary.withValues(alpha: 0.30),
-        ),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.20)),
       ),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const _CompletedTrophy(),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Great job!',
-                      style: AppTypography.titleM.copyWith(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.4,
-                      ),
-                    ),
-                    const SizedBox(height: AppTheme.spaceXS),
-                    Text(
-                      'Celebrate your achievements and keep up the amazing work.',
-                      style: AppTypography.labelM.copyWith(
-                        height: 1.4,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
+          const _CompletedTrophyBadge(),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Great job!',
+                  style: AppTypography.titleM.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Row(
-            children: [
-              _CompletedStat(
-                icon: AppIcons.friends,
-                color: AppColors.accent,
-                value: '23',
-                label: 'Challenges\nCompleted',
-              ),
-              _CompletedStat(
-                icon: AppIcons.trophy,
-                color: AppColors.goalAmber,
-                value: '12',
-                label: 'First Place\nFinishes',
-              ),
-              _CompletedStat(
-                icon: AppIcons.premium,
-                color: AppColors.accent,
-                value: '8',
-                label: 'Top 3\nFinishes',
-              ),
-            ],
+                const SizedBox(height: AppTheme.spaceXS),
+                Text(
+                  'You completed $completedCount challenges. Keep it up '
+                  'and crush your next goal!',
+                  style: AppTypography.labelM.copyWith(
+                    height: 1.4,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1497,116 +1480,48 @@ class _CompletedBanner extends StatelessWidget {
   }
 }
 
-/// Celebratory gold-trophy emblem with sparkles (placeholder for a real asset).
-class _CompletedTrophy extends StatelessWidget {
-  const _CompletedTrophy();
+/// White circle + trophy, with a small green check badge — matches the
+/// simple "Great job!" banner emblem (no sparkles/laurels here).
+class _CompletedTrophyBadge extends StatelessWidget {
+  const _CompletedTrophyBadge();
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 84,
-      height: 84,
+      width: 56,
+      height: 56,
       child: Stack(
-        alignment: Alignment.center,
+        clipBehavior: Clip.none,
         children: [
-          // Glow
           Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: Colors.white,
               shape: BoxShape.circle,
-              color: AppColors.goalAmber.withValues(alpha: 0.12),
+            ),
+            child: const Icon(
+              AppIcons.trophy,
+              color: AppColors.success,
+              size: 28,
             ),
           ),
-          // Laurel hint (two faded leaves)
           Positioned(
-            left: 4,
-            child: Transform.rotate(
-              angle: 0.5,
-              child: Icon(
-                AppIcons.ecology,
-                color: AppColors.goalAmber.withValues(alpha: 0.45),
-                size: 30,
+            bottom: -2,
+            right: -2,
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: AppColors.success,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
               ),
-            ),
-          ),
-          Positioned(
-            right: 4,
-            child: Transform.rotate(
-              angle: -0.5,
-              child: Transform.flip(
-                flipX: true,
-                child: Icon(
-                  AppIcons.ecology,
-                  color: AppColors.goalAmber.withValues(alpha: 0.45),
-                  size: 30,
-                ),
+              child: const Icon(
+                AppIcons.check,
+                color: Colors.white,
+                size: 12,
               ),
-            ),
-          ),
-          const Icon(AppIcons.trophy, color: AppColors.goalAmber, size: 52),
-          // Sparkles
-          const Positioned(
-            top: 6,
-            right: 14,
-            child: Icon(AppIcons.sparkle, color: AppColors.goalAmber, size: 14),
-          ),
-          Positioned(
-            bottom: 14,
-            left: 10,
-            child: Icon(
-              AppIcons.sparkle,
-              color: AppColors.goalAmber.withValues(alpha: 0.7),
-              size: 10,
-            ),
-          ),
-          const Positioned(
-            top: 18,
-            left: 16,
-            child: Icon(AppIcons.star, color: AppColors.goalAmber, size: 9),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CompletedStat extends StatelessWidget {
-  const _CompletedStat({
-    required this.icon,
-    required this.color,
-    required this.value,
-    required this.label,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: AppTheme.iconS),
-          const SizedBox(height: AppTheme.spaceXS),
-          Text(
-            value,
-            style: AppTypography.titleM.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-          ),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: AppTypography.labelS.copyWith(
-              fontSize: 9,
-              fontWeight: FontWeight.w400,
-              letterSpacing: 0,
-              height: 1.2,
             ),
           ),
         ],
@@ -1618,49 +1533,33 @@ class _CompletedStat extends StatelessWidget {
 class _CompletedChallengeCard extends StatelessWidget {
   const _CompletedChallengeCard({
     required this.name,
-    required this.subtitle,
     required this.dateRange,
     required this.rank,
-    required this.icon,
+    required this.totalParticipants,
+    required this.totalSteps,
     required this.color,
   });
 
   final String name;
-  final String subtitle;
   final String dateRange;
   final int rank;
-  final IconData icon;
+  final int totalParticipants;
+  final int totalSteps;
   final Color color;
-
-  static const _rankColors = {
-    1: AppColors.goalAmber,
-    2: AppColors.textMuted,
-    3: AppColors.goalAmber,
-  };
-
-  String get _rankLabel => switch (rank) {
-    1 => '1st',
-    2 => '2nd',
-    _ => '3rd',
-  };
 
   @override
   Widget build(BuildContext context) {
-    final rankColor = _rankColors[rank] ?? AppColors.textMuted;
     return FlatCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(AppTheme.spaceM),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 22),
+          _RankBadge(
+            rank: rank,
+            totalParticipants: totalParticipants,
+            color: color,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppTheme.spaceM),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1677,9 +1576,7 @@ class _CompletedChallengeCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  'Step challenge',
                   style: AppTypography.labelS.copyWith(
                     fontWeight: FontWeight.w400,
                     letterSpacing: 0,
@@ -1709,52 +1606,108 @@ class _CompletedChallengeCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppTheme.spaceXS),
-                Row(
-                  children: [
-                    const Icon(
-                      AppIcons.goalReached,
-                      color: AppColors.success,
-                      size: 12,
-                    ),
-                    const SizedBox(width: AppTheme.spaceXS),
-                    Text(
-                      'You finished',
-                      style: AppTypography.labelS.copyWith(
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spaceS,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        AppIcons.goalReached,
                         color: AppColors.success,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
+                        size: 11,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 3),
+                      Text(
+                        'Completed',
+                        style: AppTypography.labelS.copyWith(
+                          color: AppColors.success,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          const _MemberAvatars(extra: 0),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppTheme.spaceS),
           Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Icon(AppIcons.trophy, color: rankColor, size: AppTheme.iconM),
-              const SizedBox(height: 1),
               Text(
-                _rankLabel,
-                style: AppTypography.labelS.copyWith(
-                  color: rankColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
+                Formatters.stepCount(totalSteps),
+                style: AppTypography.titleS.copyWith(fontWeight: FontWeight.w800),
+              ),
+              Text('Total Steps', style: AppTypography.labelS.copyWith(fontSize: 9)),
+              const SizedBox(height: AppTheme.spaceXS),
+              const Icon(
+                AppIcons.chevronRight,
+                color: AppColors.textMuted,
+                size: AppTheme.iconS,
               ),
             ],
           ),
-          const SizedBox(width: AppTheme.spaceXS),
-          const Icon(
-            AppIcons.chevronRight,
-            color: AppColors.textMuted,
-            size: AppTheme.iconS,
+        ],
+      ),
+    );
+  }
+}
+
+class _RankBadge extends StatelessWidget {
+  const _RankBadge({
+    required this.rank,
+    required this.totalParticipants,
+    required this.color,
+  });
+
+  final int rank;
+  final int totalParticipants;
+  final Color color;
+
+  String get _ordinal => switch (rank) {
+    1 => '1st',
+    2 => '2nd',
+    3 => '3rd',
+    _ => '${rank}th',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(AppIcons.trophy, color: Colors.white, size: AppTheme.iconS),
+          const SizedBox(height: 2),
+          Text(
+            _ordinal,
+            style: AppTypography.titleS.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            'of $totalParticipants',
+            style: AppTypography.labelS.copyWith(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 9,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -1763,7 +1716,7 @@ class _CompletedChallengeCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CREATE CHALLENGE WIZARD
+// CREATE CHALLENGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class CreateChallengeScreen extends StatefulWidget {
@@ -1774,31 +1727,13 @@ class CreateChallengeScreen extends StatefulWidget {
 }
 
 class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
-  int _step = 0;
+  static const _durationLabels = ['7 Days', '14 Days', '30 Days', 'Custom'];
+
   String _name = '';
-  int _typeIndex = 0;
-  String _goal = '10,000';
-  DateTime _startDate = DateTime.now();
-  DateTime _endDate = DateTime.now().add(const Duration(days: 7));
-
-  static const _types = <(IconData, String, Color)>[
-    (AppIcons.steps, 'Steps', AppColors.success),
-    (AppIcons.location, 'Distance', AppColors.accent),
-    (AppIcons.duration, 'Active Time', AppColors.accent),
-    (AppIcons.treadmill, 'Workouts', AppColors.error),
-    (AppIcons.calories, 'Calories', AppColors.accent),
-  ];
-
-  static const _iconOptions = <(IconData, Color)>[
-    (AppIcons.trophy, AppColors.error),
-    (AppIcons.steps, AppColors.success),
-    (AppIcons.target, AppColors.accent),
-    (AppIcons.goal, AppColors.accent),
-    (AppIcons.star, AppColors.goalAmber),
-    (AppIcons.celebration, AppColors.accent),
-  ];
-
-  int _selectedIcon = 0;
+  int _durationIndex = 0;
+  DateTime? _startDate;
+  DateTime? _customEndDate;
+  int? _winnerMethod;
 
   @override
   Widget build(BuildContext context) {
@@ -1807,175 +1742,284 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () {
-                      if (_step > 0) {
-                        setState(() => _step--);
-                      } else {
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Icon(AppIcons.back, color: AppColors.textPrimary),
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(
+                      AppIcons.back,
+                      color: AppColors.accent,
+                      size: AppTheme.iconM,
+                    ),
                   ),
                   Expanded(
                     child: Text(
-                      'Create New Challenge',
-                      style: AppTypography.titleM.copyWith(letterSpacing: -0.3),
+                      'Create Challenge',
+                      style: AppTypography.titleL.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(width: 24),
+                  const SizedBox(width: AppTheme.iconM),
                 ],
               ),
             ),
-
-            const SizedBox(height: 16),
-
-            // Step indicator
+            const SizedBox(height: 4),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 60),
-              child: Row(
-                children: List.generate(3, (i) {
-                  final isActive = i == _step;
-                  final isDone = i < _step;
-                  return Expanded(
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isActive || isDone
-                                ? AppColors.accent
-                                : AppColors.accentSecondary.withValues(
-                                    alpha: 0.2,
-                                  ),
-                            border: Border.all(
-                              color: isActive || isDone
-                                  ? AppColors.accent
-                                  : AppColors.accentSecondary.withValues(
-                                      alpha: 0.4,
-                                    ),
-                            ),
-                          ),
-                          child: Center(
-                            child: isDone
-                                ? const Icon(AppIcons.check, color: Colors.white, size: 14)
-                                : Text(
-                                    '${i + 1}',
-                                    style: AppTypography.labelM.copyWith(
-                                      color: isActive ? Colors.white : AppColors.textMuted,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        if (i < 2) ...[
-                          Expanded(
-                            child: Container(
-                              height: 2,
-                              color: isDone
-                                  ? AppColors.accent
-                                  : AppColors.accentSecondary.withValues(
-                                      alpha: 0.2,
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                }),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Set up your challenge and invite friends to join!',
+                textAlign: TextAlign.center,
+                style: AppTypography.bodyS.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
-
-            const SizedBox(height: 6),
-
-            // Step labels
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Challenge Info',
-                    style: AppTypography.labelS.copyWith(
-                      color: AppColors.accent,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  Text(
-                    'Settings',
-                    style: AppTypography.labelS.copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  Text(
-                    'Invite',
-                    style: AppTypography.labelS.copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
+            const SizedBox(height: AppTheme.spaceL),
 
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                child: _step == 0
-                    ? _buildStep1()
-                    : _step == 1
-                    ? _buildStep2()
-                    : _buildStep3(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _SectionLabel('Challenge Name'),
+                    const SizedBox(height: AppTheme.spaceS),
+                    TextField(
+                      maxLength: 40,
+                      onChanged: (v) => setState(() => _name = v),
+                      decoration: InputDecoration(
+                        counterText: '',
+                        prefixIcon: const Icon(
+                          AppIcons.trophy,
+                          color: AppColors.accent,
+                          size: AppTheme.iconS,
+                        ),
+                        hintText: 'e.g., Weekend Warriors',
+                        hintStyle: AppTypography.bodyM.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.bgSurface,
+                        border: _fieldBorder(),
+                        enabledBorder: _fieldBorder(),
+                        focusedBorder: _fieldBorder(focused: true),
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.only(right: AppTheme.spaceM),
+                          child: Align(
+                            widthFactor: 1,
+                            child: Text(
+                              '${_name.length}/40',
+                              style: AppTypography.labelS,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: AppTheme.spaceXL),
+                    const _SectionLabel('Duration'),
+                    const SizedBox(height: 2),
+                    Text(
+                      'How long will the challenge last?',
+                      style: AppTypography.bodyS.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spaceM),
+                    Row(
+                      children: [
+                        for (var i = 0; i < _durationLabels.length; i++) ...[
+                          if (i > 0) const SizedBox(width: AppTheme.spaceS),
+                          Expanded(
+                            child: _DurationChip(
+                              label: _durationLabels[i],
+                              selected: _durationIndex == i,
+                              onTap: () {
+                                HapticsHelper.selection();
+                                setState(() => _durationIndex = i);
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+
+                    const SizedBox(height: AppTheme.spaceXL),
+                    const _SectionLabel('Start Date'),
+                    const SizedBox(height: 2),
+                    Text(
+                      'When will the challenge begin?',
+                      style: AppTypography.bodyS.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spaceM),
+                    _DateField(
+                      label: _startDate == null
+                          ? 'Select start date'
+                          : _formatDate(_startDate!),
+                      filled: _startDate != null,
+                      onTap: () => _pickStartDate(context),
+                    ),
+
+                    if (_durationIndex == 3) ...[
+                      const SizedBox(height: AppTheme.spaceL),
+                      const _SectionLabel('End Date'),
+                      const SizedBox(height: AppTheme.spaceS),
+                      _DateField(
+                        label: _customEndDate == null
+                            ? 'Select end date'
+                            : _formatDate(_customEndDate!),
+                        filled: _customEndDate != null,
+                        onTap: () => _pickCustomEndDate(context),
+                      ),
+                    ],
+
+                    const SizedBox(height: AppTheme.spaceXL),
+                    const _SectionLabel('Winner Determination'),
+                    const SizedBox(height: 2),
+                    Text(
+                      'How should the winner be determined?',
+                      style: AppTypography.bodyS.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spaceM),
+                    FlatCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          _WinnerMethodOption(
+                            icon: AppIcons.steps,
+                            title: 'Most Steps',
+                            description:
+                                'Participant with the highest total steps during the challenge.',
+                            selected: _winnerMethod == 0,
+                            onTap: () {
+                              HapticsHelper.selection();
+                              setState(() => _winnerMethod = 0);
+                            },
+                          ),
+                          Container(
+                            height: 1,
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.spaceL,
+                            ),
+                            color: AppColors.accentSecondary.withValues(
+                              alpha: 0.15,
+                            ),
+                          ),
+                          _WinnerMethodOption(
+                            icon: AppIcons.target,
+                            title: 'Highest Goal Completion %',
+                            description:
+                                'Participant with the highest average daily goal '
+                                'completion percentage during the challenge.',
+                            selected: _winnerMethod == 1,
+                            onTap: () {
+                              HapticsHelper.selection();
+                              setState(() => _winnerMethod = 1);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spaceM),
+                    Container(
+                      padding: const EdgeInsets.all(AppTheme.spaceM),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentSecondary.withValues(
+                          alpha: 0.15,
+                        ),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            AppIcons.info,
+                            color: AppColors.accent,
+                            size: AppTheme.iconS,
+                          ),
+                          const SizedBox(width: AppTheme.spaceS),
+                          Expanded(
+                            child: Text(
+                              "Everyone's personal daily step goal (from "
+                              'their profile) is used to calculate goal '
+                              'completion %.',
+                              style: AppTypography.labelS.copyWith(
+                                color: AppColors.textSecondary,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: AppTheme.spaceXL),
+                    const _SectionLabel('Invite Friends (Optional)'),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Invite friends to join your challenge.',
+                      style: AppTypography.bodyS.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spaceM),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _InviteOptionCard(
+                            icon: AppIcons.people,
+                            title: 'Select Friends',
+                            description: 'Choose from your connections',
+                            onTap: () =>
+                                _showComingSoon(context, 'Selecting friends'),
+                          ),
+                        ),
+                        const SizedBox(width: AppTheme.spaceM),
+                        Expanded(
+                          child: _InviteOptionCard(
+                            icon: AppIcons.link,
+                            title: 'Share Invite Link',
+                            description: 'Anyone with the link can join',
+                            onTap: () =>
+                                _showComingSoon(context, 'Invite links'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
 
-            // Next button
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () {
-                    HapticsHelper.lightImpact();
-                    if (_step < 2) {
-                      setState(() => _step++);
-                    } else {
-                      Navigator.pop(context);
-                    }
-                  },
+                  onPressed: () => _createChallenge(context),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.accent,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusM),
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: Text(
-                    _step == 2
-                        ? 'Create Challenge'
-                        : 'Next: ${['Settings', 'Invite', ''][_step]}',
+                    'Create Challenge',
                     style: AppTypography.bodyL.copyWith(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
                     ),
                   ),
                 ),
@@ -1987,600 +2031,63 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
     );
   }
 
-  Widget _buildStep1() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionLabel('Challenge Name'),
-        const SizedBox(height: 8),
-        TextField(
-          onChanged: (v) => setState(() => _name = v),
-          decoration: InputDecoration(
-            hintText: 'e.g., Weekend Warrior',
-            hintStyle: AppTypography.bodyM.copyWith(
-              color: AppColors.textMuted,
-              letterSpacing: 0,
-            ),
-            filled: true,
-            fillColor: AppColors.bgSurface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: AppColors.accentSecondary.withValues(alpha: 0.3),
-              ),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: AppColors.accentSecondary.withValues(alpha: 0.3),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
-            ),
-            suffix: Text(
-              '${_name.length}/60',
-              style: AppTypography.labelS.copyWith(
-                fontSize: 11,
-                fontWeight: FontWeight.w400,
-                letterSpacing: 0,
-              ),
-            ),
-          ),
+  OutlineInputBorder _fieldBorder({bool focused = false}) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+        borderSide: BorderSide(
+          color: focused
+              ? AppColors.accent
+              : AppColors.accentSecondary.withValues(alpha: 0.3),
+          width: focused ? 1.5 : 1,
         ),
+      );
 
-        const SizedBox(height: 20),
+  Future<void> _pickStartDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) setState(() => _startDate = picked);
+  }
 
-        const _SectionLabel('Challenge Type'),
-        const SizedBox(height: 4),
-        Text(
-          'Choose the type of activity for your challenge.',
-          style: AppTypography.labelM.copyWith(letterSpacing: 0),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: _types.asMap().entries.map((e) {
-            final isSelected = e.key == _typeIndex;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  HapticsHelper.selection();
-                  setState(() => _typeIndex = e.key);
-                },
-                child: Container(
-                  margin: EdgeInsets.only(
-                    right: e.key < _types.length - 1 ? 8 : 0,
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.accent.withValues(alpha: 0.06)
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.accent
-                          : AppColors.accentSecondary.withValues(alpha: 0.3),
-                      width: isSelected ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(e.value.$1, color: e.value.$3, size: 22),
-                      const SizedBox(height: 4),
-                      Text(
-                        e.value.$2,
-                        style: AppTypography.labelS.copyWith(
-                          color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-                          fontSize: 10,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          letterSpacing: 0,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
+  Future<void> _pickCustomEndDate(BuildContext context) async {
+    final earliest = _startDate ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _customEndDate ?? earliest.add(const Duration(days: 7)),
+      firstDate: earliest,
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) setState(() => _customEndDate = picked);
+  }
 
-        const SizedBox(height: 20),
-
-        const _SectionLabel('Challenge Description (Optional)'),
-        const SizedBox(height: 8),
-        TextField(
-          maxLines: 3,
-          decoration: InputDecoration(
-            hintText: 'Add a fun description to inspire your participants...',
-            hintStyle: AppTypography.bodyS.copyWith(
-              color: AppColors.textMuted,
-              letterSpacing: 0,
-            ),
-            filled: true,
-            fillColor: AppColors.bgSurface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: AppColors.accentSecondary.withValues(alpha: 0.3),
-              ),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: AppColors.accentSecondary.withValues(alpha: 0.3),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        const _SectionLabel('Challenge Icon'),
-        const SizedBox(height: 10),
-        Row(
-          children: _iconOptions.asMap().entries.map((e) {
-            final isSelected = e.key == _selectedIcon;
-            final color = e.value.$2;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  HapticsHelper.selection();
-                  setState(() => _selectedIcon = e.key);
-                },
-                child: Container(
-                  margin: EdgeInsets.only(
-                    right: e.key < _iconOptions.length - 1 ? 8 : 0,
-                  ),
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: color.withValues(alpha: 0.12),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.accent
-                              : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                      child: Icon(e.value.$1, color: color, size: 22),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-
-        const SizedBox(height: 20),
-
-        // Dates
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _SectionLabel('Start Date'),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () async {
-                      final d = await showDatePicker(
-                        context: context,
-                        initialDate: _startDate,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (d != null) setState(() => _startDate = d);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgSurface,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: AppColors.accentSecondary.withValues(
-                            alpha: 0.3,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            AppIcons.calendar,
-                            color: AppColors.textMuted,
-                            size: 15,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _formatDate(_startDate),
-                            style: AppTypography.bodyS.copyWith(
-                              color: AppColors.textPrimary,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _SectionLabel('End Date'),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () async {
-                      final d = await showDatePicker(
-                        context: context,
-                        initialDate: _endDate,
-                        firstDate: _startDate,
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (d != null) setState(() => _endDate = d);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgSurface,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: AppColors.accentSecondary.withValues(
-                            alpha: 0.3,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            AppIcons.calendar,
-                            color: AppColors.textMuted,
-                            size: 15,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _formatDate(_endDate),
-                            style: AppTypography.bodyS.copyWith(
-                              color: AppColors.textPrimary,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 20),
-
-        const _SectionLabel('Challenge Goal'),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: TextField(
-                controller: TextEditingController(text: _goal),
-                onChanged: (v) => _goal = v,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppColors.bgSurface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: AppColors.accentSecondary.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: AppColors.accentSecondary.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: AppColors.accent,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.bgSurface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppColors.accentSecondary.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      _types[_typeIndex].$2,
-                      style: AppTypography.bodyS.copyWith(
-                        color: AppColors.textPrimary,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(AppIcons.expandMore, color: AppColors.textMuted, size: AppTheme.iconS),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.accent.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              const Icon(AppIcons.info, color: AppColors.accent, size: 14),
-              const SizedBox(width: AppTheme.spaceS),
-              Expanded(
-                child: Text(
-                  'This is the total ${_types[_typeIndex].$2.toLowerCase()} goal for the entire duration of the challenge. Participants need to reach this total from ${_formatDate(_startDate)} to ${_formatDate(_endDate)}.',
-                  style: AppTypography.labelS.copyWith(
-                    color: AppColors.accent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        const _SectionLabel('Visibility'),
-        const SizedBox(height: 4),
-        Text(
-          'This challenge will be private and only accessible to invited participants.',
-          style: AppTypography.labelM.copyWith(letterSpacing: 0),
-        ),
-        const SizedBox(height: 10),
-        FlatCard(
-          padding: const EdgeInsets.all(AppTheme.spaceL),
-          child: Row(
-            children: [
-              const Icon(AppIcons.lock, color: AppColors.accent, size: AppTheme.iconM),
-              const SizedBox(width: AppTheme.spaceM),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Private Challenge',
-                      style: AppTypography.bodyM.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    Text(
-                      'Only people you invite can see and join this challenge.',
-                      style: AppTypography.labelS.copyWith(
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(AppIcons.chevronRight, color: AppColors.textMuted, size: AppTheme.iconS),
-            ],
-          ),
-        ),
-      ],
+  void _showComingSoon(BuildContext context, String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$feature coming soon')),
     );
   }
 
-  Widget _buildStep2() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionLabel('Scoring'),
-        const SizedBox(height: AppTheme.spaceS),
-        FlatCard(
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(AppIcons.leaderboard, color: AppColors.accent),
-            title: Text(
-              'Leaderboard (Most progress wins)',
-              style: AppTypography.bodyS.copyWith(
-                color: AppColors.textPrimary,
-                letterSpacing: 0,
-              ),
-            ),
-            trailing: const Icon(AppIcons.goalReached, color: AppColors.accent, size: AppTheme.iconM),
-          ),
-        ),
-        const SizedBox(height: AppTheme.spaceXL),
-        const _SectionLabel('Notifications'),
-        const SizedBox(height: AppTheme.spaceS),
-        FlatCard(
-          child: Column(
-            children: [
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  'Daily reminders',
-                  style: AppTypography.bodyS.copyWith(
-                    color: AppColors.textPrimary,
-                    letterSpacing: 0,
-                  ),
-                ),
-                value: true,
-                onChanged: null,
-                activeTrackColor: AppColors.accent,
-                activeThumbColor: Colors.white,
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  'Milestone alerts',
-                  style: AppTypography.bodyS.copyWith(
-                    color: AppColors.textPrimary,
-                    letterSpacing: 0,
-                  ),
-                ),
-                value: true,
-                onChanged: null,
-                activeTrackColor: AppColors.accent,
-                activeThumbColor: Colors.white,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+  void _createChallenge(BuildContext context) {
+    if (_name.trim().isEmpty) {
+      _showValidationError(context, 'Give your challenge a name first');
+      return;
+    }
+    if (_startDate == null) {
+      _showValidationError(context, 'Pick a start date');
+      return;
+    }
+    if (_winnerMethod == null) {
+      _showValidationError(context, 'Choose how the winner is determined');
+      return;
+    }
+    HapticsHelper.lightImpact();
+    Navigator.pop(context);
   }
 
-  Widget _buildStep3() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionLabel('Invite Friends'),
-        const SizedBox(height: 8),
-        TextField(
-          decoration: InputDecoration(
-            hintText: 'Search friends...',
-            hintStyle: AppTypography.bodyS.copyWith(
-              color: AppColors.textMuted,
-              letterSpacing: 0,
-            ),
-            prefixIcon: const Icon(AppIcons.search, color: AppColors.textMuted),
-            filled: true,
-            fillColor: AppColors.bgSurface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: AppColors.accentSecondary.withValues(alpha: 0.3),
-              ),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: AppColors.accentSecondary.withValues(alpha: 0.3),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        ...['Sarah J.', 'Alex M.', 'Priya K.', 'James L.'].asMap().entries.map(
-          (e) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child:
-                FlatCard(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.accent.withValues(alpha: 0.15),
-                            ),
-                            child: Center(
-                              child: Text(
-                                e.value[0],
-                                style: AppTypography.bodyL.copyWith(
-                                  color: AppColors.accent,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              e.value,
-                              style: AppTypography.bodyM.copyWith(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.accentSecondary.withValues(
-                                alpha: 0.15,
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: AppColors.accentSecondary.withValues(
-                                  alpha: 0.4,
-                                ),
-                              ),
-                            ),
-                            child: Text(
-                              'Invite',
-                              style: AppTypography.labelM.copyWith(
-                                color: AppColors.accent,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                    .animate(delay: Duration(milliseconds: e.key * 60))
-                    .fadeIn()
-                    .slideX(begin: 0.06),
-          ),
-        ),
-      ],
+  void _showValidationError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
   }
 
@@ -2603,6 +2110,261 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
   }
 }
 
+class _DurationChip extends StatelessWidget {
+  const _DurationChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.accentSecondary.withValues(alpha: 0.15)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+          border: Border.all(
+            color: selected
+                ? AppColors.accent
+                : AppColors.accentSecondary.withValues(alpha: 0.3),
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              AppIcons.calendar,
+              color: selected ? AppColors.accent : AppColors.textMuted,
+              size: AppTheme.iconXS,
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.labelM.copyWith(
+                  color: selected ? AppColors.accent : AppColors.textPrimary,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DateField extends StatelessWidget {
+  const _DateField({
+    required this.label,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spaceM,
+          vertical: 14,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+          border: Border.all(
+            color: AppColors.accentSecondary.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              AppIcons.calendar,
+              color: AppColors.accent,
+              size: AppTheme.iconS,
+            ),
+            const SizedBox(width: AppTheme.spaceS),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTypography.bodyM.copyWith(
+                  color: filled ? AppColors.textPrimary : AppColors.textMuted,
+                ),
+              ),
+            ),
+            const Icon(
+              AppIcons.chevronRight,
+              color: AppColors.textMuted,
+              size: AppTheme.iconS,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WinnerMethodOption extends StatelessWidget {
+  const _WinnerMethodOption({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceL),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.accentSecondary.withValues(alpha: 0.20),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: AppColors.accent, size: AppTheme.iconS),
+            ),
+            const SizedBox(width: AppTheme.spaceM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: AppTypography.titleS),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: AppTypography.bodyS.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppTheme.spaceS),
+            Container(
+              width: 20,
+              height: 20,
+              margin: const EdgeInsets.only(top: 2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected
+                      ? AppColors.accent
+                      : AppColors.accentSecondary.withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+              ),
+              child: selected
+                  ? Center(
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteOptionCard extends StatelessWidget {
+  const _InviteOptionCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: FlatCard(
+        padding: const EdgeInsets.all(AppTheme.spaceM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSecondary.withValues(alpha: 0.20),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: AppColors.accent,
+                    size: AppTheme.iconS,
+                  ),
+                ),
+                const Spacer(),
+                const Icon(
+                  AppIcons.chevronRight,
+                  color: AppColors.textMuted,
+                  size: AppTheme.iconS,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.spaceS),
+            Text(title, style: AppTypography.titleS.copyWith(fontSize: 13)),
+            const SizedBox(height: 2),
+            Text(
+              description,
+              style: AppTypography.labelS.copyWith(height: 1.3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SMALL SHARED WIDGETS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2615,11 +2377,11 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      text,
-      style: AppTypography.bodyM.copyWith(
-        color: AppColors.textPrimary,
+      text.toUpperCase(),
+      style: AppTypography.labelM.copyWith(
+        color: AppColors.textSecondary,
         fontWeight: FontWeight.w700,
-        letterSpacing: -0.2,
+        letterSpacing: 0.4,
       ),
     );
   }

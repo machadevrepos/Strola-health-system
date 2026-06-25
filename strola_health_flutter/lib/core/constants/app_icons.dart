@@ -148,7 +148,6 @@ class AppIcons {
   static const IconData report = Icons.flag_outlined; // report user/post
   static const IconData addFriend =
       Icons.person_add_alt_1_outlined; // invite / add friend
-  static const IconData bookmark = Icons.bookmark_border_outlined; // save post
   static const IconData public = Icons.public_outlined; // post visibility
 
   // ─────────────────────────────────────────────────────────────────────────

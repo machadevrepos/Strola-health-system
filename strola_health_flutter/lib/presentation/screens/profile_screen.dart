@@ -9,10 +9,12 @@ import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/presentation/providers/community_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
+import 'package:strola_health/presentation/screens/achievements_screen.dart';
 import 'package:strola_health/presentation/screens/challenges_screen.dart';
 import 'package:strola_health/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:strola_health/presentation/screens/settings_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
+import 'package:strola_health/presentation/widgets/hex_badge.dart';
 import 'package:strola_health/presentation/widgets/pressable_scale.dart';
 import 'package:strola_health/presentation/widgets/report_sheet.dart';
 
@@ -397,7 +399,13 @@ class ProfileScreen extends ConsumerWidget {
                                       ),
                                     ),
                                     PressableScale(
-                                      onTap: () {},
+                                      onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const AchievementsScreen(),
+                                        ),
+                                      ),
                                       child: Text(
                                         'View All',
                                         style: AppTypography.bodyS.copyWith(
@@ -413,7 +421,7 @@ class ProfileScreen extends ConsumerWidget {
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: const [
-                                    _HexBadge(
+                                    HexBadge(
                                       big: '12',
                                       small: 'DAY STREAK',
                                       label: '12 Day Streak',
@@ -423,7 +431,7 @@ class ProfileScreen extends ConsumerWidget {
                                         AppColors.error,
                                       ],
                                     ),
-                                    _HexBadge(
+                                    HexBadge(
                                       big: '100K',
                                       small: 'STEPS',
                                       label: '100K Steps',
@@ -433,7 +441,7 @@ class ProfileScreen extends ConsumerWidget {
                                         AppColors.success,
                                       ],
                                     ),
-                                    _HexBadge(
+                                    HexBadge(
                                       icon: AppIcons.earlyBird,
                                       small: 'EARLY BIRD',
                                       label: 'Early Bird',
@@ -443,7 +451,7 @@ class ProfileScreen extends ConsumerWidget {
                                         AppColors.accent,
                                       ],
                                     ),
-                                    _HexBadge(
+                                    HexBadge(
                                       big: '7',
                                       small: 'DAY STREAK',
                                       label: '7 Day Streak',
@@ -453,7 +461,7 @@ class ProfileScreen extends ConsumerWidget {
                                         AppColors.goalAmber,
                                       ],
                                     ),
-                                    _HexBadge(
+                                    HexBadge(
                                       big: '50K',
                                       small: 'STEPS',
                                       label: '50K Steps',
@@ -631,122 +639,6 @@ class ProfileScreen extends ConsumerWidget {
     ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
-}
-
-// ── Hexagon achievement badge (gamification — multicolor by design) ───────────
-
-class _HexBadge extends StatelessWidget {
-  const _HexBadge({
-    required this.gradient,
-    required this.small,
-    required this.label,
-    required this.date,
-    this.big,
-    this.icon,
-  });
-
-  final List<Color> gradient;
-  final String small;
-  final String label;
-  final String date;
-  final String? big;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 58,
-      child: Column(
-        children: [
-          SizedBox(
-            width: 54,
-            height: 60,
-            child: ClipPath(
-              clipper: _HexagonClipper(),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: gradient,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (icon != null)
-                        Icon(icon, color: Colors.white, size: 18)
-                      else
-                        Text(
-                          big!,
-                          style: AppTypography.titleS.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      const SizedBox(height: 1),
-                      Text(
-                        small,
-                        textAlign: TextAlign.center,
-                        style: AppTypography.labelS.copyWith(
-                          color: Colors.white,
-                          fontSize: 6,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            style: AppTypography.titleS.copyWith(
-              fontSize: 9,
-              height: 1.2,
-              letterSpacing: 0,
-            ),
-          ),
-          Text(
-            date,
-            textAlign: TextAlign.center,
-            style: AppTypography.labelS.copyWith(
-              fontSize: 8,
-              fontWeight: FontWeight.w400,
-              letterSpacing: 0,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Vertical hexagon (points top & bottom) used for achievement badges.
-class _HexagonClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final w = size.width;
-    final h = size.height;
-    return Path()
-      ..moveTo(w * 0.5, 0)
-      ..lineTo(w, h * 0.26)
-      ..lineTo(w, h * 0.74)
-      ..lineTo(w * 0.5, h)
-      ..lineTo(0, h * 0.74)
-      ..lineTo(0, h * 0.26)
-      ..close();
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 // ── Public Profile (viewed by others) ─────────────────────────────────────────
@@ -1043,54 +935,54 @@ class PublicProfileScreen extends ConsumerWidget {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: const [
-                                  _HexBadge(
+                                  HexBadge(
                                     big: '12',
                                     small: 'DAY STREAK',
                                     label: '12 Day Streak',
                                     date: 'May 12, 2024',
                                     gradient: [
-                                      Color(0xFFF26D6D),
-                                      Color(0xFFE0484F),
+                                      AppColors.accent,
+                                      AppColors.error,
                                     ],
                                   ),
-                                  _HexBadge(
+                                  HexBadge(
                                     big: '100K',
                                     small: 'STEPS',
                                     label: '100K Steps',
                                     date: 'Apr 28, 2024',
                                     gradient: [
-                                      Color(0xFF36C5B0),
-                                      Color(0xFF1F9E96),
+                                      AppColors.success,
+                                      AppColors.success,
                                     ],
                                   ),
-                                  _HexBadge(
+                                  HexBadge(
                                     icon: AppIcons.earlyBird,
                                     small: 'EARLY BIRD',
                                     label: 'Early Bird',
                                     date: 'Apr 15, 2024',
                                     gradient: [
-                                      Color(0xFFA86BE0),
-                                      Color(0xFF7E3FD6),
+                                      AppColors.goalAmber,
+                                      AppColors.accent,
                                     ],
                                   ),
-                                  _HexBadge(
+                                  HexBadge(
                                     big: '7',
                                     small: 'DAY STREAK',
                                     label: '7 Day Streak',
                                     date: 'Apr 7, 2024',
                                     gradient: [
-                                      Color(0xFFF6A93B),
-                                      Color(0xFFF0851F),
+                                      AppColors.goalAmber,
+                                      AppColors.goalAmber,
                                     ],
                                   ),
-                                  _HexBadge(
+                                  HexBadge(
                                     big: '50K',
                                     small: 'STEPS',
                                     label: '50K Steps',
                                     date: 'Mar 22, 2024',
                                     gradient: [
-                                      Color(0xFF4DA6E8),
-                                      Color(0xFF2E86D6),
+                                      AppColors.accentSecondary,
+                                      AppColors.accent,
                                     ],
                                   ),
                                 ],

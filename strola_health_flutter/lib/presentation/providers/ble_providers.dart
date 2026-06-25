@@ -65,3 +65,11 @@ class BleStatusNotifier extends StateNotifier<BleStatus> {
 final bleStepStreamProvider = StreamProvider.autoDispose<int>((ref) {
   return ref.watch(bleServiceProvider).stepStream;
 });
+
+// ── Battery level — stub ─────────────────────────────────────────────────────
+// No characteristic exposing battery is parsed from the device yet
+// (`BleStepService` only handles the step-count packet). Returns null until
+// firmware exposes a battery service and this is wired up for real; the Low
+// Battery notification detector watches this and is ready to fire once it
+// does.
+final batteryLevelProvider = Provider<int?>((ref) => null);

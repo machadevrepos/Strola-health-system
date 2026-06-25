@@ -28,18 +28,15 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- Portrait-only — every screen in this app is designed for it; see
+	     the matching lock in lib/main.dart and AndroidManifest.xml. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<!-- BLE usage descriptions — required by App Store / iOS runtime -->
 	<key>NSBluetoothAlwaysUsageDescription</key>
@@ -57,6 +54,22 @@
 	<string>Strolla Health needs access to your photos so you can attach an image to your community posts.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Strolla Health needs camera access so you can take a photo to attach to your community posts.</string>
+	<!-- Apple Health (health package) — required or HealthKit authorization crashes at runtime -->
+	<key>NSHealthShareUsageDescription</key>
+	<string>Strolla Health reads your steps, distance, and active energy from Apple Health to keep your activity in sync.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Strolla Health writes workout sessions to Apple Health so your activity stays in sync across apps.</string>
+	<!-- OAuth callback (flutter_web_auth_2) — Strava/Oura/Garmin redirect here
+	     after consent; see integrations_screen.dart -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>strolahealth</string>
+			</array>
+		</dict>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

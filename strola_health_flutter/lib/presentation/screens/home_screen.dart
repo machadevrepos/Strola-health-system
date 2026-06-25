@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -6,9 +8,12 @@ import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/constants/notification_copy.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
+import 'package:strola_health/domain/entities/app_notification.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
 import 'package:strola_health/presentation/providers/navigation_providers.dart';
+import 'package:strola_health/presentation/providers/notification_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/screens/notifications_screen.dart';
@@ -55,6 +60,71 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  /// Demo trigger — fires one real OS notification (random category each
+  /// tap) through the same pipeline every other notification in the app
+  /// uses, so it's an accurate preview, not a mockup.
+  void _sendDemoNotification() {
+    final demos = <(NotificationCategory, String, String, String)>[
+      (
+        NotificationCategory.goalAchieved,
+        NotificationCopy.goalAchievedTitle,
+        NotificationCopy.goalAchieved(),
+        'home',
+      ),
+      (
+        NotificationCategory.streak,
+        NotificationCopy.streakTitle,
+        NotificationCopy.streakMilestone(7),
+        'stats',
+      ),
+      (
+        NotificationCategory.challenge,
+        NotificationCopy.challengeTitle,
+        NotificationCopy.challengeMovedUp(5, 'May Walking Challenge'),
+        'challenges',
+      ),
+      (
+        NotificationCategory.community,
+        NotificationCopy.communityTitle,
+        NotificationCopy.communityLike('Sarah'),
+        'community',
+      ),
+      (
+        NotificationCategory.goalReminder,
+        NotificationCopy.goalReminderTitle,
+        NotificationCopy.goalReminder(remainingSteps: 1200),
+        'home',
+      ),
+      (
+        NotificationCategory.lowBattery,
+        NotificationCopy.lowBatteryTitle,
+        NotificationCopy.lowBattery(),
+        'home',
+      ),
+      (
+        NotificationCategory.deviceDisconnected,
+        NotificationCopy.deviceDisconnectedTitle,
+        NotificationCopy.deviceDisconnected(),
+        'home',
+      ),
+    ];
+    final pick = demos[Random().nextInt(demos.length)];
+
+    HapticsHelper.lightImpact();
+    ref
+        .read(notificationsProvider.notifier)
+        .add(
+          AppNotification(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            category: pick.$1,
+            title: pick.$2,
+            body: pick.$3,
+            timestamp: DateTime.now(),
+            routeTarget: pick.$4,
+          ),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final steps = ref.watch(stepCountProvider);
@@ -95,341 +165,401 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // ── 1. App bar ─────────────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppTheme.screenPaddingH,
-                      AppTheme.spaceL,
-                      AppTheme.screenPaddingH,
-                      0,
-                    ),
-                    child: _AppBar(),
-                  ),
-                ).animate().fadeIn(delay: 50.ms),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            // ── App bar — static, never scrolls (matches Stats/Community/
+            // Challenges, which all keep their header pinned) ─────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppTheme.screenPaddingH,
+                AppTheme.spaceL,
+                AppTheme.screenPaddingH,
+                0,
               ),
+              child: _AppBar(),
+            ).animate().fadeIn(delay: 50.ms),
 
-              // ── 2. Step ring — tap to adjust the daily goal ────────────────
-              SliverToBoxAdapter(
-                child:
-                    Padding(
-                          padding: const EdgeInsets.only(top: AppTheme.spaceXL),
-                          child: GestureDetector(
-                            onTap: () {
-                              HapticsHelper.lightImpact();
-                              showGoalSheet(context);
-                            },
-                            behavior: HitTestBehavior.opaque,
-                            child: Center(
-                              child: StepRing(steps: steps, goal: goal),
-                            ),
-                          ),
-                        )
-                        .animate()
-                        .fadeIn(delay: 150.ms)
-                        .scale(
-                          begin: const Offset(0.92, 0.92),
-                          curve: Curves.easeOutBack,
-                          duration: 650.ms,
-                        ),
-              ),
+            const SizedBox(height: AppTheme.sectionGap),
 
-              // ── 3. Stat cards — Distance | Active Calories | Battery ───────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppTheme.screenPaddingH,
-                    AppTheme.sectionGap,
-                    AppTheme.screenPaddingH,
-                    0,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _StatCard(
-                          icon: AppIcons.location,
-                          iconColor: AppColors.accent,
-                          value: distanceStr,
-                          unit: distanceUnit,
-                          label: 'Distance',
-                        ),
-                      ),
-                      const SizedBox(width: AppTheme.spaceS),
-                      Expanded(
-                        child: _StatCard(
-                          icon: AppIcons.calories,
-                          iconColor: AppColors.accent,
-                          value: '$calories',
-                          label: 'Active Calories',
-                        ),
-                      ),
-                      const SizedBox(width: AppTheme.spaceS),
-                      Expanded(
-                        child: _StatCard(
-                          icon: AppIcons.battery,
-                          iconColor: AppColors.success,
-                          value: '87%',
-                          label: 'Battery',
-                        ),
-                      ),
-                    ],
-                  ),
-                ).animate().fadeIn(delay: 320.ms).slideY(begin: 0.10),
-              ),
-
-              // ── 4. Streak card — tap to view stats ──────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppTheme.screenPaddingH,
-                    AppTheme.sectionGap,
-                    AppTheme.screenPaddingH,
-                    0,
-                  ),
-                  child: PressableScale(
-                    onTap: () {
-                      HapticsHelper.lightImpact();
-                      ref.read(mainTabIndexProvider.notifier).state = 1;
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: FlatCard(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTheme.spaceL,
-                        vertical: AppTheme.spaceM + 2,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              // Flame circle
-                              Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                  color: AppColors.accent.withValues(
-                                    alpha: 0.10,
+            Expanded(
+              child: Stack(
+                children: [
+                  CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      // ── 2. Step ring — tap to adjust the daily goal ────────────────
+                      SliverToBoxAdapter(
+                        child:
+                            Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: AppTheme.spaceXL,
                                   ),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  AppIcons.streak,
-                                  color: AppColors.accent,
-                                  size: AppTheme.iconL,
-                                ),
-                              ),
-                              const SizedBox(width: AppTheme.spaceM),
-                              // Streak text
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        TweenAnimationBuilder<int>(
-                                          tween: IntTween(
-                                            begin: 0,
-                                            end: streak,
-                                          ),
-                                          duration: AppTheme.animSpring,
-                                          builder: (_, v, __) => Text(
-                                            '$v',
-                                            style: AppTypography.titleM
-                                                .copyWith(
-                                                  color: AppColors.accent,
-                                                  fontSize: 20,
-                                                ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: AppTheme.spaceXS),
-                                        Flexible(
-                                          child: Text(
-                                            'Day Streak',
-                                            style: AppTypography.titleS,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      HapticsHelper.lightImpact();
+                                      showGoalSheet(context);
+                                    },
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Center(
+                                      child: StepRing(steps: steps, goal: goal),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Keep it going! 🔥',
-                                      style: AppTypography.labelS,
-                                    ),
-                                  ],
+                                  ),
+                                )
+                                .animate()
+                                .fadeIn(delay: 150.ms)
+                                .scale(
+                                  begin: const Offset(0.92, 0.92),
+                                  curve: Curves.easeOutBack,
+                                  duration: 650.ms,
                                 ),
-                              ),
-                              Icon(
-                                AppIcons.chevronRight,
-                                color: AppColors.textMuted,
-                                size: AppTheme.iconM,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppTheme.spaceM),
-                          // MTWTFSS dots — full width
-                          _WeekDots(weeklySteps: weeklySteps, goal: goal),
-                        ],
                       ),
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 390.ms).slideY(begin: 0.10),
-              ),
 
-              // ── 5. Share Your Steps banner ─────────────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppTheme.screenPaddingH,
-                    AppTheme.sectionGap,
-                    AppTheme.screenPaddingH,
-                    0,
-                  ),
-                  child: PressableScale(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ShareStepsScreen(),
-                      ),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTheme.spaceXL,
-                        vertical: AppTheme.spaceL,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.accent, AppColors.accentSecondary],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusL),
-                        boxShadow: AppTheme.elevatedShadow,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.22),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              AppIcons.share,
-                              color: Colors.white,
-                              size: AppTheme.iconM,
-                            ),
+                      // ── 3. Stat cards — Distance | Active Calories | Battery ───────
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppTheme.screenPaddingH,
+                            AppTheme.sectionGap,
+                            AppTheme.screenPaddingH,
+                            0,
                           ),
-                          const SizedBox(width: AppTheme.spaceL),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          child: IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Text(
-                                  'Share Your Steps',
-                                  style: AppTypography.titleS.copyWith(
-                                    color: Colors.white,
+                                Expanded(
+                                  child: _StatCard(
+                                    icon: AppIcons.location,
+                                    iconColor: AppColors.accent,
+                                    value: distanceStr,
+                                    unit: distanceUnit,
+                                    label: 'Distance',
                                   ),
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Inspire others on their journey',
-                                  style: AppTypography.bodyS.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.75),
+                                const SizedBox(width: AppTheme.spaceS),
+                                Expanded(
+                                  child: _StatCard(
+                                    icon: AppIcons.calories,
+                                    iconColor: AppColors.accent,
+                                    value: '$calories',
+                                    label: 'Active Calories',
+                                  ),
+                                ),
+                                const SizedBox(width: AppTheme.spaceS),
+                                Expanded(
+                                  child: _StatCard(
+                                    icon: AppIcons.battery,
+                                    iconColor: AppColors.success,
+                                    value: '87%',
+                                    label: 'Battery',
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          Icon(
-                            AppIcons.chevronRight,
-                            color: Colors.white.withValues(alpha: 0.70),
-                            size: AppTheme.iconM,
-                          ),
-                        ],
+                        ).animate().fadeIn(delay: 320.ms).slideY(begin: 0.10),
                       ),
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 450.ms).slideY(begin: 0.08),
-              ),
 
-              // ── 6. Today's Progress (hourly chart) ─────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppTheme.screenPaddingH,
-                    AppTheme.sectionGap,
-                    AppTheme.screenPaddingH,
-                    0,
-                  ),
-                  child: FlatCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              "Today's Progress",
-                              style: AppTypography.titleS,
-                            ),
-                            const Spacer(),
-                            PressableScale(
-                              onTap: () {
-                                HapticsHelper.lightImpact();
-                                ref.read(mainTabIndexProvider.notifier).state =
-                                    1;
-                              },
-                              child: Text(
-                                'View Stats',
-                                style: AppTypography.labelM.copyWith(
-                                  color: AppColors.accent,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                      // ── 4. Streak card — tap to view stats ──────────────────────────
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppTheme.screenPaddingH,
+                            AppTheme.sectionGap,
+                            AppTheme.screenPaddingH,
+                            0,
+                          ),
+                          child: PressableScale(
+                            onTap: () {
+                              HapticsHelper.lightImpact();
+                              ref.read(mainTabIndexProvider.notifier).state = 1;
+                            },
+                            behavior: HitTestBehavior.opaque,
+                            child: FlatCard(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppTheme.spaceL,
+                                vertical: AppTheme.spaceM + 2,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      // Flame circle
+                                      Container(
+                                        width: 42,
+                                        height: 42,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accent.withValues(
+                                            alpha: 0.10,
+                                          ),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          AppIcons.streak,
+                                          color: AppColors.accent,
+                                          size: AppTheme.iconL,
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppTheme.spaceM),
+                                      // Streak text
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                TweenAnimationBuilder<int>(
+                                                  tween: IntTween(
+                                                    begin: 0,
+                                                    end: streak,
+                                                  ),
+                                                  duration: AppTheme.animSpring,
+                                                  builder: (_, v, __) => Text(
+                                                    '$v',
+                                                    style: AppTypography.titleM
+                                                        .copyWith(
+                                                          color:
+                                                              AppColors.accent,
+                                                          fontSize: 20,
+                                                        ),
+                                                  ),
+                                                ),
+                                                const SizedBox(
+                                                  width: AppTheme.spaceXS,
+                                                ),
+                                                Flexible(
+                                                  child: Text(
+                                                    'Day Streak',
+                                                    style: AppTypography.titleS,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Keep it going! 🔥',
+                                              style: AppTypography.labelS,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(
+                                        AppIcons.chevronRight,
+                                        color: AppColors.textMuted,
+                                        size: AppTheme.iconM,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: AppTheme.spaceM),
+                                  // MTWTFSS dots — full width
+                                  _WeekDots(
+                                    weeklySteps: weeklySteps,
+                                    goal: goal,
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: AppTheme.spaceL),
-                        SizedBox(
-                          height: 160,
-                          child: HourlyChart(hourlySteps: hourlySteps),
-                        ),
+                          ),
+                        ).animate().fadeIn(delay: 390.ms).slideY(begin: 0.10),
+                      ),
+
+                      // ── 5. Share Your Steps banner ─────────────────────────────────
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppTheme.screenPaddingH,
+                            AppTheme.sectionGap,
+                            AppTheme.screenPaddingH,
+                            0,
+                          ),
+                          child: PressableScale(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ShareStepsScreen(),
+                              ),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppTheme.spaceXL,
+                                vertical: AppTheme.spaceL,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    AppColors.accent,
+                                    AppColors.accentSecondary,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.radiusL,
+                                ),
+                                boxShadow: AppTheme.elevatedShadow,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.22,
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      AppIcons.share,
+                                      color: Colors.white,
+                                      size: AppTheme.iconM,
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppTheme.spaceL),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Share Your Steps',
+                                          style: AppTypography.titleS.copyWith(
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Inspire others on their journey',
+                                          style: AppTypography.bodyS.copyWith(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.75,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    AppIcons.chevronRight,
+                                    color: Colors.white.withValues(alpha: 0.70),
+                                    size: AppTheme.iconM,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ).animate().fadeIn(delay: 450.ms).slideY(begin: 0.08),
+                      ),
+
+                      // ── 6. Today's Progress (hourly chart) ─────────────────────────
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppTheme.screenPaddingH,
+                            AppTheme.sectionGap,
+                            AppTheme.screenPaddingH,
+                            0,
+                          ),
+                          child: FlatCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      "Today's Progress",
+                                      style: AppTypography.titleS,
+                                    ),
+                                    const Spacer(),
+                                    PressableScale(
+                                      onTap: () {
+                                        HapticsHelper.lightImpact();
+                                        ref
+                                                .read(
+                                                  mainTabIndexProvider.notifier,
+                                                )
+                                                .state =
+                                            1;
+                                      },
+                                      child: Text(
+                                        'View Stats',
+                                        style: AppTypography.labelM.copyWith(
+                                          color: AppColors.accent,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppTheme.spaceL),
+                                SizedBox(
+                                  height: 160,
+                                  child: HourlyChart(hourlySteps: hourlySteps),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ).animate().fadeIn(delay: 510.ms).slideY(begin: 0.10),
+                      ),
+
+                      // Bottom padding — clears the nav bar
+                      const SliverToBoxAdapter(child: SizedBox(height: 110)),
+                    ],
+                  ),
+
+                  // ── Confetti ───────────────────────────────────────────────
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: ConfettiWidget(
+                      confettiController: _confettiController,
+                      blastDirectionality: BlastDirectionality.explosive,
+                      numberOfParticles: 40,
+                      gravity: 0.30,
+                      colors: const [
+                        AppColors.accent,
+                        AppColors.accentSecondary,
+                        AppColors.bgDeep,
+                        Colors.white,
                       ],
                     ),
                   ),
-                ).animate().fadeIn(delay: 510.ms).slideY(begin: 0.10),
+
+                  // ── Demo: send a real notification ──────────────────────────
+                  Positioned(
+                        right: AppTheme.screenPaddingH,
+                        bottom: 130,
+                        child: PressableScale(
+                          onTap: _sendDemoNotification,
+                          child: Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: AppColors.accent,
+                              shape: BoxShape.circle,
+                              boxShadow: AppTheme.elevatedShadow,
+                            ),
+                            child: const Icon(
+                              AppIcons.notifications,
+                              color: Colors.white,
+                              size: AppTheme.iconM,
+                            ),
+                          ),
+                        ),
+                      )
+                      .animate()
+                      .fadeIn(delay: 600.ms)
+                      .scale(begin: const Offset(0.7, 0.7)),
+                ],
               ),
-
-              // Bottom padding — clears the nav bar
-              const SliverToBoxAdapter(child: SizedBox(height: 110)),
-            ],
-          ),
-
-          // ── Confetti ───────────────────────────────────────────────────────
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConfettiWidget(
-              confettiController: _confettiController,
-              blastDirectionality: BlastDirectionality.explosive,
-              numberOfParticles: 40,
-              gravity: 0.30,
-              colors: const [
-                AppColors.accent,
-                AppColors.accentSecondary,
-                AppColors.bgDeep,
-                Colors.white,
-              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -483,18 +613,19 @@ class _AppBar extends ConsumerWidget {
                 ),
               ),
               // Unread badge dot
-              Positioned(
-                top: 8,
-                right: 9,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.accent,
-                    shape: BoxShape.circle,
+              if (ref.watch(unreadNotificationCountProvider) > 0)
+                Positioned(
+                  top: 8,
+                  right: 9,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.accent,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -578,7 +709,7 @@ class _StatCard extends StatelessWidget {
         horizontal: AppTheme.spaceXS,
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(icon, color: iconColor, size: AppTheme.iconL),
           const SizedBox(height: AppTheme.spaceS),

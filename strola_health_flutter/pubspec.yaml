@@ -59,6 +59,24 @@ dependencies:
   # Media
   image_picker: ^1.2.2
 
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
+
+  # Auth & backend connectivity
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.3
+  dio: ^5.7.0
+
+  # Health platform integrations (Apple Health / Android Health Connect)
+  health: ^12.1.0
+  # Strava / Oura / Garmin OAuth — captures the redirect callback
+  flutter_web_auth_2: ^4.1.0
+
+  # Subscriptions / purchases
+  purchases_flutter: ^8.4.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

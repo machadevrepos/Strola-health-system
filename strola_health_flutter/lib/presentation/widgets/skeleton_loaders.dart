@@ -155,6 +155,59 @@ class _PostCardSkeleton extends StatelessWidget {
   }
 }
 
+class NotificationListSkeleton extends StatelessWidget {
+  const NotificationListSkeleton({super.key, this.itemCount = 5});
+
+  final int itemCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeletonizer(
+      enabled: true,
+      effect: ShimmerEffect(
+        baseColor: AppColors.accentSecondary.withValues(alpha: 0.15),
+        highlightColor: AppColors.accentSecondary.withValues(alpha: 0.35),
+        duration: const Duration(milliseconds: 1200),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: itemCount,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (_, __) => FlatCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(height: 13, width: 160, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+                    const SizedBox(height: 6),
+                    Container(height: 11, width: 200, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+                    const SizedBox(height: 6),
+                    Container(height: 10, width: 60, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ChallengeSkeleton extends StatelessWidget {
   const ChallengeSkeleton({super.key, this.itemCount = 3});
 

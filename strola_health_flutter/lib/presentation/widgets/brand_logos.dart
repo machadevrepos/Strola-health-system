@@ -3,15 +3,33 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 
-/// The five share destinations. `community` is Strolla's own feed; the rest are
-/// external social platforms rendered with their real brand identity.
-enum BrandType { community, instagram, facebook, whatsapp, tiktok }
+/// The five share destinations, plus the platform-integration sources synced
+/// from Settings → Connected Apps. `community` is Strolla's own feed; the
+/// share destinations render their real brand identity. The integration
+/// sources deliberately do NOT — see the comment on `BrandLogo` below.
+enum BrandType {
+  community,
+  instagram,
+  facebook,
+  whatsapp,
+  tiktok,
+  healthkit,
+  healthConnect,
+  strava,
+  oura,
+  garmin,
+}
 
 // ── Brand colors — external identities, NOT part of the app palette ───────────
 const Color kFacebookColor  = Color(0xFF1877F2);
 const Color kWhatsappColor  = Color(0xFF25D366);
 const Color kTiktokColor    = Color(0xFF010101);
 const Color kInstagramColor = Color(0xFFD62976);
+const Color kAppleHealthColor    = Color(0xFFFF2D55);
+const Color kHealthConnectColor  = Color(0xFF4285F4);
+const Color kStravaColor         = Color(0xFFFC4C02);
+const Color kOuraColor           = Color(0xFF1A1A1A);
+const Color kGarminColor         = Color(0xFF007CC3);
 
 const LinearGradient kInstagramGradient = LinearGradient(
   colors: [
@@ -39,10 +57,30 @@ Color brandColorOf(BrandType type) {
       return kWhatsappColor;
     case BrandType.tiktok:
       return kTiktokColor;
+    case BrandType.healthkit:
+      return kAppleHealthColor;
+    case BrandType.healthConnect:
+      return kHealthConnectColor;
+    case BrandType.strava:
+      return kStravaColor;
+    case BrandType.oura:
+      return kOuraColor;
+    case BrandType.garmin:
+      return kGarminColor;
   }
 }
 
-/// A self-contained app-icon style mark for a share destination.
+/// A self-contained app-icon style mark for a share destination or a synced
+/// platform.
+///
+/// The five share destinations above use each platform's real glyph — well
+/// established "share to X" fair use. The five health-platform marks below
+/// deliberately do NOT: badge usage for Apple Health, Health Connect,
+/// Strava, Oura, and Garmin is governed by each platform's own brand
+/// program, most of which require formal approval before their actual logo
+/// can be displayed. Until that approval lands, these render as a neutral
+/// icon in the platform's brand color, with `IntegrationsScreen` carrying an
+/// explicit note that the real badges are pending.
 class BrandLogo extends StatelessWidget {
   const BrandLogo({super.key, required this.type, this.size = 44});
 
@@ -52,6 +90,31 @@ class BrandLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     switch (type) {
+      case BrandType.healthkit:
+        return _circle(
+          kAppleHealthColor,
+          Icon(AppIcons.heart, color: Colors.white, size: size * 0.50),
+        );
+      case BrandType.healthConnect:
+        return _circle(
+          kHealthConnectColor,
+          Icon(AppIcons.integrations, color: Colors.white, size: size * 0.50),
+        );
+      case BrandType.strava:
+        return _circle(
+          kStravaColor,
+          Icon(AppIcons.run, color: Colors.white, size: size * 0.50),
+        );
+      case BrandType.oura:
+        return _circle(
+          kOuraColor,
+          Icon(AppIcons.heartRate, color: Colors.white, size: size * 0.50),
+        );
+      case BrandType.garmin:
+        return _circle(
+          kGarminColor,
+          Icon(AppIcons.watch, color: Colors.white, size: size * 0.50),
+        );
       case BrandType.community:
         return _circle(
           AppColors.accent,

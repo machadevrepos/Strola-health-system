@@ -1,28 +1,35 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/constants/notification_copy.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
+import 'package:strola_health/data/repositories/session_repository.dart';
+import 'package:strola_health/domain/entities/app_notification.dart';
+import 'package:strola_health/domain/entities/personal_record.dart';
 import 'package:strola_health/domain/entities/workout_session.dart';
+import 'package:strola_health/presentation/providers/notification_providers.dart';
 import 'package:strola_health/presentation/screens/session_screen.dart'
     show ActivityTypeUI;
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/route_map.dart';
 
-class SessionSummaryScreen extends StatefulWidget {
+class SessionSummaryScreen extends ConsumerStatefulWidget {
   const SessionSummaryScreen({super.key, required this.session});
 
   final WorkoutSession session;
 
   @override
-  State<SessionSummaryScreen> createState() => _SessionSummaryScreenState();
+  ConsumerState<SessionSummaryScreen> createState() => _SessionSummaryScreenState();
 }
 
-class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
+class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
   late final ConfettiController _confetti;
+  List<PersonalRecordCategory> _newRecords = const [];
 
   @override
   void initState() {
@@ -32,6 +39,29 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
       _confetti.play();
       HapticsHelper.goalReached();
     });
+    _checkPersonalRecords();
+  }
+
+  Future<void> _checkPersonalRecords() async {
+    final records = await ref
+        .read(sessionRepositoryProvider)
+        .checkPersonalRecords(widget.session);
+    if (mounted) setState(() => _newRecords = records);
+    if (records.isEmpty) return;
+
+    final body = records.length == 1
+        ? NotificationCopy.personalRecord(records.first.label)
+        : 'You just set ${records.length} new personal records this session!';
+    await ref.read(notificationsProvider.notifier).add(
+          AppNotification(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            category: NotificationCategory.personalRecord,
+            title: NotificationCopy.personalRecordTitle,
+            body: body,
+            timestamp: DateTime.now(),
+            routeTarget: 'home',
+          ),
+        );
   }
 
   @override
@@ -43,7 +73,7 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
   @override
   Widget build(BuildContext context) {
     final session = widget.session;
-    final isPR = session.steps > 5000; // stub — wire to real PR logic later
+    final isPR = _newRecords.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.bgDeep,

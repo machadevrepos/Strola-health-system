@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
+import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/formatters.dart';
-import 'package:strola_health/presentation/widgets/strolla_icons.dart';
 
 class StepRing extends StatelessWidget {
   const StepRing({
@@ -146,14 +146,15 @@ class _CenterAnnotation extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Shoe icon — scales up slightly on goal reached
+        // Running icon — same glyph as the Start Workout tab — scales up
+        // slightly on goal reached
         AnimatedContainer(
           duration: AppTheme.animNormal,
           curve: Curves.easeOutBack,
           width: isGoalReached ? 42 : 36,
           height: isGoalReached ? 42 : 36,
-          child: StrollaIcon(
-            StrollaIconType.shoe,
+          child: Icon(
+            AppIcons.start,
             size: isGoalReached ? 42 : 36,
             color: AppColors.accent,
           ),

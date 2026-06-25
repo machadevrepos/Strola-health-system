@@ -6,6 +6,7 @@ import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/presentation/providers/navigation_providers.dart';
+import 'package:strola_health/presentation/providers/notification_providers.dart';
 import 'package:strola_health/presentation/screens/challenges_screen.dart';
 import 'package:strola_health/presentation/screens/community_screen.dart';
 import 'package:strola_health/presentation/screens/home_screen.dart';
@@ -42,6 +43,10 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   Widget build(BuildContext context) {
     final currentIndex = ref.watch(mainTabIndexProvider);
+
+    // MainShell is always mounted regardless of active tab, so this is the
+    // one place notification detectors can live and fire app-wide.
+    registerNotificationDetectors(ref);
 
     return Scaffold(
       extendBody: true,

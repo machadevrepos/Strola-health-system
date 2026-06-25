@@ -15,10 +15,13 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
   UserProfileNotifier(this._prefs) : super(_initial(_prefs));
 
   final SharedPreferences _prefs;
-  static const _key = 'user_profile';
+
+  /// Public so account-wipe logic (see `account_service.dart`) can clear it
+  /// directly with the same prefs instance, without duplicating the literal.
+  static const prefsKey = 'user_profile';
 
   static UserProfile _initial(SharedPreferences prefs) {
-    final raw = prefs.getString(_key);
+    final raw = prefs.getString(prefsKey);
     if (raw == null) return const UserProfile();
     try {
       return UserProfile.decode(raw);
@@ -29,7 +32,7 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
 
   Future<void> save(UserProfile profile) async {
     state = profile;
-    await _prefs.setString(_key, profile.encode());
+    await _prefs.setString(prefsKey, profile.encode());
   }
 
   Future<void> update(UserProfile Function(UserProfile) transform) =>
@@ -112,10 +115,10 @@ class PrivacySettingsNotifier extends StateNotifier<PrivacySettings> {
   PrivacySettingsNotifier(this._prefs) : super(_load(_prefs));
 
   final SharedPreferences _prefs;
-  static const _key = 'privacy_settings';
+  static const prefsKey = 'privacy_settings';
 
   static PrivacySettings _load(SharedPreferences prefs) {
-    final raw = prefs.getString(_key);
+    final raw = prefs.getString(prefsKey);
     if (raw == null) return const PrivacySettings();
     try {
       return PrivacySettings.fromJson(
@@ -127,7 +130,7 @@ class PrivacySettingsNotifier extends StateNotifier<PrivacySettings> {
 
   Future<void> update(PrivacySettings Function(PrivacySettings) transform) async {
     state = transform(state);
-    await _prefs.setString(_key, jsonEncode(state.toJson()));
+    await _prefs.setString(prefsKey, jsonEncode(state.toJson()));
   }
 }
 

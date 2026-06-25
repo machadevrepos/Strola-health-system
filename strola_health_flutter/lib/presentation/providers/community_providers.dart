@@ -13,19 +13,19 @@ class BlockedUsersNotifier extends StateNotifier<Set<String>> {
   BlockedUsersNotifier(this._prefs) : super(_load(_prefs));
 
   final SharedPreferences _prefs;
-  static const _key = 'blocked_users';
+  static const prefsKey = 'blocked_users';
 
   static Set<String> _load(SharedPreferences prefs) =>
-      (prefs.getStringList(_key) ?? const <String>[]).toSet();
+      (prefs.getStringList(prefsKey) ?? const <String>[]).toSet();
 
   Future<void> block(String name) async {
     state = {...state, name};
-    await _prefs.setStringList(_key, state.toList());
+    await _prefs.setStringList(prefsKey, state.toList());
   }
 
   Future<void> unblock(String name) async {
     state = state.where((n) => n != name).toSet();
-    await _prefs.setStringList(_key, state.toList());
+    await _prefs.setStringList(prefsKey, state.toList());
   }
 }
 

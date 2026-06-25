@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
+import 'package:strola_health/presentation/providers/notification_providers.dart';
 import 'package:strola_health/presentation/screens/notifications_screen.dart';
 import 'package:strola_health/presentation/screens/profile_screen.dart';
 
 /// Standard top-right header actions used on every primary screen:
 /// a notifications bell + the user's profile avatar. (No "..." menu — that is
 /// reserved for viewing *other* people's profiles.)
-class HeaderActions extends StatelessWidget {
-  const HeaderActions({super.key, this.showBellDot = true});
-
-  final bool showBellDot;
+class HeaderActions extends ConsumerWidget {
+  const HeaderActions({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final showBellDot = ref.watch(unreadNotificationCountProvider) > 0;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

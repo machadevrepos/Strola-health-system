@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:strola_health/core/constants/step_goals.dart';
 import 'package:strola_health/core/utils/fitness_calculator.dart';
 import 'package:strola_health/core/utils/formatters.dart';
+import 'package:strola_health/data/repositories/session_repository.dart';
 import 'package:strola_health/presentation/providers/ble_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 
@@ -48,11 +49,11 @@ class DailyGoalNotifier extends StateNotifier<int> {
     _load();
   }
 
-  static const _key = 'daily_goal';
+  static const prefsKey = 'daily_goal';
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getInt(_key);
+    final saved = prefs.getInt(prefsKey);
     if (saved != null) state = saved;
   }
 
@@ -60,7 +61,7 @@ class DailyGoalNotifier extends StateNotifier<int> {
     final clamped = goal.clamp(StepGoals.minDailyGoal, StepGoals.maxDailyGoal);
     state = clamped;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_key, clamped);
+    await prefs.setInt(prefsKey, clamped);
   }
 }
 
@@ -75,13 +76,13 @@ class UserWeightNotifier extends StateNotifier<double> {
     _load();
   }
 
-  static const _key = 'user_weight_kg';
+  static const prefsKey = 'user_weight_kg';
   static const double minWeight = 30.0;
   static const double maxWeight = 200.0;
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getDouble(_key);
+    final saved = prefs.getDouble(prefsKey);
     if (saved != null) state = saved;
   }
 
@@ -89,7 +90,7 @@ class UserWeightNotifier extends StateNotifier<double> {
     final clamped = kg.clamp(minWeight, maxWeight);
     state = clamped;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_key, clamped);
+    await prefs.setDouble(prefsKey, clamped);
   }
 }
 
@@ -142,6 +143,94 @@ final weeklyStepsProvider = Provider<List<int>>((ref) {
 final goalReachedProvider = Provider<bool>((ref) {
   return ref.watch(stepCountProvider) >= ref.watch(dailyGoalProvider);
 });
+
+// ── Streak — real, persisted, derived from SQLite `daily_steps` ─────────────
+// Used by the notification detectors. The cosmetic per-screen streak numbers
+// (home/stats/profile) keep their existing independent inline calculations —
+// this is a separate, more accurate source of truth purely for deciding when
+// to fire streak notifications and for tracking the all-time record.
+
+class StreakState {
+  const StreakState({this.current = 0, this.longest = 0});
+  final int current;
+  final int longest;
+}
+
+class StreakNotifier extends StateNotifier<StreakState> {
+  StreakNotifier(this._ref, this._prefs) : super(_load(_prefs)) {
+    _checkRollover();
+    _ref.listen<int>(stepCountProvider, (_, steps) => _onStepsChanged(steps));
+  }
+
+  final Ref _ref;
+  final SharedPreferences _prefs;
+
+  static const currentKey = 'streak_current';
+  static const longestKey = 'streak_longest';
+  static const lastSeenDateKey = 'streak_last_seen_date';
+
+  static StreakState _load(SharedPreferences prefs) => StreakState(
+        current: prefs.getInt(currentKey) ?? 0,
+        longest: prefs.getInt(longestKey) ?? 0,
+      );
+
+  String _ymd(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  DateTime _parseYmd(String s) {
+    final p = s.split('-');
+    return DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
+  }
+
+  Future<void> _onStepsChanged(int steps) async {
+    await _ref
+        .read(sessionRepositoryProvider)
+        .recordDailyTotal(DateTime.now(), steps);
+    await _checkRollover();
+  }
+
+  /// Detects the calendar date advancing since we last checked and, if so,
+  /// finalizes the streak for the day(s) that passed unseen.
+  Future<void> _checkRollover() async {
+    final today = DateTime.now();
+    final todayKey = _ymd(today);
+    final lastSeen = _prefs.getString(lastSeenDateKey);
+
+    if (lastSeen == null) {
+      await _prefs.setString(lastSeenDateKey, todayKey);
+      return;
+    }
+    if (lastSeen == todayKey) return;
+
+    final lastSeenDate = _parseYmd(lastSeen);
+    final steps = await _ref
+        .read(sessionRepositoryProvider)
+        .getStepsForDate(lastSeenDate);
+    final goal = _ref.read(dailyGoalProvider);
+    _applyCompletedDay(metGoal: steps >= goal);
+
+    if (today.difference(lastSeenDate).inDays > 1) {
+      // One or more days with no app activity in between — no data means
+      // the goal can't have been met, so the streak is broken regardless
+      // of what happened on lastSeenDate.
+      _applyCompletedDay(metGoal: false);
+    }
+
+    await _prefs.setString(lastSeenDateKey, todayKey);
+  }
+
+  void _applyCompletedDay({required bool metGoal}) {
+    final newCurrent = metGoal ? state.current + 1 : 0;
+    final newLongest = newCurrent > state.longest ? newCurrent : state.longest;
+    state = StreakState(current: newCurrent, longest: newLongest);
+    _prefs.setInt(currentKey, newCurrent);
+    _prefs.setInt(longestKey, newLongest);
+  }
+}
+
+final streakProvider = StateNotifierProvider<StreakNotifier, StreakState>(
+  (ref) => StreakNotifier(ref, ref.watch(sharedPreferencesProvider)),
+);
 
 // Today's step distribution by hour — 24 values (index = hour 0–23).
 // Realistic pattern: low overnight, morning commute peak, lunch dip,

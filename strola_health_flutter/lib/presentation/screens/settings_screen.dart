@@ -5,10 +5,14 @@ import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/services/account_service.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
 import 'package:strola_health/presentation/providers/community_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
+import 'package:strola_health/presentation/screens/integrations_screen.dart';
 import 'package:strola_health/presentation/screens/onboarding/onboarding_screen.dart';
+import 'package:strola_health/presentation/screens/paywall_screen.dart';
+import 'package:strola_health/presentation/providers/purchase_providers.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -20,6 +24,7 @@ class SettingsScreen extends ConsumerWidget {
     final unitsLabel = units == UnitSystem.metric
         ? 'Metric (km, kg, cm)'
         : 'Imperial (mi, lb, ft)';
+    final isPremium = ref.watch(isPremiumProvider);
 
     void push(Widget page) => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => page),
@@ -32,6 +37,12 @@ class SettingsScreen extends ConsumerWidget {
         _SectionCard(
           delay: 60,
           rows: [
+            _SettingsRow(
+              icon: AppIcons.premium,
+              title: 'Strolla Premium',
+              trailingValue: isPremium ? 'Active' : 'Upgrade',
+              onTap: () => push(const PaywallScreen()),
+            ),
             _SettingsRow(
               icon: AppIcons.profile,
               title: 'Edit Profile',
@@ -82,7 +93,7 @@ class SettingsScreen extends ConsumerWidget {
             _SettingsRow(
               icon: AppIcons.connectedApps,
               title: 'Connected Apps',
-              onTap: () => push(const ConnectedAppsPage()),
+              onTap: () => push(const IntegrationsScreen()),
             ),
           ],
         ),
@@ -153,7 +164,9 @@ class SettingsScreen extends ConsumerWidget {
             borderRadius: BorderRadius.circular(20)),
         title: Text('Log Out', style: AppTypography.titleM),
         content: Text(
-          'Your data stays safe on this device. You can set up again anytime.',
+          "This clears your profile, weight, goal, streaks, and workout "
+          "history from this device — there's no backend yet to restore "
+          "them from, so this can't be undone.",
           style: AppTypography.bodyM,
         ),
         actions: [
@@ -164,12 +177,10 @@ class SettingsScreen extends ConsumerWidget {
                     .copyWith(color: AppColors.textSecondary)),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(dialogCtx);
               Navigator.of(context).popUntil((r) => r.isFirst);
-              ref.read(userProfileProvider.notifier).update(
-                    (p) => p.copyWith(onboardingComplete: false),
-                  );
+              await signOutAndWipeLocalData(ref);
             },
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.error,
@@ -823,117 +834,6 @@ class UnitsPage extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// CONNECTED APPS
-// ═════════════════════════════════════════════════════════════════════════════
-
-class ConnectedAppsPage extends StatelessWidget {
-  const ConnectedAppsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsScaffold(
-      title: 'Connected Apps',
-      children: const [
-        _ConnectedAppTile(
-          name: 'Apple Health',
-          subtitle: 'Sync steps and workouts',
-          icon: AppIcons.heart,
-          color: AppColors.error,
-        ),
-        SizedBox(height: AppTheme.spaceM),
-        _ConnectedAppTile(
-          name: 'Google Fit',
-          subtitle: 'Sync activity data',
-          icon: AppIcons.treadmill,
-          color: AppColors.accent,
-        ),
-        SizedBox(height: AppTheme.spaceM),
-        _ConnectedAppTile(
-          name: 'Strava',
-          subtitle: 'Share runs and walks',
-          icon: AppIcons.run,
-          color: AppColors.accent,
-        ),
-      ],
-    );
-  }
-}
-
-class _ConnectedAppTile extends StatefulWidget {
-  const _ConnectedAppTile({
-    required this.name,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-  });
-
-  final String name;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-
-  @override
-  State<_ConnectedAppTile> createState() => _ConnectedAppTileState();
-}
-
-class _ConnectedAppTileState extends State<_ConnectedAppTile> {
-  bool _connected = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return FlatCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceL,
-        vertical: AppTheme.spaceM,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: widget.color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppTheme.radiusM),
-            ),
-            child: Icon(widget.icon, color: widget.color, size: AppTheme.iconM),
-          ),
-          const SizedBox(width: AppTheme.spaceM),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.name, style: AppTypography.bodyL),
-                Text(widget.subtitle, style: AppTypography.bodyS),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: () => setState(() => _connected = !_connected),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spaceM, vertical: AppTheme.spaceS),
-              decoration: BoxDecoration(
-                color: _connected
-                    ? AppColors.success.withValues(alpha: 0.12)
-                    : AppColors.accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-              ),
-              child: Text(
-                _connected ? 'Connected' : 'Connect',
-                style: AppTypography.labelM.copyWith(
-                  color: _connected ? AppColors.success : AppColors.accent,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

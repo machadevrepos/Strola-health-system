@@ -14,7 +14,6 @@ import 'package:strola_health/presentation/screens/share_steps_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/header_actions.dart';
 import 'package:strola_health/presentation/widgets/pressable_scale.dart';
-import 'package:strola_health/presentation/widgets/strolla_icons.dart';
 
 class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
@@ -317,8 +316,8 @@ class _OverviewTab extends ConsumerWidget {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const StrollaIcon(
-                                    StrollaIconType.shoe,
+                                  const Icon(
+                                    AppIcons.start,
                                     size: AppTheme.iconL,
                                     color: AppColors.accent,
                                   ),
@@ -899,8 +898,8 @@ class _StepsTab extends ConsumerWidget {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const StrollaIcon(
-                                    StrollaIconType.shoe,
+                                  const Icon(
+                                    AppIcons.start,
                                     size: 22,
                                     color: AppColors.accent,
                                   ),

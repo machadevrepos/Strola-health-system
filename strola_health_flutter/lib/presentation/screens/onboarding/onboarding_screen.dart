@@ -9,10 +9,13 @@ import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/fitness_calculator.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
+import 'package:strola_health/data/datasources/backend_api.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
+import 'package:strola_health/presentation/providers/auth_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
+import 'package:strola_health/presentation/widgets/form_field.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key, this.isEditing = false});
@@ -72,11 +75,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   bool get _canAdvance {
-    if (_page == 0) {
-      return _usernameCtrl.text.trim().isNotEmpty &&
-          _nameCtrl.text.trim().isNotEmpty;
+    switch (_page) {
+      case 0:
+        return _usernameCtrl.text.trim().isNotEmpty &&
+            _nameCtrl.text.trim().isNotEmpty;
+      case 2:
+        // Height/weight/gender all have defaults and gender is explicitly
+        // optional (see _bodyStep) — date of birth has no sensible default
+        // and isn't marked optional, so it must be set before continuing.
+        return _dob != null;
+      case 4:
+        // At least one reason — the step asks the user to select from a
+        // list, so leaving it untouched shouldn't be allowed through.
+        return _reasons.isNotEmpty;
+      default:
+        return true;
     }
-    return true;
   }
 
   void _next() {
@@ -123,6 +137,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     await ref.read(userWeightKgProvider.notifier).setWeight(_weightKg);
     await ref.read(dailyGoalProvider.notifier).setGoal(_stepGoal);
     HapticsHelper.goalReached();
+
+    // Best-effort — the local save above is the source of truth regardless;
+    // this just keeps the backend account in step once auth exists.
+    if (ref.read(firebaseAvailableProvider) &&
+        ref.read(authStateProvider).value != null) {
+      try {
+        await ref.read(backendApiProvider).updateProfile(
+              profile,
+              dailyGoalSteps: _stepGoal,
+              weightKg: _weightKg,
+            );
+      } catch (_) {
+        // Network/backend issues shouldn't block finishing onboarding.
+      }
+    }
 
     if (widget.isEditing && mounted) Navigator.pop(context);
   }
@@ -350,7 +379,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.screenPaddingH),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: AppTheme.spaceM),
           Text('Your daily goal', style: AppTypography.titleL)
@@ -860,7 +889,7 @@ class _ProfileStep extends StatelessWidget {
           'Just a few details to personalize your experience and keep your '
           'stats accurate.',
       children: [
-        _FormField(
+        AppFormField(
           icon: AppIcons.profile,
           label: 'Username',
           hint: 'e.g. sarah.walks',
@@ -868,7 +897,7 @@ class _ProfileStep extends StatelessWidget {
           onChanged: (_) => onChanged(),
         ),
         const SizedBox(height: AppTheme.spaceM),
-        _FormField(
+        AppFormField(
           icon: AppIcons.profile,
           label: 'Name',
           hint: 'e.g. Sarah Abu-Ramadan',
@@ -876,7 +905,7 @@ class _ProfileStep extends StatelessWidget {
           onChanged: (_) => onChanged(),
         ),
         const SizedBox(height: AppTheme.spaceM),
-        _FormField(
+        AppFormField(
           icon: AppIcons.location,
           label: 'Location',
           optional: true,
@@ -885,7 +914,7 @@ class _ProfileStep extends StatelessWidget {
           onChanged: (_) => onChanged(),
         ),
         const SizedBox(height: AppTheme.spaceM),
-        _FormField(
+        AppFormField(
           icon: AppIcons.edit,
           label: 'Bio',
           optional: true,
@@ -979,79 +1008,6 @@ class _StepProgress extends StatelessWidget {
           ),
         );
       }),
-    );
-  }
-}
-
-class _FormField extends StatelessWidget {
-  const _FormField({
-    required this.icon,
-    required this.label,
-    required this.hint,
-    required this.controller,
-    required this.onChanged,
-    this.optional = false,
-    this.maxLines = 1,
-  });
-
-  final IconData icon;
-  final String label;
-  final String hint;
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final bool optional;
-  final int maxLines;
-
-  @override
-  Widget build(BuildContext context) {
-    return FlatCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceL,
-        vertical: AppTheme.spaceM,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Icon(icon, color: AppColors.accent, size: AppTheme.iconM),
-          ),
-          const SizedBox(width: AppTheme.spaceM),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(label, style: AppTypography.titleS),
-                    if (optional) ...[
-                      const SizedBox(width: AppTheme.spaceXS),
-                      Text('(Optional)', style: AppTypography.labelS),
-                    ],
-                  ],
-                ),
-                TextField(
-                  controller: controller,
-                  onChanged: onChanged,
-                  maxLines: maxLines,
-                  style: AppTypography.bodyM
-                      .copyWith(color: AppColors.textPrimary),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                    hintText: hint,
-                    hintStyle: AppTypography.bodyM
-                        .copyWith(color: AppColors.textMuted),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

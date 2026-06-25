@@ -756,20 +756,6 @@ class _PostCard extends ConsumerWidget {
               const SizedBox(height: AppTheme.spaceS),
               ListTile(
                 leading: const Icon(
-                  AppIcons.bookmark,
-                  color: AppColors.textSecondary,
-                ),
-                title: Text(
-                  'Save post',
-                  style: AppTypography.bodyL.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onTap: () => act('Post saved'),
-              ),
-              ListTile(
-                leading: const Icon(
                   AppIcons.link,
                   color: AppColors.textSecondary,
                 ),
