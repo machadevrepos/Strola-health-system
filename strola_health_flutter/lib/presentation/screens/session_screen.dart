@@ -47,6 +47,8 @@ extension ActivityTypeUI on ActivityType {
     ActivityType.yoga => AppIcons.yoga,
     ActivityType.pilates => AppIcons.pilates,
     ActivityType.cardio => AppIcons.heart,
+    ActivityType.biking => AppIcons.biking,
+    ActivityType.hiit => AppIcons.hiit,
     ActivityType.other => AppIcons.otherActivity,
   };
 }
@@ -1101,7 +1103,7 @@ class _StopDialog extends StatelessWidget {
             ),
             const SizedBox(height: AppTheme.spaceS),
             Text(
-              'Your progress will be saved to your workout log.',
+              "You'll be able to save or discard it on the next screen.",
               textAlign: TextAlign.center,
               style: AppTypography.bodyS,
             ),

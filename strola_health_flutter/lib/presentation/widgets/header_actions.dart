@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/presentation/providers/notification_providers.dart';
+import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/screens/notifications_screen.dart';
 import 'package:strola_health/presentation/screens/profile_screen.dart';
 
@@ -16,6 +19,7 @@ class HeaderActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final showBellDot = ref.watch(unreadNotificationCountProvider) > 0;
+    final photoPath = ref.watch(userProfileProvider).photoPath;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -67,9 +71,9 @@ class HeaderActions extends ConsumerWidget {
         const SizedBox(width: 10),
         // Profile avatar
         GestureDetector(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
           child: Container(
             width: 40,
             height: 40,
@@ -80,12 +84,20 @@ class HeaderActions extends ConsumerWidget {
                 color: AppColors.accentSecondary.withValues(alpha: 0.45),
                 width: 1.5,
               ),
+              image: photoPath != null
+                  ? DecorationImage(
+                      image: FileImage(File(photoPath)),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-            child: Icon(
-              AppIcons.profile,
-              color: AppColors.accent,
-              size: AppTheme.iconM,
-            ),
+            child: photoPath == null
+                ? Icon(
+                    AppIcons.profile,
+                    color: AppColors.accent,
+                    size: AppTheme.iconM,
+                  )
+                : null,
           ),
         ),
       ],

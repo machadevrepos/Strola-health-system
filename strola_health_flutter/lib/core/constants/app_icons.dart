@@ -80,6 +80,8 @@ class AppIcons {
   static const IconData strength = Icons.sports_gymnastics_outlined;
   static const IconData yoga = Icons.self_improvement_outlined;
   static const IconData pilates = Icons.accessibility_new_outlined;
+  static const IconData biking = Icons.directions_bike_outlined;
+  static const IconData hiit = Icons.bolt_outlined;
   static const IconData otherActivity = Icons.category_outlined;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -89,6 +91,8 @@ class AppIcons {
   static const IconData goal = Icons.flag_outlined;
   static const IconData target = Icons.adjust; // bullseye — "% of goal"
   static const IconData goalReached = Icons.check_circle_outline;
+  static const IconData circleOutline =
+      Icons.circle_outlined; // unmet checklist item (e.g. password rules)
   static const IconData milestone = Icons.outlined_flag;
   static const IconData streak = Icons.local_fire_department_outlined;
   static const IconData trophy = Icons.emoji_events_outlined;
@@ -180,10 +184,12 @@ class AppIcons {
   // ─────────────────────────────────────────────────────────────────────────
 
   static const IconData info = Icons.info_outline;
-  static const IconData sparkle = Icons.auto_awesome_outlined; // decorative sparkle accent
+  static const IconData sparkle =
+      Icons.auto_awesome_outlined; // decorative sparkle accent
   static const IconData sun = Icons.wb_sunny_outlined; // decorative sun
   static const IconData park = Icons.park_outlined; // decorative nature
-  static const IconData flora = Icons.local_florist_outlined; // decorative flower
+  static const IconData flora =
+      Icons.local_florist_outlined; // decorative flower
   static const IconData ecology = Icons.eco_outlined; // leaf / laurel
   static const IconData leaderboard = Icons.leaderboard_outlined;
   static const IconData celebration = Icons.celebration_outlined;
@@ -223,6 +229,7 @@ class AppIcons {
   static const IconData block = Icons.block; // no-entry circle
   static const IconData connectedApps =
       Icons.extension_outlined; // puzzle piece
+  static const IconData widget = Icons.widgets_outlined; // home-screen widget
   static const IconData document = Icons.description_outlined;
   static const IconData shield = Icons.shield_outlined;
   static const IconData logout = Icons.logout;

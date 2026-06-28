@@ -58,6 +58,7 @@ dependencies:
 
   # Media
   image_picker: ^1.2.2
+  image_cropper: ^9.1.0
 
   # Notifications
   flutter_local_notifications: ^18.0.1
@@ -84,3 +85,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/onboarding/

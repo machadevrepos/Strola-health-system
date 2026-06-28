@@ -5,14 +5,16 @@ import 'package:strola_health/domain/entities/personal_record.dart';
 import 'package:strola_health/domain/entities/workout_session.dart';
 
 class SessionRepository {
-  Future<void> saveSession(WorkoutSession session) async {
+  Future<void> saveSession(WorkoutSession session, {required int goal}) async {
     final db = await LocalDatabase.instance;
     await db.insert(
       'workout_sessions',
       session.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    // Upsert today's cumulative step total for the calendar heat-map
+    // Upsert today's cumulative step total for the calendar heat-map —
+    // `goal` is snapshotted alongside it so "days met goal" stays accurate
+    // for this day even if the goal changes again later.
     final dateKey = _dateKey(session.startTime);
     final existing = await db.query(
       'daily_steps',
@@ -20,11 +22,15 @@ class SessionRepository {
       whereArgs: [dateKey],
     );
     if (existing.isEmpty) {
-      await db.insert('daily_steps', {'date': dateKey, 'steps': session.steps});
+      await db.insert('daily_steps', {
+        'date': dateKey,
+        'steps': session.steps,
+        'goal': goal,
+      });
     } else {
       await db.rawUpdate(
-        'UPDATE daily_steps SET steps = steps + ? WHERE date = ?',
-        [session.steps, dateKey],
+        'UPDATE daily_steps SET steps = steps + ?, goal = ? WHERE date = ?',
+        [session.steps, goal, dateKey],
       );
     }
   }
@@ -94,7 +100,16 @@ class SessionRepository {
   /// new and existing value (steps only ever accumulate within a day).
   /// Used to keep `daily_steps` fresh from the live step count, not just
   /// from saved workout sessions — needed for accurate streak tracking.
-  Future<void> recordDailyTotal(DateTime date, int steps) async {
+  ///
+  /// [goal] is re-snapshotted on every call (even when steps didn't go up),
+  /// so it always reflects the goal most recently in effect for this day —
+  /// raising the goal tomorrow doesn't retroactively change whether today
+  /// counted as met.
+  Future<void> recordDailyTotal(
+    DateTime date,
+    int steps, {
+    required int goal,
+  }) async {
     final db = await LocalDatabase.instance;
     final dateKey = _dateKey(date);
     final existing = await db.query(
@@ -103,11 +118,16 @@ class SessionRepository {
       whereArgs: [dateKey],
     );
     if (existing.isEmpty) {
-      await db.insert('daily_steps', {'date': dateKey, 'steps': steps});
-    } else if (steps > (existing.first['steps'] as int)) {
+      await db.insert('daily_steps', {
+        'date': dateKey,
+        'steps': steps,
+        'goal': goal,
+      });
+    } else {
+      final currentSteps = existing.first['steps'] as int;
       await db.update(
         'daily_steps',
-        {'steps': steps},
+        {'steps': steps > currentSteps ? steps : currentSteps, 'goal': goal},
         where: 'date = ?',
         whereArgs: [dateKey],
       );
@@ -179,6 +199,42 @@ class SessionRepository {
       if (otherPace <= pace) return false;
     }
     return true;
+  }
+
+  /// Each recorded day in [month] (any day within it — only year/month are
+  /// used), paired with the goal that was active when that day's total was
+  /// last written — not necessarily the current goal. Days recorded before
+  /// the `goal` column existed fall back to [fallbackGoal], the best
+  /// available guess for them.
+  Future<List<({DateTime date, int steps, int goal})>> getStepsForMonthWithGoal(
+    DateTime month, {
+    required int fallbackGoal,
+  }) async {
+    final db = await LocalDatabase.instance;
+    final monthStart = DateTime(month.year, month.month, 1);
+    final monthEnd = DateTime(month.year, month.month + 1, 1);
+    final rows = await db.query(
+      'daily_steps',
+      where: 'date >= ? AND date < ?',
+      whereArgs: [_dateKey(monthStart), _dateKey(monthEnd)],
+    );
+    return [
+      for (final r in rows)
+        (
+          date: _parseDate(r['date'] as String),
+          steps: r['steps'] as int,
+          goal: (r['goal'] as int?) ?? fallbackGoal,
+        ),
+    ];
+  }
+
+  /// Total steps ever recorded on this device.
+  Future<int> getAllTimeSteps() async {
+    final db = await LocalDatabase.instance;
+    final result = await db.rawQuery(
+      'SELECT SUM(steps) as total FROM daily_steps',
+    );
+    return (result.first['total'] as int?) ?? 0;
   }
 
   String _dateKey(DateTime d) =>

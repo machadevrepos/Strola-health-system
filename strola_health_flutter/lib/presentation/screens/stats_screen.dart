@@ -9,11 +9,59 @@ import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
+import 'package:strola_health/presentation/providers/session_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/screens/share_steps_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/header_actions.dart';
 import 'package:strola_health/presentation/widgets/pressable_scale.dart';
+
+// Shared by the Steps/Distance tabs' month picker and headers.
+const _kFullMonthNames = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+const _kShortMonthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+String _fullMonthLabel(DateTime month) =>
+    '${_kFullMonthNames[month.month - 1]} ${month.year}';
+String _shortMonthLabel(DateTime month) =>
+    '${_kShortMonthNames[month.month - 1]} ${month.year}';
+DateTime _monthBefore(DateTime month) => DateTime(month.year, month.month - 1);
+int _daysInMonth(DateTime month) =>
+    DateTime(month.year, month.month + 1, 0).day;
+
+/// Today's day-of-month if [month] is the current calendar month (it's still
+/// "in progress"), otherwise the full length of that (necessarily past) month.
+int _daysElapsedIn(DateTime month) {
+  final now = DateTime.now();
+  return month.year == now.year && month.month == now.month
+      ? now.day
+      : _daysInMonth(month);
+}
 
 class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
@@ -185,7 +233,12 @@ class _OverviewTab extends ConsumerWidget {
     final calories = ref.watch(caloriesProvider);
     final weekly = ref.watch(weeklyStepsProvider);
     final units = ref.watch(userProfileProvider).units;
+    // `progress` stays clamped — it only ever feeds the ring's fill, which
+    // can't visually exceed full. `progressPct` is the displayed text and
+    // should reflect steps actually going over goal rather than capping at
+    // 100.
     final progress = (steps / goal).clamp(0.0, 1.0);
+    final progressPct = ((steps / goal) * 100).toInt();
 
     final distanceKm = steps * 0.762 / 1000;
     final distanceStr = Formatters.distanceLabelSmart(distanceKm, units);
@@ -323,7 +376,7 @@ class _OverviewTab extends ConsumerWidget {
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
-                                    '${(progress * 100).toInt()}%',
+                                    '$progressPct%',
                                     style: AppTypography.titleM.copyWith(
                                       color: AppColors.accent,
                                       fontSize: 18,
@@ -705,9 +758,14 @@ class _OverviewTab extends ConsumerWidget {
 String _compactSteps(double v) =>
     v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}K' : v.toStringAsFixed(0);
 
-class _StepsTab extends ConsumerWidget {
+class _StepsTab extends ConsumerStatefulWidget {
   const _StepsTab();
 
+  @override
+  ConsumerState<_StepsTab> createState() => _StepsTabState();
+}
+
+class _StepsTabState extends ConsumerState<_StepsTab> {
   // Mock 30-day data (in prod, pull from SQLite session_repository)
   static const _mockMonthly = [
     8200,
@@ -742,22 +800,52 @@ class _StepsTab extends ConsumerWidget {
     0,
   ];
 
+  late DateTime _selectedMonth = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+  );
+
+  bool get _isCurrentMonth {
+    final now = DateTime.now();
+    return _selectedMonth.year == now.year && _selectedMonth.month == now.month;
+  }
+
+  Future<void> _openMonthPicker(BuildContext context) async {
+    final picked = await _pickMonth(context, _selectedMonth);
+    if (picked != null) setState(() => _selectedMonth = picked);
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final steps = ref.watch(stepCountProvider);
     final goal = ref.watch(dailyGoalProvider);
 
+    // The mock chart only ever represents the current month (it's not
+    // backed by real history) — browsing to a past month still shows it,
+    // since there's nothing real yet to show in its place.
     final data = [..._mockMonthly];
-    data[data.length - 1] = steps;
+    if (_isCurrentMonth) data[data.length - 1] = steps;
 
     final total = data.reduce((a, b) => a + b);
     final prevTotal = 183520; // mock previous month
     final pct = ((total - prevTotal) / prevTotal * 100).round();
+    // `progress` stays clamped — it only ever feeds the ring's fill, which
+    // can't visually exceed full. `progressPct` is the displayed text.
     final progress = (total / (goal * 31)).clamp(0.0, 1.0);
+    final progressPct = ((total / (goal * 31)) * 100).toInt();
     final bestDay = data.reduce((a, b) => a > b ? a : b);
     final bestDayIndex = data.indexOf(bestDay);
     final avgPerDay = total ~/ data.where((d) => d > 0).length;
-    final daysMetGoal = data.where((d) => d >= goal).length;
+
+    // Real, not mock — each day is compared against whatever goal was
+    // active when it was recorded, so raising the goal later doesn't
+    // retroactively un-meet an earlier day that hit its own, lower goal.
+    final monthGoalData =
+        ref.watch(stepsForMonthWithGoalProvider(_selectedMonth)).value ??
+        const [];
+    final daysMetGoal = monthGoalData.where((d) => d.steps >= d.goal).length;
+    final daysElapsed = _daysElapsedIn(_selectedMonth);
+    final allTimeSteps = ref.watch(allTimeStepsProvider).value ?? 0;
 
     final weeklySteps = ref
         .watch(weeklyStepsProvider)
@@ -788,26 +876,33 @@ class _StepsTab extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'This Month',
-                                  style: AppTypography.titleS.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0,
+                            InkWell(
+                              onTap: () => _openMonthPicker(context),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusS,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'This Month',
+                                    style: AppTypography.titleS.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: AppTheme.spaceXS),
-                                const Icon(
-                                  AppIcons.expandMore,
-                                  color: AppColors.textMuted,
-                                  size: 18,
-                                ),
-                              ],
+                                  const SizedBox(width: AppTheme.spaceXS),
+                                  const Icon(
+                                    AppIcons.expandMore,
+                                    color: AppColors.textMuted,
+                                    size: 18,
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              _monthLabel(),
+                              _fullMonthLabel(_selectedMonth),
                               style: AppTypography.labelM.copyWith(
                                 fontWeight: FontWeight.w400,
                                 letterSpacing: 0,
@@ -905,7 +1000,7 @@ class _StepsTab extends ConsumerWidget {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${(progress * 100).toInt()}%',
+                                    '$progressPct%',
                                     style: AppTypography.titleM.copyWith(
                                       color: AppColors.accent,
                                       fontSize: 18,
@@ -1093,16 +1188,18 @@ class _StepsTab extends ConsumerWidget {
               _InsightRow(
                 icon: AppIcons.stats,
                 title: 'Best Day',
-                subtitle: 'May ${bestDayIndex + 1}',
+                subtitle:
+                    '${_kShortMonthNames[_selectedMonth.month - 1]} ${bestDayIndex + 1}',
                 value: '${Formatters.stepCount(bestDay)}\nsteps',
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.stats,
                   title: 'Best Day',
                   headline: '${Formatters.stepCount(bestDay)} steps',
-                  subtitle: 'May ${bestDayIndex + 1}, ${DateTime.now().year}',
+                  subtitle:
+                      '${_kShortMonthNames[_selectedMonth.month - 1]} ${bestDayIndex + 1}, ${_selectedMonth.year}',
                   body:
-                      "This was your most active day this month — that's ${(bestDay / goal * 100).round()}% of your daily goal. Days like this add up fast. Keep chasing them!",
+                      "The most steps you've taken in a single day this month.",
                 ),
               ),
               Divider(
@@ -1122,7 +1219,7 @@ class _StepsTab extends ConsumerWidget {
                   headline: '${Formatters.stepCount(avgPerDay)} / day',
                   subtitle: '+10% vs ${_lastMonthLabel()}',
                   body:
-                      "You're averaging more steps per day than last month. Small, consistent days are the real win — your average is trending up.",
+                      'Your average daily step count this month. Consistency is key - keep going!',
                 ),
               ),
               Divider(
@@ -1133,16 +1230,16 @@ class _StepsTab extends ConsumerWidget {
                 icon: AppIcons.steps,
                 title: 'Days Met Goal',
                 subtitle: '$daysMetGoal days',
-                value: '${(daysMetGoal / 30 * 100).round()}%\nof days',
+                value: '${(daysMetGoal / daysElapsed * 100).round()}%\nof days',
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.steps,
                   title: 'Days Met Goal',
-                  headline: '$daysMetGoal of 30 days',
-                  subtitle: '${(daysMetGoal / 30 * 100).round()}% of days',
-                  body: daysMetGoal >= 15
-                      ? "You hit your ${Formatters.stepCount(goal)}-step goal on more than half the days this month. That's how strong habits are built!"
-                      : "You reached your ${Formatters.stepCount(goal)}-step goal $daysMetGoal days so far. Aim for a few more — you've got this.",
+                  headline: '$daysMetGoal of $daysElapsed days',
+                  subtitle:
+                      '${(daysMetGoal / daysElapsed * 100).round()}% of days',
+                  body:
+                      "You've achieved your step goal $daysMetGoal days so far. Keep going! Every step counts.",
                 ),
               ),
               const SizedBox(height: AppTheme.spaceM),
@@ -1164,7 +1261,7 @@ class _StepsTab extends ConsumerWidget {
                       child: Text(
                         daysMetGoal >= 15
                             ? "You're doing great! You met your daily goal more than half the days this month."
-                            : "Keep going! Try to hit your step goal each day.",
+                            : "Keep going! Every step counts",
                         style: AppTypography.labelM.copyWith(
                           color: AppColors.textSecondary,
                           fontWeight: FontWeight.w400,
@@ -1179,8 +1276,17 @@ class _StepsTab extends ConsumerWidget {
               _InsightRow(
                 icon: AppIcons.trophy,
                 title: 'All-Time Steps',
-                subtitle: '512,456 steps',
+                subtitle: '${Formatters.stepCount(allTimeSteps)} steps',
                 value: '',
+                onTap: () => _openInsight(
+                  context,
+                  icon: AppIcons.trophy,
+                  title: 'All-Time Steps',
+                  headline: '${Formatters.stepCount(allTimeSteps)} steps',
+                  subtitle: 'Since you joined Strolla',
+                  body:
+                      "The total number of steps you've taken since joining Strolla.",
+                ),
               ),
             ],
           ),
@@ -1189,44 +1295,7 @@ class _StepsTab extends ConsumerWidget {
     );
   }
 
-  String _monthLabel() {
-    final now = DateTime.now();
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return '${months[now.month - 1]} ${now.year}';
-  }
-
-  String _lastMonthLabel() {
-    final now = DateTime.now();
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final lastMonth = now.month == 1 ? 11 : now.month - 2;
-    return '${months[lastMonth]} ${now.month == 1 ? now.year - 1 : now.year}';
-  }
+  String _lastMonthLabel() => _shortMonthLabel(_monthBefore(_selectedMonth));
 
   void _openInsight(
     BuildContext context, {
@@ -1254,9 +1323,14 @@ class _StepsTab extends ConsumerWidget {
 // DISTANCE TAB
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _DistanceTab extends ConsumerWidget {
+class _DistanceTab extends ConsumerStatefulWidget {
   const _DistanceTab();
 
+  @override
+  ConsumerState<_DistanceTab> createState() => _DistanceTabState();
+}
+
+class _DistanceTabState extends ConsumerState<_DistanceTab> {
   static const _mockMonthly = [
     6.25,
     8.61,
@@ -1290,15 +1364,66 @@ class _DistanceTab extends ConsumerWidget {
     0.0,
   ];
 
+  /// A live "roughly the distance from X to Y" reference isn't feasible for
+  /// every person's exact all-time distance — there's no live geo API wired
+  /// in, and even if there were, picking a *good* real-world comparison for
+  /// an arbitrary number of km is a fuzzy, subjective task, not a lookup.
+  /// What's feasible, and what this does instead: a small table of
+  /// well-known, easily-verified real distances, picking whichever one the
+  /// person's total has just passed. Scales with everyone's number instead
+  /// of being stuck on one reference forever, without needing to fabricate
+  /// or guess at a precise match.
+  static String _distanceFunFact(double km) {
+    if (km < 42.2) {
+      return "Every walk adds up. This is the total distance you've covered with Strolla.";
+    }
+    final String comparison;
+    if (km < 188) {
+      comparison = "That's like running a marathon!";
+    } else if (km < 344) {
+      comparison = "That's roughly the length of the M25 around London!";
+    } else if (km < 535) {
+      comparison = "That's roughly the distance from London to Paris!";
+    } else if (km < 1400) {
+      comparison = "That's roughly the distance from London to Edinburgh!";
+    } else if (km < 2400) {
+      comparison =
+          "That's roughly the length of Great Britain, from Land's End to John o' Groats!";
+    } else {
+      comparison = "That's roughly the distance from London to Athens!";
+    }
+    return '$comparison Every walk has carried you a little further.';
+  }
+
+  late DateTime _selectedMonth = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+  );
+
+  bool get _isCurrentMonth {
+    final now = DateTime.now();
+    return _selectedMonth.year == now.year && _selectedMonth.month == now.month;
+  }
+
+  Future<void> _openMonthPicker(BuildContext context) async {
+    final picked = await _pickMonth(context, _selectedMonth);
+    if (picked != null) setState(() => _selectedMonth = picked);
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final steps = ref.watch(stepCountProvider);
     final units = ref.watch(userProfileProvider).units;
     final unitLabel = Formatters.distanceUnitLabel(units);
     final todayKm = steps * 0.762 / 1000;
+    final allTimeSteps = ref.watch(allTimeStepsProvider).value ?? 0;
+    final allTimeDistanceKm = allTimeSteps * 0.762 / 1000;
 
+    // The mock chart only ever represents the current month (it's not
+    // backed by real history) — browsing to a past month still shows it,
+    // since there's nothing real yet to show in its place.
     final kmData = [..._mockMonthly];
-    kmData[kmData.length - 1] = todayKm;
+    if (_isCurrentMonth) kmData[kmData.length - 1] = todayKm;
 
     final data = kmData
         .map((km) => Formatters.distanceFromKm(km, units))
@@ -1336,26 +1461,33 @@ class _DistanceTab extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'This Month',
-                                  style: AppTypography.titleS.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0,
+                            InkWell(
+                              onTap: () => _openMonthPicker(context),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusS,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'This Month',
+                                    style: AppTypography.titleS.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: AppTheme.spaceXS),
-                                const Icon(
-                                  AppIcons.expandMore,
-                                  color: AppColors.textMuted,
-                                  size: 18,
-                                ),
-                              ],
+                                  const SizedBox(width: AppTheme.spaceXS),
+                                  const Icon(
+                                    AppIcons.expandMore,
+                                    color: AppColors.textMuted,
+                                    size: 18,
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              _monthLabel(),
+                              _fullMonthLabel(_selectedMonth),
                               style: AppTypography.labelM.copyWith(
                                 fontWeight: FontWeight.w400,
                                 letterSpacing: 0,
@@ -1589,16 +1721,18 @@ class _DistanceTab extends ConsumerWidget {
               _InsightRow(
                 icon: AppIcons.trophy,
                 title: 'Best Day',
-                subtitle: 'May ${bestDayIndex + 1}',
+                subtitle:
+                    '${_kShortMonthNames[_selectedMonth.month - 1]} ${bestDayIndex + 1}',
                 value: '${bestDay.toStringAsFixed(1)} $unitLabel',
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.trophy,
                   title: 'Best Day',
                   headline: '${bestDay.toStringAsFixed(1)} $unitLabel',
-                  subtitle: 'May ${bestDayIndex + 1}, ${DateTime.now().year}',
+                  subtitle:
+                      '${_kShortMonthNames[_selectedMonth.month - 1]} ${bestDayIndex + 1}, ${_selectedMonth.year}',
                   body:
-                      'Your longest day this month — you covered more ground than on any other day. Every kilometre counts!',
+                      "The furthest you've travelled in a single day this month.",
                 ),
               ),
               Divider(
@@ -1617,8 +1751,7 @@ class _DistanceTab extends ConsumerWidget {
                   title: 'Average Per Day',
                   headline: '${avgPerDay.toStringAsFixed(1)} $unitLabel / day',
                   subtitle: '+10% vs ${_lastMonthLabel()}',
-                  body:
-                      "You're walking a little further each day than last month. Consistency like this really adds up over time.",
+                  body: 'Your average distance travelled per day this month.',
                 ),
               ),
               Divider(
@@ -1628,16 +1761,15 @@ class _DistanceTab extends ConsumerWidget {
               _InsightRow(
                 icon: AppIcons.premium,
                 title: 'All-Time Distance',
-                subtitle: Formatters.distanceLabel(2456.7, units),
+                subtitle: Formatters.distanceLabel(allTimeDistanceKm, units),
                 value: '',
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.premium,
                   title: 'All-Time Distance',
-                  headline: Formatters.distanceLabel(2456.7, units),
+                  headline: Formatters.distanceLabel(allTimeDistanceKm, units),
                   subtitle: 'Since you joined Strolla',
-                  body:
-                      "That's roughly the distance from London to Athens! Every walk has carried you a little further.",
+                  body: _distanceFunFact(allTimeDistanceKm),
                 ),
               ),
             ],
@@ -1647,44 +1779,7 @@ class _DistanceTab extends ConsumerWidget {
     );
   }
 
-  String _monthLabel() {
-    final now = DateTime.now();
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return '${months[now.month - 1]} ${now.year}';
-  }
-
-  String _lastMonthLabel() {
-    final now = DateTime.now();
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final lastMonth = now.month == 1 ? 11 : now.month - 2;
-    return '${months[lastMonth]} ${now.month == 1 ? now.year - 1 : now.year}';
-  }
+  String _lastMonthLabel() => _shortMonthLabel(_monthBefore(_selectedMonth));
 
   void _openInsight(
     BuildContext context, {
@@ -1958,14 +2053,14 @@ class _ActivityTab extends ConsumerWidget {
               const SizedBox(height: AppTheme.spaceM),
               _InsightRow(
                 icon: AppIcons.calories,
-                title: "You're on fire!",
-                subtitle:
-                    'You burned 6% more calories compared to the previous 30 days.',
-                value: '',
+                title: 'Active Calories',
+                subtitle: 'vs the previous 30 days',
+                value: '+6%\nvs last 30 days',
+                valueColor: AppColors.success,
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.calories,
-                  title: "You're on fire!",
+                  title: 'Active Calories',
                   headline: '+6% calories',
                   subtitle: 'vs the previous 30 days',
                   body:
@@ -1978,14 +2073,14 @@ class _ActivityTab extends ConsumerWidget {
               ),
               _InsightRow(
                 icon: AppIcons.run,
-                title: 'More movement, more results',
-                subtitle:
-                    'Your workouts are up 20% compared to the previous 30 days.',
-                value: '',
+                title: 'Workouts',
+                subtitle: 'vs the previous 30 days',
+                value: '+20%\nvs last 30 days',
+                valueColor: AppColors.success,
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.run,
-                  title: 'More movement, more results',
+                  title: 'Workouts',
                   headline: '+20% workouts',
                   subtitle: 'vs the previous 30 days',
                   body:
@@ -1998,13 +2093,13 @@ class _ActivityTab extends ConsumerWidget {
               ),
               _InsightRow(
                 icon: AppIcons.calendarMonth,
-                title: 'Keep it up!',
-                subtitle: "You've been active on 24 of the last 30 days.",
-                value: '',
+                title: 'Active Days',
+                subtitle: 'in the last 30 days',
+                value: '24 of 30\ndays',
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.calendarMonth,
-                  title: 'Keep it up!',
+                  title: 'Active Days',
                   headline: '24 of 30 days',
                   subtitle: 'active this month',
                   body:
@@ -3183,6 +3278,213 @@ class _WorkoutDetailSheet extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MONTH PICKER — "This Month" header → browse previous months
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Opens the month/year picker. Returns the picked first-of-month, or null
+/// if dismissed without a pick.
+Future<DateTime?> _pickMonth(BuildContext context, DateTime current) {
+  return showModalBottomSheet<DateTime>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _MonthPickerSheet(active: current),
+  );
+}
+
+class _MonthPickerSheet extends StatefulWidget {
+  const _MonthPickerSheet({required this.active});
+
+  /// The month currently shown on the stats tab — highlighted in the grid.
+  final DateTime active;
+
+  @override
+  State<_MonthPickerSheet> createState() => _MonthPickerSheetState();
+}
+
+class _MonthPickerSheetState extends State<_MonthPickerSheet> {
+  late int _viewYear = widget.active.year;
+
+  static const _monthLabels = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final canGoForward = _viewYear < now.year;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceM),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(
+            AppTheme.spaceXL,
+            AppTheme.spaceM,
+            AppTheme.spaceXL,
+            AppTheme.spaceXL,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.bgSurface,
+            borderRadius: BorderRadius.circular(AppTheme.radiusSheet),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSecondary.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppTheme.spaceL),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Select Month',
+                    style: AppTypography.titleM.copyWith(letterSpacing: 0),
+                  ),
+                  Row(
+                    children: [
+                      _YearStepButton(
+                        icon: AppIcons.chevronLeft,
+                        onTap: () => setState(() => _viewYear -= 1),
+                      ),
+                      SizedBox(
+                        width: 52,
+                        child: Text(
+                          '$_viewYear',
+                          textAlign: TextAlign.center,
+                          style: AppTypography.bodyL.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      _YearStepButton(
+                        icon: AppIcons.chevronRight,
+                        onTap: canGoForward
+                            ? () => setState(() => _viewYear += 1)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spaceL),
+              GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: AppTheme.spaceS,
+                crossAxisSpacing: AppTheme.spaceS,
+                childAspectRatio: 1.7,
+                children: [
+                  for (var m = 1; m <= 12; m++)
+                    _MonthCell(
+                      label: _monthLabels[m - 1],
+                      isActive:
+                          _viewYear == widget.active.year &&
+                          m == widget.active.month,
+                      isFuture: DateTime(
+                        _viewYear,
+                        m,
+                      ).isAfter(DateTime(now.year, now.month)),
+                      onTap: () =>
+                          Navigator.pop(context, DateTime(_viewYear, m)),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _YearStepButton extends StatelessWidget {
+  const _YearStepButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceXS),
+        child: Icon(
+          icon,
+          size: AppTheme.iconM,
+          color: enabled ? AppColors.textPrimary : AppColors.textMuted,
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthCell extends StatelessWidget {
+  const _MonthCell({
+    required this.label,
+    required this.isActive,
+    required this.isFuture,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isActive;
+  final bool isFuture;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isActive
+          ? AppColors.accent
+          : AppColors.accentSecondary.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(AppTheme.radiusM),
+      child: InkWell(
+        onTap: isFuture ? null : onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+        child: Center(
+          child: Text(
+            label,
+            style: AppTypography.bodyM.copyWith(
+              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+              color: isActive
+                  ? Colors.white
+                  : isFuture
+                  ? AppColors.textMuted.withValues(alpha: 0.5)
+                  : AppColors.textPrimary,
+            ),
+          ),
+        ),
       ),
     );
   }

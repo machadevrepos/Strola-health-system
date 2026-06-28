@@ -65,3 +65,49 @@ Future<void> signOutAndWipeLocalData(WidgetRef ref) async {
   ref.invalidate(dailyStepsMapProvider);
   ref.invalidate(stepCountProvider);
 }
+
+/// Deletes the account itself (Firebase Auth user), not just its local
+/// session — everything [signOutAndWipeLocalData] wipes locally, plus the
+/// account so it can't be signed back into on this or any other device.
+///
+/// Firebase requires a recent sign-in for this; if the session is stale it
+/// throws an [AuthException] (via [AuthService.deleteAccount]) asking the
+/// user to log back in first — the caller should surface that message
+/// rather than treating it as a generic failure.
+Future<void> deleteAccountAndWipeData(WidgetRef ref) async {
+  await PurchaseService.logOut();
+
+  if (ref.read(firebaseAvailableProvider)) {
+    await ref.read(authServiceProvider).deleteAccount();
+  } else {
+    await ref.read(localSignedInProvider.notifier).signOut();
+  }
+
+  final prefs = ref.read(sharedPreferencesProvider);
+  await Future.wait([
+    prefs.remove(UserProfileNotifier.prefsKey),
+    prefs.remove(DailyGoalNotifier.prefsKey),
+    prefs.remove(UserWeightNotifier.prefsKey),
+    prefs.remove(StreakNotifier.currentKey),
+    prefs.remove(StreakNotifier.longestKey),
+    prefs.remove(StreakNotifier.lastSeenDateKey),
+    prefs.remove(PrivacySettingsNotifier.prefsKey),
+    prefs.remove(BlockedUsersNotifier.prefsKey),
+    prefs.remove(NotificationRepository.prefsKey),
+  ]);
+
+  final db = await LocalDatabase.instance;
+  await db.delete('workout_sessions');
+  await db.delete('daily_steps');
+
+  ref.invalidate(userProfileProvider);
+  ref.invalidate(dailyGoalProvider);
+  ref.invalidate(userWeightKgProvider);
+  ref.invalidate(streakProvider);
+  ref.invalidate(privacySettingsProvider);
+  ref.invalidate(blockedUsersProvider);
+  ref.invalidate(notificationsProvider);
+  ref.invalidate(sessionHistoryProvider);
+  ref.invalidate(dailyStepsMapProvider);
+  ref.invalidate(stepCountProvider);
+}

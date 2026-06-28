@@ -27,10 +27,13 @@ struct StrollaEntry: TimelineEntry {
     let calories: Int
     let activeMin: Int
 
-    var progress: Double { Double(steps) / Double(max(goal, 1)) }
-    var percent: Int { Int((progress * 100).clamped(to: 0...100)) }
+    // Clamped — feeds .trim()/frame-width visuals below, which can't
+    // visually exceed full. `percent` is the displayed text and should
+    // reflect steps actually going over goal rather than capping at 100.
+    var progress: Double { (Double(steps) / Double(max(goal, 1))).clamped(to: 0...1) }
+    var percent: Int { Int((Double(steps) / Double(max(goal, 1))) * 100) }
     var motivationText: String {
-        if steps >= goal { return "Goal reached! 🌸" }
+        if steps >= goal { return "Goal achieved! 🎉" }
         let remaining = goal - steps
         if remaining <= 500 { return "Almost there! \(remaining) more" }
         return "Keep going, you've got this!"

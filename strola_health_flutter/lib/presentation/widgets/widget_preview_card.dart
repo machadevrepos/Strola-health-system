@@ -114,8 +114,12 @@ class _LockScreenWidgetPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `progress` stays clamped — it only ever feeds the progress bar's
+    // fill, which can't visually exceed full. `percent` is the displayed
+    // text and should reflect steps actually going over goal (110%, etc.)
+    // rather than capping at 100.
     final progress = (steps / goal).clamp(0.0, 1.0);
-    final percent = (progress * 100).toInt();
+    final percent = ((steps / goal) * 100).toInt();
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -260,7 +264,7 @@ class _LockScreenWidgetPreview extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(
                       steps >= goal
-                          ? 'Goal reached! 🌸'
+                          ? 'Goal achieved! 🎉'
                           : 'Keep going,\nyou\'ve got this!',
                       style: AppTypography.labelS.copyWith(
                         color: AppColors.accent,

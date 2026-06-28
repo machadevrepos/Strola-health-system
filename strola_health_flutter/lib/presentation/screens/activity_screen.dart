@@ -14,7 +14,9 @@ import 'package:strola_health/presentation/providers/session_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/screens/session_screen.dart'
     show ActivityTypeUI;
+import 'package:strola_health/presentation/screens/workout_detail_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
+import 'package:strola_health/presentation/widgets/pressable_scale.dart';
 import 'package:strola_health/presentation/widgets/skeleton_loaders.dart';
 
 class ActivityScreen extends ConsumerStatefulWidget {
@@ -53,13 +55,16 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen>
               child: Row(
                 children: [
                   Text(
-                    'Activity',
-                    style: AppTypography.displayL.copyWith(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1.0,
-                    ),
-                  ).animate().fadeIn(duration: AppTheme.animSlow).slideX(begin: 0.12),
+                        'Activity',
+                        style: AppTypography.displayL.copyWith(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1.0,
+                        ),
+                      )
+                      .animate()
+                      .fadeIn(duration: AppTheme.animSlow)
+                      .slideX(begin: 0.12),
                 ],
               ),
             ),
@@ -167,79 +172,94 @@ class _SessionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final type = session.activityType;
     // Alternate coral/blush so consecutive entries don't all look identical.
-    final color = (index % 2 == 0) ? AppColors.accent : AppColors.accentSecondary;
+    final color = (index % 2 == 0)
+        ? AppColors.accent
+        : AppColors.accentSecondary;
 
-    return FlatCard(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: color.withValues(alpha: 0.25)),
+    return PressableScale(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => WorkoutDetailScreen(session: session),
+        ),
+      ),
+      child:
+          FlatCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
                 ),
-                child: Icon(type.icon, color: color, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      type.displayName,
-                      style: AppTypography.bodyM.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0,
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: color.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Icon(type.icon, color: color, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            type.displayName,
+                            style: AppTypography.bodyM.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _formatDate(session.startTime),
+                            style: AppTypography.labelS.copyWith(
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _formatDate(session.startTime),
-                      style: AppTypography.labelS.copyWith(
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 0,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          type.countsSteps
+                              ? Formatters.stepCount(session.steps)
+                              : session.formattedDuration,
+                          style: AppTypography.titleM.copyWith(
+                            color: color,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          type.showsDistance
+                              ? '${session.formattedDistance}  ·  ${session.formattedDuration}'
+                              : '${session.calories} kcal  ·  ${session.formattedDuration}',
+                          style: AppTypography.labelS.copyWith(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    type.countsSteps
-                        ? Formatters.stepCount(session.steps)
-                        : session.formattedDuration,
-                    style: AppTypography.titleM.copyWith(
-                      color: color,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    type.showsDistance
-                        ? '${session.formattedDistance}  ·  ${session.formattedDuration}'
-                        : '${session.calories} kcal  ·  ${session.formattedDuration}',
-                    style: AppTypography.labelS.copyWith(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        )
-        .animate(delay: Duration(milliseconds: 80 * index))
-        .fadeIn()
-        .slideX(begin: 0.08, curve: Curves.easeOut);
+              )
+              .animate(delay: Duration(milliseconds: 80 * index))
+              .fadeIn()
+              .slideX(begin: 0.08, curve: Curves.easeOut),
+    );
   }
 
   String _formatDate(DateTime d) {
@@ -280,7 +300,11 @@ class _EmptyLogState extends StatelessWidget {
               color: AppColors.accent.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(AppIcons.steps, color: AppColors.accent, size: 36),
+            child: const Icon(
+              AppIcons.steps,
+              color: AppColors.accent,
+              size: 36,
+            ),
           ).animate().fadeIn().scale(
             begin: const Offset(0.7, 0.7),
             curve: Curves.easeOutBack,
@@ -449,7 +473,9 @@ class _WeekTab extends ConsumerWidget {
               final steps = weeklySteps[reversed];
               final date = DateTime.now().subtract(Duration(days: i));
               final goalMet = steps >= StepGoals.defaultDailyGoal;
-              final color = goalMet ? AppColors.accent : AppColors.accentSecondary;
+              final color = goalMet
+                  ? AppColors.accent
+                  : AppColors.accentSecondary;
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -911,7 +937,8 @@ class _MonthTabState extends ConsumerState<_MonthTab> {
               child: Consumer(
                 builder: (_, ref, __) => _SelectedDayCard(
                   day: _selectedDay!,
-                  steps: enriched[DateTime(
+                  steps:
+                      enriched[DateTime(
                         _selectedDay!.year,
                         _selectedDay!.month,
                         _selectedDay!.day,

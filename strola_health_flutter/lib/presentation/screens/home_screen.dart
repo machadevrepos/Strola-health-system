@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:confetti/confetti.dart';
@@ -16,9 +17,11 @@ import 'package:strola_health/presentation/providers/navigation_providers.dart';
 import 'package:strola_health/presentation/providers/notification_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
+import 'package:strola_health/presentation/providers/widget_prompt_providers.dart';
 import 'package:strola_health/presentation/screens/notifications_screen.dart';
 import 'package:strola_health/presentation/screens/profile_screen.dart';
 import 'package:strola_health/presentation/screens/share_steps_screen.dart';
+import 'package:strola_health/presentation/widgets/add_widget_sheet.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/goal_settings_sheet.dart';
 import 'package:strola_health/presentation/widgets/hourly_chart.dart';
@@ -42,6 +45,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 3),
     );
+    // Deferred a frame — showing a sheet during initState (before the first
+    // build completes) has no valid Navigator/Overlay to attach to yet.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _maybeShowWidgetPrompt(),
+    );
+  }
+
+  Future<void> _maybeShowWidgetPrompt() async {
+    if (!mounted) return;
+    if (ref.read(hasSeenWidgetPromptProvider)) return;
+    await ref.read(hasSeenWidgetPromptProvider.notifier).markSeen();
+    if (mounted) await showAddWidgetSheet(context);
   }
 
   @override
@@ -574,6 +589,7 @@ class _AppBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final photoPath = ref.watch(userProfileProvider).photoPath;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -649,12 +665,20 @@ class _AppBar extends ConsumerWidget {
                 width: 1.5,
               ),
               boxShadow: AppTheme.glowShadow,
+              image: photoPath != null
+                  ? DecorationImage(
+                      image: FileImage(File(photoPath)),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-            child: Icon(
-              AppIcons.profile,
-              color: AppColors.accent,
-              size: AppTheme.iconM,
-            ),
+            child: photoPath == null
+                ? Icon(
+                    AppIcons.profile,
+                    color: AppColors.accent,
+                    size: AppTheme.iconM,
+                  )
+                : null,
           ),
         ),
       ],

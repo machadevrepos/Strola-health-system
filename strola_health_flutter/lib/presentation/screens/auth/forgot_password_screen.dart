@@ -6,13 +6,15 @@ import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/presentation/providers/auth_providers.dart';
+import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/form_field.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  ConsumerState<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ForgotPasswordScreen> createState() =>
+      _ForgotPasswordScreenState();
 }
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
@@ -39,7 +41,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     });
     try {
       if (ref.read(firebaseAvailableProvider)) {
-        await ref.read(authServiceProvider).sendPasswordResetEmail(_emailCtrl.text);
+        await ref
+            .read(authServiceProvider)
+            .sendPasswordResetEmail(_emailCtrl.text);
       }
       // No backend yet — nothing is actually sent, but the confirmation
       // screen still shows so the flow is demoable end-to-end.
@@ -58,13 +62,19 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppTheme.screenPaddingH),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: AppTheme.spaceL),
+          child: Column(
+            children: [
+              // Kept outside the centered block below — a back button
+              // anchors to the top regardless of how tall the content is.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppTheme.screenPaddingH,
+                  AppTheme.spaceL,
+                  AppTheme.screenPaddingH,
+                  0,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
                   child: GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: const Icon(
@@ -74,18 +84,64 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: AppTheme.spaceXL),
-                if (_sent)
-                  _SentConfirmation(email: _emailCtrl.text)
-                else
-                  _ResetForm(
-                    emailCtrl: _emailCtrl,
-                    loading: _loading,
-                    error: _error,
-                    onSubmit: _submit,
-                  ),
-              ],
-            ),
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Positioned independently of the card below — the
+                    // wordmark sits at a fixed 10% down this remaining
+                    // space regardless of how tall the card ends up.
+                    return Stack(
+                      children: [
+                        Positioned(
+                          top: constraints.maxHeight * 0.10,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: Text(
+                              'strolla',
+                              style: AppTypography.brand.copyWith(
+                                fontSize: 45,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Center(
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.screenPaddingH,
+                            ),
+                            child:
+                                FlatCard(
+                                      padding: const EdgeInsets.all(
+                                        AppTheme.spaceXL,
+                                      ),
+                                      child: _sent
+                                          ? _SentConfirmation(
+                                              email: _emailCtrl.text,
+                                            )
+                                          : _ResetForm(
+                                              emailCtrl: _emailCtrl,
+                                              loading: _loading,
+                                              error: _error,
+                                              onSubmit: _submit,
+                                            ),
+                                    )
+                                    .animate()
+                                    .fadeIn(duration: AppTheme.animSlow)
+                                    .slideY(
+                                      begin: 0.04,
+                                      curve: Curves.easeOutCubic,
+                                    ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -111,9 +167,10 @@ class _ResetForm extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Reset your password', style: AppTypography.titleL.copyWith(fontSize: 26))
-            .animate()
-            .fadeIn(duration: AppTheme.animSlow),
+        Text(
+          'Reset your password',
+          style: AppTypography.titleL.copyWith(fontSize: 26),
+        ).animate().fadeIn(duration: AppTheme.animSlow),
         const SizedBox(height: AppTheme.spaceXS),
         Text(
           "Enter your email and we'll send you a link to reset it.",
@@ -129,7 +186,10 @@ class _ResetForm extends StatelessWidget {
         ),
         if (error != null) ...[
           const SizedBox(height: AppTheme.spaceM),
-          Text(error!, style: AppTypography.bodyS.copyWith(color: AppColors.error)),
+          Text(
+            error!,
+            style: AppTypography.bodyS.copyWith(color: AppColors.error),
+          ),
         ],
         const SizedBox(height: AppTheme.spaceL),
         SizedBox(
@@ -138,7 +198,9 @@ class _ResetForm extends StatelessWidget {
             onPressed: loading ? null : onSubmit,
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.accent,
-              disabledBackgroundColor: AppColors.accentSecondary.withValues(alpha: 0.5),
+              disabledBackgroundColor: AppColors.accentSecondary.withValues(
+                alpha: 0.5,
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppTheme.radiusM),
               ),
@@ -173,25 +235,10 @@ class _SentConfirmation extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: AppColors.success.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            AppIcons.email,
-            color: AppColors.success,
-            size: AppTheme.iconXL,
-          ),
-        ).animate().scale(
-              begin: const Offset(0.85, 0.85),
-              curve: Curves.easeOutBack,
-              duration: AppTheme.animSpring,
-            ),
-        const SizedBox(height: AppTheme.spaceXL),
-        Text('Check your email', style: AppTypography.titleL.copyWith(fontSize: 24)),
+        Text(
+          'Check your email',
+          style: AppTypography.titleL.copyWith(fontSize: 24),
+        ),
         const SizedBox(height: AppTheme.spaceS),
         Text(
           "We've sent a password reset link to $email. "

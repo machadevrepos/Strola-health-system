@@ -15,12 +15,12 @@ class ChallengeOfTheMonthScreen extends StatefulWidget {
       _ChallengeOfTheMonthScreenState();
 }
 
-class _ChallengeOfTheMonthScreenState
-    extends State<ChallengeOfTheMonthScreen> {
+class _ChallengeOfTheMonthScreenState extends State<ChallengeOfTheMonthScreen> {
   int _tab = 0;
 
-  List<(int rank, _Participant p)> get _ranked {
-    final sorted = [..._participants]..sort(
+  List<(int rank, ChallengeParticipant p)> get _ranked {
+    final sorted = [..._participants]
+      ..sort(
         (a, b) => _tab == 0
             ? b.steps.compareTo(a.steps)
             : b.goalCompletionPct.compareTo(a.goalCompletionPct),
@@ -83,7 +83,10 @@ class _ChallengeOfTheMonthScreenState
             AppTheme.spaceXXL,
           ),
           children: [
-            const _HeroCard().animate().fadeIn(duration: AppTheme.animSlow).slideY(begin: 0.08),
+            const _HeroCard()
+                .animate()
+                .fadeIn(duration: AppTheme.animSlow)
+                .slideY(begin: 0.08),
             const SizedBox(height: AppTheme.sectionGap),
             const _HowItWorksCard()
                 .animate()
@@ -114,21 +117,27 @@ class _ChallengeOfTheMonthScreenState
             ),
             const SizedBox(height: AppTheme.spaceXL),
 
-            _PodiumRow(top3: top3)
-                .animate()
-                .fadeIn(delay: 150.ms, duration: AppTheme.animSlow),
+            ChallengePodiumRow(
+              top3: top3,
+              showPercent: _tab == 1,
+            ).animate().fadeIn(delay: 150.ms, duration: AppTheme.animSlow),
             const SizedBox(height: AppTheme.spaceXL),
 
             for (final entry in rest)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppTheme.spaceS),
-                child: _LeaderboardRow(rank: entry.$1, participant: entry.$2)
-                    .animate()
-                    .fadeIn(
-                      delay: (200 + entry.$1 * 40).ms,
-                      duration: AppTheme.animSlow,
-                    )
-                    .slideX(begin: 0.04),
+                child:
+                    ChallengeLeaderboardRow(
+                          rank: entry.$1,
+                          participant: entry.$2,
+                          showPercent: _tab == 1,
+                        )
+                        .animate()
+                        .fadeIn(
+                          delay: (200 + entry.$1 * 40).ms,
+                          duration: AppTheme.animSlow,
+                        )
+                        .slideX(begin: 0.04),
               ),
 
             const SizedBox(height: AppTheme.spaceL),
@@ -158,9 +167,9 @@ class _ChallengeOfTheMonthScreenState
   }
 
   void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature coming soon')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$feature coming soon')));
   }
 }
 
@@ -439,10 +448,7 @@ class _HowItWorksStat extends StatelessWidget {
         const SizedBox(height: AppTheme.spaceS),
         Text(title, style: AppTypography.titleS.copyWith(fontSize: 13)),
         const SizedBox(height: 2),
-        Text(
-          description,
-          style: AppTypography.labelS.copyWith(height: 1.3),
-        ),
+        Text(description, style: AppTypography.labelS.copyWith(height: 1.3)),
       ],
     );
   }
@@ -509,9 +515,14 @@ class _LeaderboardTabSwitch extends StatelessWidget {
 // PODIUM (top 3)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PodiumRow extends StatelessWidget {
-  const _PodiumRow({required this.top3});
-  final List<(int rank, _Participant p)> top3;
+class ChallengePodiumRow extends StatelessWidget {
+  const ChallengePodiumRow({
+    super.key,
+    required this.top3,
+    required this.showPercent,
+  });
+  final List<(int rank, ChallengeParticipant p)> top3;
+  final bool showPercent;
 
   @override
   Widget build(BuildContext context) {
@@ -521,11 +532,26 @@ class _PodiumRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         if (byRank[2] != null)
-          _PodiumAvatar(rank: 2, participant: byRank[2]!, size: 64),
+          _PodiumAvatar(
+            rank: 2,
+            participant: byRank[2]!,
+            size: 64,
+            showPercent: showPercent,
+          ),
         if (byRank[1] != null)
-          _PodiumAvatar(rank: 1, participant: byRank[1]!, size: 80),
+          _PodiumAvatar(
+            rank: 1,
+            participant: byRank[1]!,
+            size: 80,
+            showPercent: showPercent,
+          ),
         if (byRank[3] != null)
-          _PodiumAvatar(rank: 3, participant: byRank[3]!, size: 64),
+          _PodiumAvatar(
+            rank: 3,
+            participant: byRank[3]!,
+            size: 64,
+            showPercent: showPercent,
+          ),
       ],
     );
   }
@@ -536,17 +562,19 @@ class _PodiumAvatar extends StatelessWidget {
     required this.rank,
     required this.participant,
     required this.size,
+    required this.showPercent,
   });
 
   final int rank;
-  final _Participant participant;
+  final ChallengeParticipant participant;
   final double size;
+  final bool showPercent;
 
   Color get _medalColor => switch (rank) {
-        1 => AppColors.goalAmber,
-        2 => AppColors.textMuted,
-        _ => AppColors.accent,
-      };
+    1 => AppColors.goalAmber,
+    2 => AppColors.textMuted,
+    _ => AppColors.accent,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -614,7 +642,9 @@ class _PodiumAvatar extends StatelessWidget {
           ),
         ),
         Text(
-          '${Formatters.stepCount(participant.steps)} steps',
+          showPercent
+              ? '${participant.goalCompletionPct}%'
+              : '${Formatters.stepCount(participant.steps)} steps',
           style: AppTypography.labelS,
         ),
       ],
@@ -626,11 +656,17 @@ class _PodiumAvatar extends StatelessWidget {
 // LEADERBOARD ROW (rank 4+)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _LeaderboardRow extends StatelessWidget {
-  const _LeaderboardRow({required this.rank, required this.participant});
+class ChallengeLeaderboardRow extends StatelessWidget {
+  const ChallengeLeaderboardRow({
+    super.key,
+    required this.rank,
+    required this.participant,
+    required this.showPercent,
+  });
 
   final int rank;
-  final _Participant participant;
+  final ChallengeParticipant participant;
+  final bool showPercent;
 
   @override
   Widget build(BuildContext context) {
@@ -685,7 +721,9 @@ class _LeaderboardRow extends StatelessWidget {
             ),
           ),
           Text(
-            '${Formatters.stepCount(participant.steps)} steps',
+            showPercent
+                ? '${participant.goalCompletionPct}%'
+                : '${Formatters.stepCount(participant.steps)} steps',
             style: AppTypography.bodyS.copyWith(
               color: highlight ? AppColors.accent : AppColors.textSecondary,
               fontWeight: highlight ? FontWeight.w700 : FontWeight.w400,
@@ -707,8 +745,8 @@ class _LeaderboardRow extends StatelessWidget {
 // PARTICIPANT DATA
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _Participant {
-  const _Participant({
+class ChallengeParticipant {
+  const ChallengeParticipant({
     required this.name,
     required this.steps,
     required this.goalCompletionPct,
@@ -734,32 +772,37 @@ class _Participant {
 }
 
 const _participants = [
-  _Participant(
+  ChallengeParticipant(
     name: 'Jessica M.',
     steps: 412389,
     goalCompletionPct: 142,
     colorValue: 0xFF7C3AED,
   ),
-  _Participant(
+  ChallengeParticipant(
     name: 'Sarah T.',
     steps: 378221,
     goalCompletionPct: 127,
     colorValue: 0xFFDB2777,
   ),
-  _Participant(
+  ChallengeParticipant(
     name: 'Amanda K.',
     steps: 334125,
     goalCompletionPct: 148,
     colorValue: 0xFFD97706,
   ),
-  _Participant(
+  ChallengeParticipant(
     name: 'Emily R.',
     steps: 298743,
     goalCompletionPct: 119,
     colorValue: 0xFF0891B2,
   ),
-  _Participant(name: 'You', steps: 265410, goalCompletionPct: 131, isMe: true),
-  _Participant(
+  ChallengeParticipant(
+    name: 'You',
+    steps: 265410,
+    goalCompletionPct: 131,
+    isMe: true,
+  ),
+  ChallengeParticipant(
     name: 'Megan L.',
     steps: 243876,
     goalCompletionPct: 139,

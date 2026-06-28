@@ -13,8 +13,10 @@ import 'package:strola_health/domain/entities/app_notification.dart';
 import 'package:strola_health/domain/entities/personal_record.dart';
 import 'package:strola_health/domain/entities/workout_session.dart';
 import 'package:strola_health/presentation/providers/notification_providers.dart';
+import 'package:strola_health/presentation/providers/session_providers.dart';
 import 'package:strola_health/presentation/screens/session_screen.dart'
     show ActivityTypeUI;
+import 'package:strola_health/presentation/screens/share_steps_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/route_map.dart';
 
@@ -24,12 +26,14 @@ class SessionSummaryScreen extends ConsumerStatefulWidget {
   final WorkoutSession session;
 
   @override
-  ConsumerState<SessionSummaryScreen> createState() => _SessionSummaryScreenState();
+  ConsumerState<SessionSummaryScreen> createState() =>
+      _SessionSummaryScreenState();
 }
 
 class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
   late final ConfettiController _confetti;
   List<PersonalRecordCategory> _newRecords = const [];
+  bool _saving = false;
 
   @override
   void initState() {
@@ -52,7 +56,9 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
     final body = records.length == 1
         ? NotificationCopy.personalRecord(records.first.label)
         : 'You just set ${records.length} new personal records this session!';
-    await ref.read(notificationsProvider.notifier).add(
+    await ref
+        .read(notificationsProvider.notifier)
+        .add(
           AppNotification(
             id: DateTime.now().microsecondsSinceEpoch.toString(),
             category: NotificationCategory.personalRecord,
@@ -68,6 +74,33 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
   void dispose() {
     _confetti.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleSave() async {
+    setState(() => _saving = true);
+    await ref
+        .read(sessionProvider.notifier)
+        .saveCompletedSession(widget.session);
+    if (!mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
+  Future<void> _handleDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => const _DiscardDialog(),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    }
+  }
+
+  void _handleShare() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ShareStepsScreen(session: widget.session),
+      ),
+    );
   }
 
   @override
@@ -102,9 +135,7 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.accent.withValues(
-                                  alpha: 0.10,
-                                ),
+                                color: AppColors.accent.withValues(alpha: 0.10),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
                                   color: AppColors.accent.withValues(
@@ -178,13 +209,16 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
                         const SizedBox(height: 16),
 
                         Text(
-                          'Great Work!',
-                          style: AppTypography.displayL.copyWith(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1.2,
-                          ),
-                        ).animate().fadeIn(delay: 100.ms, duration: AppTheme.animSlow).slideY(begin: 0.12),
+                              'Great Work!',
+                              style: AppTypography.displayL.copyWith(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -1.2,
+                              ),
+                            )
+                            .animate()
+                            .fadeIn(delay: 100.ms, duration: AppTheme.animSlow)
+                            .slideY(begin: 0.12),
 
                         const SizedBox(height: 6),
 
@@ -238,14 +272,14 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
 
                           Row(
                             children: [
-                              _MetricBox(
+                              MetricBox(
                                 label: 'STEPS',
                                 value: _formatSteps(session.steps),
                                 color: AppColors.accent,
                                 icon: AppIcons.steps,
                               ),
                               const SizedBox(width: 10),
-                              _MetricBox(
+                              MetricBox(
                                 label: 'DISTANCE',
                                 value: session.formattedDistance,
                                 color: AppColors.accentSecondary,
@@ -258,14 +292,14 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
 
                           Row(
                             children: [
-                              _MetricBox(
+                              MetricBox(
                                 label: 'CALORIES',
                                 value: '${session.calories} kcal',
                                 color: AppColors.accent,
                                 icon: AppIcons.calories,
                               ),
                               const SizedBox(width: 10),
-                              _MetricBox(
+                              MetricBox(
                                 label: 'AVG PACE',
                                 value: session.formattedPace,
                                 color: AppColors.accentSecondary,
@@ -283,64 +317,69 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
 
                 // ── Route map (GPS activities only) ────────────────────────
                 if (session.activityType.usesGps)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: FlatCard(
-                      padding: EdgeInsets.zero,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-                            child: Row(
-                              children: [
-                                Text(
-                                  'Route',
-                                  style: AppTypography.bodyL.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                if (session.routePoints.isNotEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: FlatCard(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                14,
+                                16,
+                                10,
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    'Route',
+                                    style: AppTypography.bodyL.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.accentSecondary
-                                          .withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (session.routePoints.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
                                         color: AppColors.accentSecondary
-                                            .withValues(alpha: 0.3),
+                                            .withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: AppColors.accentSecondary
+                                              .withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '${session.routePoints.length} GPS points',
+                                        style: AppTypography.labelS.copyWith(
+                                          color: AppColors.accentSecondary,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w500,
+                                          letterSpacing: 0,
+                                        ),
                                       ),
                                     ),
-                                    child: Text(
-                                      '${session.routePoints.length} GPS points',
-                                      style: AppTypography.labelS.copyWith(
-                                        color: AppColors.accentSecondary,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w500,
-                                        letterSpacing: 0,
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          StaticRouteMap(
-                            routePoints: session.routePoints,
-                            height: 200,
-                          ),
-                        ],
-                      ),
-                    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1),
+                            StaticRouteMap(
+                              routePoints: session.routePoints,
+                              height: 200,
+                            ),
+                          ],
+                        ),
+                      ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1),
+                    ),
                   ),
-                ),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
@@ -353,9 +392,7 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
-                            onPressed: () => Navigator.of(
-                              context,
-                            ).popUntil((r) => r.isFirst),
+                            onPressed: _saving ? null : _handleSave,
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.accent,
                               shape: RoundedRectangleBorder(
@@ -363,14 +400,75 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
                               ),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
-                            child: Text(
-                              'Done',
-                              style: AppTypography.titleM.copyWith(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0,
+                            child: _saving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      valueColor: AlwaysStoppedAnimation(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : Text(
+                                    'Save Workout',
+                                    style: AppTypography.titleM.copyWith(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spaceM),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _saving ? null : _handleShare,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.accent,
+                              side: BorderSide(
+                                color: AppColors.accent.withValues(alpha: 0.4),
                               ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  AppIcons.share,
+                                  size: AppTheme.iconS,
+                                ),
+                                const SizedBox(width: AppTheme.spaceS),
+                                Text(
+                                  'Share Workout',
+                                  style: AppTypography.titleM.copyWith(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spaceM),
+                        TextButton(
+                          onPressed: _saving ? null : _handleDelete,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.error,
+                          ),
+                          child: Text(
+                            'Delete Workout',
+                            style: AppTypography.bodyM.copyWith(
+                              color: AppColors.error,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0,
                             ),
                           ),
                         ),
@@ -434,8 +532,9 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
   }
 }
 
-class _MetricBox extends StatelessWidget {
-  const _MetricBox({
+class MetricBox extends StatelessWidget {
+  const MetricBox({
+    super.key,
     required this.label,
     required this.value,
     required this.color,
@@ -479,6 +578,101 @@ class _MetricBox extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.0,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscardDialog extends StatelessWidget {
+  const _DiscardDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spaceXXL),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: AppColors.accentSecondary.withValues(alpha: 0.3),
+          ),
+          boxShadow: AppTheme.elevatedShadow,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                AppIcons.error,
+                color: AppColors.error,
+                size: AppTheme.iconXL,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceL),
+            Text(
+              'Delete This Workout?',
+              style: AppTypography.titleL.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceS),
+            Text(
+              "It won't be added to your workout log. This can't be undone.",
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyS,
+            ),
+            const SizedBox(height: AppTheme.spaceXXL),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      side: BorderSide(
+                        color: AppColors.accentSecondary.withValues(alpha: 0.4),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spaceM),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      'Delete',
+                      style: AppTypography.bodyL.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

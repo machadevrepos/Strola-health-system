@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
@@ -13,6 +17,7 @@ import 'package:strola_health/presentation/screens/achievements_screen.dart';
 import 'package:strola_health/presentation/screens/challenges_screen.dart';
 import 'package:strola_health/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:strola_health/presentation/screens/settings_screen.dart';
+import 'package:strola_health/presentation/screens/view_profile_picture_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/hex_badge.dart';
 import 'package:strola_health/presentation/widgets/pressable_scale.dart';
@@ -126,25 +131,75 @@ class ProfileScreen extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 // Avatar
-                                Container(
-                                  width: 76,
-                                  height: 76,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: AppColors.accentSecondary.withValues(
-                                      alpha: 0.3,
+                                Column(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () => _showAvatarSheet(
+                                        context,
+                                        ref,
+                                        profile.photoPath,
+                                      ),
+                                      child: Container(
+                                        width: 76,
+                                        height: 76,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: AppColors.accentSecondary
+                                              .withValues(alpha: 0.3),
+                                          border: Border.all(
+                                            color: AppColors.accentSecondary
+                                                .withValues(alpha: 0.5),
+                                            width: 2,
+                                          ),
+                                          image: profile.photoPath != null
+                                              ? DecorationImage(
+                                                  image: FileImage(
+                                                    File(profile.photoPath!),
+                                                  ),
+                                                  fit: BoxFit.cover,
+                                                )
+                                              : null,
+                                        ),
+                                        child: profile.photoPath == null
+                                            ? const Icon(
+                                                AppIcons.profile,
+                                                color: AppColors.accent,
+                                                size: 38,
+                                              )
+                                            : null,
+                                      ),
                                     ),
-                                    border: Border.all(
-                                      color: AppColors.accentSecondary
-                                          .withValues(alpha: 0.5),
-                                      width: 2,
+                                    const SizedBox(height: 6),
+                                    PressableScale(
+                                      onTap: () =>
+                                          _changeProfilePhoto(context, ref),
+                                      child: Container(
+                                        width: 26,
+                                        height: 26,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: AppColors.accent,
+                                          border: Border.all(
+                                            color: AppColors.bgSurface,
+                                            width: 2,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: AppColors.accent
+                                                  .withValues(alpha: 0.3),
+                                              blurRadius: 6,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Icon(
+                                          AppIcons.camera,
+                                          color: Colors.white,
+                                          size: 13,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  child: const Icon(
-                                    AppIcons.profile,
-                                    color: AppColors.accent,
-                                    size: 38,
-                                  ),
+                                  ],
                                 ),
                                 const SizedBox(width: 14),
                                 // Identity
@@ -230,7 +285,7 @@ class ProfileScreen extends ConsumerWidget {
                                       ),
                                     ),
                                     Text(
-                                      'Connections',
+                                      'Friends',
                                       style: AppTypography.labelS.copyWith(
                                         fontWeight: FontWeight.w400,
                                         letterSpacing: 0,
@@ -274,7 +329,8 @@ class ProfileScreen extends ConsumerWidget {
                                     ],
                                   ),
                                 ),
-                                if (profile.location?.isNotEmpty == true) ...[
+                                if (!privacy.hideLocation &&
+                                    profile.location?.isNotEmpty == true) ...[
                                   const SizedBox(width: AppTheme.spaceS),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
@@ -781,7 +837,7 @@ class PublicProfileScreen extends ConsumerWidget {
                               ),
                             ),
                             Text(
-                              'Connections',
+                              'Friends',
                               style: AppTypography.labelS.copyWith(
                                 fontWeight: FontWeight.w400,
                                 letterSpacing: 0,
@@ -1223,6 +1279,119 @@ class PublicProfileScreen extends ConsumerWidget {
   }
 }
 
+// ── Profile photo (view / change) ───────────────────────────────────────────
+
+Future<void> _showAvatarSheet(
+  BuildContext context,
+  WidgetRef ref,
+  String? photoPath,
+) {
+  return showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (sheetCtx) => Container(
+      margin: const EdgeInsets.all(AppTheme.spaceL),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.accentSecondary.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+            ),
+          ),
+          const SizedBox(height: AppTheme.spaceS),
+          ListTile(
+            leading: const Icon(AppIcons.image, color: AppColors.textSecondary),
+            title: Text(
+              'View Profile Picture',
+              style: AppTypography.bodyL.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) =>
+                      ViewProfilePictureScreen(photoPath: photoPath),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(
+              AppIcons.camera,
+              color: AppColors.textSecondary,
+            ),
+            title: Text(
+              'Change Profile Picture',
+              style: AppTypography.bodyL.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              _changeProfilePhoto(context, ref);
+            },
+          ),
+          const SizedBox(height: AppTheme.spaceM),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Picks an image from the gallery, then lets the user crop/reposition it
+/// into the circular profile-photo frame before it's saved — same pattern
+/// most apps use for avatar uploads. Stored as a local file path for now;
+/// there's no backend to upload to yet.
+Future<void> _changeProfilePhoto(BuildContext context, WidgetRef ref) async {
+  final picked = await ImagePicker().pickImage(
+    source: ImageSource.gallery,
+    maxWidth: 1600,
+    imageQuality: 90,
+  );
+  if (picked == null) return;
+
+  final cropped = await ImageCropper().cropImage(
+    sourcePath: picked.path,
+    aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+    compressFormat: ImageCompressFormat.jpg,
+    compressQuality: 90,
+    uiSettings: [
+      AndroidUiSettings(
+        toolbarTitle: 'Edit Photo',
+        toolbarColor: AppColors.accent,
+        toolbarWidgetColor: Colors.white,
+        cropStyle: CropStyle.circle,
+        lockAspectRatio: true,
+      ),
+      IOSUiSettings(
+        title: 'Edit Photo',
+        cropStyle: CropStyle.circle,
+        aspectRatioLockEnabled: true,
+        aspectRatioPickerButtonHidden: true,
+      ),
+    ],
+  );
+  if (cropped == null) return;
+
+  await ref
+      .read(userProfileProvider.notifier)
+      .update((p) => p.copyWith(photoPath: cropped.path));
+}
+
 // ── Connect button (toggles connect / connected) ──────────────────────────────
 
 class _ConnectButton extends StatefulWidget {
@@ -1269,7 +1438,7 @@ class _ConnectButtonState extends State<_ConnectButton> {
                 ],
         ),
         child: Text(
-          _connected ? 'Connected' : 'Connect',
+          _connected ? 'Friends' : 'Add Friend',
           style: AppTypography.bodyS.copyWith(
             color: _connected ? AppColors.textSecondary : Colors.white,
             fontWeight: FontWeight.w700,

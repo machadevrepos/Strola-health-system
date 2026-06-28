@@ -7,12 +7,15 @@ import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/services/account_service.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
+import 'package:strola_health/presentation/providers/auth_providers.dart'
+    show AuthException;
 import 'package:strola_health/presentation/providers/community_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/screens/integrations_screen.dart';
 import 'package:strola_health/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:strola_health/presentation/screens/paywall_screen.dart';
 import 'package:strola_health/presentation/providers/purchase_providers.dart';
+import 'package:strola_health/presentation/widgets/add_widget_sheet.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -26,9 +29,8 @@ class SettingsScreen extends ConsumerWidget {
         : 'Imperial (mi, lb, ft)';
     final isPremium = ref.watch(isPremiumProvider);
 
-    void push(Widget page) => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => page),
-        );
+    void push(Widget page) =>
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 
     return _SettingsScaffold(
       title: 'Settings',
@@ -91,6 +93,11 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => push(const UnitsPage()),
             ),
             _SettingsRow(
+              icon: AppIcons.widget,
+              title: 'Add Home Screen Widget',
+              onTap: () => showAddWidgetSheet(context),
+            ),
+            _SettingsRow(
               icon: AppIcons.connectedApps,
               title: 'Connected Apps',
               onTap: () => push(const IntegrationsScreen()),
@@ -111,18 +118,26 @@ class SettingsScreen extends ConsumerWidget {
             _SettingsRow(
               icon: AppIcons.document,
               title: 'Terms of Service',
-              onTap: () => push(const LegalPage(
-                title: 'Terms of Service',
-                body: _kTermsBody,
-              )),
+              onTap: () => push(
+                const LegalPage(title: 'Terms of Service', body: _kTermsBody),
+              ),
             ),
             _SettingsRow(
               icon: AppIcons.shield,
               title: 'Privacy Policy',
-              onTap: () => push(const LegalPage(
-                title: 'Privacy Policy',
-                body: _kPrivacyBody,
-              )),
+              onTap: () => push(
+                const LegalPage(title: 'Privacy Policy', body: _kPrivacyBody),
+              ),
+            ),
+            _SettingsRow(
+              icon: AppIcons.groups,
+              title: 'Community Guidelines',
+              onTap: () => push(
+                const LegalPage(
+                  title: 'Community Guidelines',
+                  body: _kCommunityGuidelinesBody,
+                ),
+              ),
             ),
           ],
         ),
@@ -146,6 +161,20 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ).animate().fadeIn(delay: 300.ms),
 
+        const SizedBox(height: AppTheme.spaceM),
+        Center(
+          child: GestureDetector(
+            onTap: () => _confirmDeleteAccount(context, ref),
+            child: Text(
+              'Delete Account',
+              style: AppTypography.bodyM.copyWith(
+                color: AppColors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ).animate().fadeIn(delay: 330.ms),
+
         const SizedBox(height: AppTheme.spaceL),
         Center(
           child: Text('Strolla Health 1.0.0', style: AppTypography.labelS),
@@ -160,8 +189,7 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.bgSurface,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Log Out', style: AppTypography.titleM),
         content: Text(
           "This clears your profile, weight, goal, streaks, and workout "
@@ -172,9 +200,12 @@ class SettingsScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
-            child: Text('Cancel',
-                style: AppTypography.titleS
-                    .copyWith(color: AppColors.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: AppTypography.titleS.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
           FilledButton(
             onPressed: () async {
@@ -185,10 +216,70 @@ class SettingsScreen extends ConsumerWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.error,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: Text(
               'Log Out',
+              style: AppTypography.bodyM.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Delete Account', style: AppTypography.titleM),
+        content: Text(
+          'This permanently deletes your account and erases your profile, '
+          "weight, goal, streaks, and workout history from this device. "
+          "This can't be undone.",
+          style: AppTypography.bodyM,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(
+              'Cancel',
+              style: AppTypography.titleS.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              try {
+                await deleteAccountAndWipeData(ref);
+                if (context.mounted) {
+                  Navigator.of(context).popUntil((r) => r.isFirst);
+                }
+              } on AuthException catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(e.message)));
+                }
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Delete Account',
               style: AppTypography.bodyM.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
@@ -225,8 +316,11 @@ class _SettingsScaffold extends StatelessWidget {
           shadowColor: Colors.transparent,
           leading: GestureDetector(
             onTap: () => Navigator.maybePop(context),
-            child: const Icon(AppIcons.back,
-                color: AppColors.textPrimary, size: AppTheme.iconM),
+            child: const Icon(
+              AppIcons.back,
+              color: AppColors.textPrimary,
+              size: AppTheme.iconM,
+            ),
           ),
           title: Text(title, style: AppTypography.titleM),
           centerTitle: true,
@@ -281,12 +375,14 @@ class _SectionCard extends StatelessWidget {
     for (var i = 0; i < rows.length; i++) {
       children.add(rows[i]);
       if (i != rows.length - 1) {
-        children.add(Divider(
-          height: 1,
-          indent: AppTheme.spaceL + 30,
-          endIndent: AppTheme.spaceL,
-          color: AppColors.accentSecondary.withValues(alpha: 0.16),
-        ));
+        children.add(
+          Divider(
+            height: 1,
+            indent: AppTheme.spaceL + 30,
+            endIndent: AppTheme.spaceL,
+            color: AppColors.accentSecondary.withValues(alpha: 0.16),
+          ),
+        );
       }
     }
     return FlatCard(
@@ -329,8 +425,11 @@ class _SettingsRow extends StatelessWidget {
                 padding: const EdgeInsets.only(right: AppTheme.spaceS),
                 child: Text(trailingValue!, style: AppTypography.labelM),
               ),
-            const Icon(AppIcons.chevronRight,
-                color: AppColors.textMuted, size: AppTheme.iconM),
+            const Icon(
+              AppIcons.chevronRight,
+              color: AppColors.textMuted,
+              size: AppTheme.iconM,
+            ),
           ],
         ),
       ),
@@ -377,8 +476,9 @@ class _ToggleRow extends StatelessWidget {
             activeTrackColor: AppColors.accent,
             activeThumbColor: Colors.white,
             inactiveThumbColor: AppColors.textMuted,
-            inactiveTrackColor:
-                AppColors.accentSecondary.withValues(alpha: 0.25),
+            inactiveTrackColor: AppColors.accentSecondary.withValues(
+              alpha: 0.25,
+            ),
           ),
         ],
       ),
@@ -426,8 +526,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         content: const Text('Password updated.'),
         backgroundColor: AppColors.accent,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -444,8 +543,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         _PasswordField(label: 'Confirm New Password', controller: _confirm),
         if (_error != null) ...[
           const SizedBox(height: AppTheme.spaceM),
-          Text(_error!,
-              style: AppTypography.bodyS.copyWith(color: AppColors.error)),
+          Text(
+            _error!,
+            style: AppTypography.bodyS.copyWith(color: AppColors.error),
+          ),
         ],
         const SizedBox(height: AppTheme.spaceXL),
         _PrimaryButton(label: 'Update Password', onTap: _submit),
@@ -489,7 +590,8 @@ class _PasswordFieldState extends State<_PasswordField> {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTheme.radiusM),
           borderSide: BorderSide(
-              color: AppColors.accentSecondary.withValues(alpha: 0.3)),
+            color: AppColors.accentSecondary.withValues(alpha: 0.3),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTheme.radiusM),
@@ -537,7 +639,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               _div(),
               _ToggleRow(
                 title: 'Milestone Alerts',
-                subtitle: '25%, 50%, 75%, and goal reached',
+                subtitle: 'When you reach various milestones in your steps.',
                 value: _milestones,
                 onChanged: (v) => setState(() => _milestones = v),
               ),
@@ -588,40 +690,12 @@ class PrivacySettingsPage extends ConsumerWidget {
         _SectionLabel('Visibility'),
         FlatCard(
           padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              _ToggleRow(
-                title: 'Public Profile',
-                subtitle: 'Anyone can find and view your profile',
-                value: p.publicProfile,
-                onChanged: (v) =>
-                    notifier.update((s) => s.copyWith(publicProfile: v)),
-              ),
-              _div(),
-              _ToggleRow(
-                title: 'Share Activity',
-                subtitle: 'Show your steps to friends and community',
-                value: p.shareActivity,
-                onChanged: (v) =>
-                    notifier.update((s) => s.copyWith(shareActivity: v)),
-              ),
-              _div(),
-              _ToggleRow(
-                title: 'Show in Leaderboards',
-                subtitle: 'Appear in challenge and friend rankings',
-                value: p.showInLeaderboards,
-                onChanged: (v) =>
-                    notifier.update((s) => s.copyWith(showInLeaderboards: v)),
-              ),
-              _div(),
-              _ToggleRow(
-                title: 'Allow Friend Requests',
-                subtitle: 'Let others send you connection requests',
-                value: p.allowFriendRequests,
-                onChanged: (v) =>
-                    notifier.update((s) => s.copyWith(allowFriendRequests: v)),
-              ),
-            ],
+          child: _ToggleRow(
+            title: 'Public Profile',
+            subtitle: 'Anyone can view your activity, achievements, and badges',
+            value: p.publicProfile,
+            onChanged: (v) =>
+                notifier.update((s) => s.copyWith(publicProfile: v)),
           ),
         ),
         const SizedBox(height: AppTheme.spaceXL),
@@ -652,6 +726,14 @@ class PrivacySettingsPage extends ConsumerWidget {
                 value: p.hideRecentActivity,
                 onChanged: (v) =>
                     notifier.update((s) => s.copyWith(hideRecentActivity: v)),
+              ),
+              _div(),
+              _ToggleRow(
+                title: 'Hide Location',
+                subtitle: "Don't show your location",
+                value: p.hideLocation,
+                onChanged: (v) =>
+                    notifier.update((s) => s.copyWith(hideLocation: v)),
               ),
             ],
           ),
@@ -689,8 +771,11 @@ class BlockedUsersPage extends ConsumerWidget {
             padding: const EdgeInsets.only(top: AppTheme.spaceXXXL),
             child: Column(
               children: [
-                Icon(AppIcons.block,
-                    color: AppColors.textMuted, size: AppTheme.iconXXL),
+                Icon(
+                  AppIcons.block,
+                  color: AppColors.textMuted,
+                  size: AppTheme.iconXXL,
+                ),
                 const SizedBox(height: AppTheme.spaceM),
                 Text('No blocked users', style: AppTypography.titleS),
                 const SizedBox(height: AppTheme.spaceXS),
@@ -749,9 +834,13 @@ class _BlockedTile extends ConsumerWidget {
               color: AppColors.accentSecondary.withValues(alpha: 0.22),
             ),
             child: Center(
-              child: Text(initials,
-                  style: AppTypography.bodyS.copyWith(
-                      color: AppColors.accent, fontWeight: FontWeight.w700)),
+              child: Text(
+                initials,
+                style: AppTypography.bodyS.copyWith(
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: AppTheme.spaceM),
@@ -760,14 +849,20 @@ class _BlockedTile extends ConsumerWidget {
             onTap: () => ref.read(blockedUsersProvider.notifier).unblock(name),
             child: Container(
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spaceM, vertical: AppTheme.spaceS),
+                horizontal: AppTheme.spaceM,
+                vertical: AppTheme.spaceS,
+              ),
               decoration: BoxDecoration(
                 color: AppColors.accent.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(AppTheme.radiusFull),
               ),
-              child: Text('Unblock',
-                  style: AppTypography.labelM.copyWith(
-                      color: AppColors.accent, fontWeight: FontWeight.w700)),
+              child: Text(
+                'Unblock',
+                style: AppTypography.labelM.copyWith(
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
         ],
@@ -812,8 +907,11 @@ class UnitsPage extends ConsumerWidget {
                 ),
               ),
               if (selected)
-                const Icon(AppIcons.goalReached,
-                    color: AppColors.accent, size: AppTheme.iconM),
+                const Icon(
+                  AppIcons.goalReached,
+                  color: AppColors.accent,
+                  size: AppTheme.iconM,
+                ),
             ],
           ),
         ),
@@ -858,26 +956,10 @@ class ContactUsPage extends StatelessWidget {
         const SizedBox(height: AppTheme.spaceL),
         FlatCard(
           padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              _ContactRow(
-                icon: AppIcons.email,
-                title: 'Email us',
-                value: 'hello@strolla.app',
-              ),
-              _div(),
-              _ContactRow(
-                icon: AppIcons.help,
-                title: 'Help Centre',
-                value: 'strolla.app/help',
-              ),
-              _div(),
-              _ContactRow(
-                icon: AppIcons.comment,
-                title: 'Live chat',
-                value: 'Mon–Fri, 9am–5pm GMT',
-              ),
-            ],
+          child: _ContactRow(
+            icon: AppIcons.email,
+            title: 'Email us',
+            value: 'info@strollahealth.com',
           ),
         ),
       ],
@@ -938,10 +1020,7 @@ class LegalPage extends StatelessWidget {
       title: title,
       children: [
         FlatCard(
-          child: Text(
-            body,
-            style: AppTypography.bodyM.copyWith(height: 1.6),
-          ),
+          child: Text(body, style: AppTypography.bodyM.copyWith(height: 1.6)),
         ),
         const SizedBox(height: AppTheme.spaceL),
         Center(
@@ -958,11 +1037,11 @@ class LegalPage extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 
 Widget _div() => Divider(
-      height: 1,
-      indent: AppTheme.spaceL,
-      endIndent: AppTheme.spaceL,
-      color: AppColors.accentSecondary.withValues(alpha: 0.16),
-    );
+  height: 1,
+  indent: AppTheme.spaceL,
+  endIndent: AppTheme.spaceL,
+  color: AppColors.accentSecondary.withValues(alpha: 0.16),
+);
 
 class _PrimaryButton extends StatelessWidget {
   const _PrimaryButton({required this.label, required this.onTap});
@@ -979,12 +1058,15 @@ class _PrimaryButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.accent,
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTheme.radiusM)),
+            borderRadius: BorderRadius.circular(AppTheme.radiusM),
+          ),
           padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceL),
           elevation: 0,
         ),
-        child:
-            Text(label, style: AppTypography.titleS.copyWith(color: Colors.white)),
+        child: Text(
+          label,
+          style: AppTypography.titleS.copyWith(color: Colors.white),
+        ),
       ),
     );
   }
@@ -1009,5 +1091,23 @@ const String _kPrivacyBody =
     'community is visible to other members according to your privacy settings.\n\n'
     'You can hide your activity data, achievements and recent activity from your '
     'profile at any time under Settings → Privacy Settings.\n\n'
-    'You can request deletion of your account and associated data by contacting '
-    'hello@strolla.app.';
+    'You can delete your account and associated data at any time from Settings, '
+    'or by contacting info@strollahealth.com.';
+
+const String _kCommunityGuidelinesBody =
+    "Strolla's community exists to encourage and celebrate every step of "
+    "someone's journey — keep that spirit in everything you post.\n\n"
+    'Be kind and supportive. Comments and posts should build people up, not '
+    'tear them down. Constructive encouragement only — no shaming anyone for '
+    "their pace, weight, or how far they've come.\n\n"
+    "Be honest. Don't fabricate steps, distances, or achievements. "
+    "Misrepresenting your activity undermines challenges and leaderboards "
+    'for everyone else.\n\n'
+    'Respect privacy. Only share photos and details about yourself — not '
+    "other people, without their consent.\n\n"
+    'No harassment, hate speech, or bullying of any kind. No spam, scams, '
+    'or promotional content unrelated to fitness and wellbeing.\n\n'
+    "This isn't medical advice. Strolla is a peer community, not a "
+    'substitute for professional medical guidance.\n\n'
+    "We may remove content or restrict accounts that don't follow these "
+    'guidelines, to keep this a safe space for everyone.';

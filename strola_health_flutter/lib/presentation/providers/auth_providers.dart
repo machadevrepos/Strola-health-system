@@ -10,10 +10,14 @@ import 'package:strola_health/presentation/providers/profile_providers.dart';
 /// old direct-to-onboarding flow rather than hard-blocking the whole app on
 /// a backend feature that isn't configured yet.
 final firebaseAvailableProvider = Provider<bool>(
-  (_) => throw UnimplementedError('firebaseAvailableProvider must be overridden in main()'),
+  (_) => throw UnimplementedError(
+    'firebaseAvailableProvider must be overridden in main()',
+  ),
 );
 
-final firebaseAuthProvider = Provider<FirebaseAuth>((ref) => FirebaseAuth.instance);
+final firebaseAuthProvider = Provider<FirebaseAuth>(
+  (ref) => FirebaseAuth.instance,
+);
 
 /// Null while Firebase is still resolving the cached session, then the
 /// signed-in user or null.
@@ -72,11 +76,14 @@ final localSignedInProvider = StateNotifierProvider<LocalAuthNotifier, bool>(
   (ref) => LocalAuthNotifier(ref.watch(sharedPreferencesProvider)),
 );
 
-/// A fixed short delay standing in for "Firebase resolving the cached
-/// session" when there's no Firebase to resolve — so Splash still shows
-/// briefly as part of the demoable flow instead of being skipped outright.
-final localSplashDelayProvider = FutureProvider<void>((ref) {
-  return Future.delayed(const Duration(milliseconds: 900));
+/// Splash stays up for at least this long regardless of mode, so its
+/// entrance animation always gets to play out rather than potentially
+/// flashing by in a frame or two if Firebase resolves a cached session
+/// instantly. Whichever takes longer — this delay, or (when Firebase is
+/// configured) the cached-session lookup — is what `splashResolvedProvider`
+/// actually waits on.
+final splashMinDelayProvider = FutureProvider<void>((ref) {
+  return Future.delayed(const Duration(seconds: 2));
 });
 
 /// One question `_RootGate` can ask regardless of which mode is active:
@@ -88,13 +95,14 @@ final isSignedInProvider = Provider<bool>((ref) {
   return ref.watch(localSignedInProvider);
 });
 
-/// Whether the splash screen's loading phase is done — Firebase resolving
-/// its cached session, or the fixed local delay above.
+/// Whether the splash screen's loading phase is done — the minimum delay
+/// above, and (if Firebase is configured) its cached-session resolution too.
 final splashResolvedProvider = Provider<bool>((ref) {
+  if (!ref.watch(splashMinDelayProvider).hasValue) return false;
   if (ref.watch(firebaseAvailableProvider)) {
     return !ref.watch(authStateProvider).isLoading;
   }
-  return ref.watch(localSplashDelayProvider).hasValue;
+  return true;
 });
 
 // ── Remember me ──────────────────────────────────────────────────────────────
@@ -141,15 +149,35 @@ class AuthService {
   final FirebaseAuth _auth;
 
   Future<void> signIn({required String email, required String password}) =>
-      _run(() => _auth.signInWithEmailAndPassword(email: email.trim(), password: password));
+      _run(
+        () => _auth.signInWithEmailAndPassword(
+          email: email.trim(),
+          password: password,
+        ),
+      );
 
   Future<void> signUp({required String email, required String password}) =>
-      _run(() => _auth.createUserWithEmailAndPassword(email: email.trim(), password: password));
+      _run(
+        () => _auth.createUserWithEmailAndPassword(
+          email: email.trim(),
+          password: password,
+        ),
+      );
 
   Future<void> sendPasswordResetEmail(String email) =>
       _run(() => _auth.sendPasswordResetEmail(email: email.trim()));
 
   Future<void> signOut() => _auth.signOut();
+
+  /// Deletes the Firebase Auth account itself (not just the local session).
+  /// Firebase requires a "recently signed in" session for this — if it's
+  /// been a while, this throws and the caller should ask the user to log
+  /// out and back in first rather than silently failing.
+  Future<void> deleteAccount() => _run(() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    await user.delete();
+  });
 
   Future<void> _run(Future<void> Function() action) async {
     try {
@@ -181,6 +209,8 @@ class AuthService {
         return "Couldn't reach the network. Check your connection and try again.";
       case 'too-many-requests':
         return 'Too many attempts — please wait a moment and try again.';
+      case 'requires-recent-login':
+        return 'For your security, please log out and log back in, then try again.';
       default:
         return 'Something went wrong. Please try again.';
     }

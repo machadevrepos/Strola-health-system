@@ -7,6 +7,7 @@ import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
 import 'package:strola_health/presentation/screens/challenge_of_the_month_screen.dart';
+import 'package:strola_health/presentation/screens/private_challenge_detail_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/header_actions.dart';
 
@@ -50,13 +51,16 @@ class ChallengesScreen extends StatelessWidget {
                       const SizedBox(width: AppTheme.spaceS),
                     ],
                     Text(
-                      'Challenges',
-                      style: AppTypography.displayL.copyWith(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1.0,
-                      ),
-                    ).animate().fadeIn(duration: AppTheme.animSlow).slideX(begin: 0.12),
+                          'Challenges',
+                          style: AppTypography.displayL.copyWith(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1.0,
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: AppTheme.animSlow)
+                        .slideX(begin: 0.12),
                     const Spacer(),
                     const HeaderActions(),
                   ],
@@ -167,8 +171,12 @@ class _ChallengesViewState extends State<ChallengesView>
                       Text(
                         _tabLabels[i],
                         style: AppTypography.bodyS.copyWith(
-                          color: isActive ? AppColors.accent : AppColors.textMuted,
-                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          color: isActive
+                              ? AppColors.accent
+                              : AppColors.textMuted,
+                          fontWeight: isActive
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                           letterSpacing: 0,
                         ),
                       ),
@@ -243,11 +251,14 @@ class _PublicChallengesTab extends StatelessWidget {
           child: const _ChallengeOfTheMonthCard(),
         ).animate().fadeIn(delay: 60.ms).slideY(begin: 0.06),
         const SizedBox(height: 15), // sectionGap (14) + 10%
-
         // Last Month's Winners
         Row(
           children: [
-            const Icon(AppIcons.trophy, color: AppColors.accent, size: AppTheme.iconS),
+            const Icon(
+              AppIcons.trophy,
+              color: AppColors.accent,
+              size: AppTheme.iconS,
+            ),
             const SizedBox(width: 6),
             Text(
               "Last Month's Winners",
@@ -315,7 +326,11 @@ class _PublicChallengesTab extends StatelessWidget {
                   color: AppColors.accent.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(AppIcons.trophy, color: AppColors.accent, size: AppTheme.iconM),
+                child: const Icon(
+                  AppIcons.trophy,
+                  color: AppColors.accent,
+                  size: AppTheme.iconM,
+                ),
               ),
               const SizedBox(width: AppTheme.spaceM),
               Expanded(
@@ -331,7 +346,11 @@ class _PublicChallengesTab extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppTheme.spaceS),
-              const Icon(AppIcons.chevronRight, color: AppColors.textMuted, size: 18),
+              const Icon(
+                AppIcons.chevronRight,
+                color: AppColors.textMuted,
+                size: 18,
+              ),
             ],
           ),
         ).animate().fadeIn(delay: 250.ms).slideY(begin: 0.06),
@@ -400,7 +419,11 @@ class _ChallengeOfTheMonthCardState extends State<_ChallengeOfTheMonthCard> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(AppIcons.trophy, color: AppColors.accent, size: 13),
+                              const Icon(
+                                AppIcons.trophy,
+                                color: AppColors.accent,
+                                size: 13,
+                              ),
                               const SizedBox(width: AppTheme.spaceXS),
                               Text(
                                 'Challenge of the Month',
@@ -426,7 +449,11 @@ class _ChallengeOfTheMonthCardState extends State<_ChallengeOfTheMonthCard> {
                         const SizedBox(height: 7),
                         Row(
                           children: [
-                            const Icon(AppIcons.calendar, color: AppColors.textMuted, size: 12),
+                            const Icon(
+                              AppIcons.calendar,
+                              color: AppColors.textMuted,
+                              size: 12,
+                            ),
                             const SizedBox(width: 5),
                             Text(
                               'May 1 – May 31',
@@ -474,7 +501,9 @@ class _ChallengeOfTheMonthCardState extends State<_ChallengeOfTheMonthCard> {
                       Container(
                         width: 1,
                         height: 35,
-                        color: AppColors.accentSecondary.withValues(alpha: 0.25),
+                        color: AppColors.accentSecondary.withValues(
+                          alpha: 0.25,
+                        ),
                       ),
                       const SizedBox(width: AppTheme.spaceM),
                       const Expanded(
@@ -507,7 +536,11 @@ class _ChallengeOfTheMonthCardState extends State<_ChallengeOfTheMonthCard> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           if (_joined) ...[
-                            const Icon(AppIcons.goalReached, color: Colors.white, size: AppTheme.iconS),
+                            const Icon(
+                              AppIcons.goalReached,
+                              color: Colors.white,
+                              size: AppTheme.iconS,
+                            ),
                             const SizedBox(width: AppTheme.spaceS),
                           ],
                           Text(
@@ -647,10 +680,7 @@ class _WinnerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FlatCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 13,
-        vertical: 13,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -792,11 +822,7 @@ class _TrophyCluster extends StatelessWidget {
             child: avatar(34, AppColors.accentSecondary),
           ),
           Positioned(right: 0, bottom: 0, child: avatar(34, AppColors.accent)),
-          Positioned(
-            left: 21,
-            bottom: 10,
-            child: avatar(34, AppColors.accent),
-          ),
+          Positioned(left: 21, bottom: 10, child: avatar(34, AppColors.accent)),
           const Positioned(
             top: 0,
             left: 26,
@@ -817,9 +843,10 @@ class _PrivateChallengesTab extends StatelessWidget {
 
   final VoidCallback onCreateTap;
 
-  // (name, subtitle, dateRange, daysLeft, progress, members, icon, color)
+  // (name, subtitle, dateRange, daysLeft, progress, members, icon, color,
+  //  winnerMethod — 0 = Most Steps, 1 = Highest Goal Completion %)
   static const _challenges =
-      <(String, String, String, String, double, int, IconData, Color)>[
+      <(String, String, String, String, double, int, IconData, Color, int)>[
         (
           'Weekend Warrior',
           'Step challenge',
@@ -829,6 +856,7 @@ class _PrivateChallengesTab extends StatelessWidget {
           2,
           AppIcons.trophy,
           AppColors.error,
+          0,
         ),
         (
           '5K in May',
@@ -839,6 +867,7 @@ class _PrivateChallengesTab extends StatelessWidget {
           1,
           AppIcons.run,
           AppColors.accentSecondary,
+          1,
         ),
         (
           '14 Day Fitness Streak',
@@ -849,6 +878,7 @@ class _PrivateChallengesTab extends StatelessWidget {
           3,
           AppIcons.streak,
           AppColors.accent,
+          0,
         ),
         (
           'Family Steps Challenge',
@@ -859,6 +889,7 @@ class _PrivateChallengesTab extends StatelessWidget {
           4,
           AppIcons.steps,
           AppColors.success,
+          1,
         ),
         (
           'Active Hour Challenge',
@@ -869,6 +900,7 @@ class _PrivateChallengesTab extends StatelessWidget {
           2,
           AppIcons.duration,
           AppColors.accent,
+          0,
         ),
       ];
 
@@ -901,7 +933,11 @@ class _PrivateChallengesTab extends StatelessWidget {
                 letterSpacing: 0,
               ),
             ),
-            const Icon(AppIcons.expandMore, color: AppColors.textMuted, size: 14),
+            const Icon(
+              AppIcons.expandMore,
+              color: AppColors.textMuted,
+              size: 14,
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -919,6 +955,7 @@ class _PrivateChallengesTab extends StatelessWidget {
                       members: e.value.$6,
                       icon: e.value.$7,
                       color: e.value.$8,
+                      winnerMethod: e.value.$9,
                     )
                     .animate(delay: Duration(milliseconds: 80 + e.key * 60))
                     .fadeIn()
@@ -937,7 +974,11 @@ class _PrivateChallengesTab extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(AppIcons.lock, color: AppColors.textMuted, size: AppTheme.iconS),
+              const Icon(
+                AppIcons.lock,
+                color: AppColors.textMuted,
+                size: AppTheme.iconS,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1041,7 +1082,11 @@ class _PrivateBanner extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(AppIcons.add, color: Colors.white, size: AppTheme.iconS),
+                        const Icon(
+                          AppIcons.add,
+                          color: Colors.white,
+                          size: AppTheme.iconS,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Create New Challenge',
@@ -1076,6 +1121,7 @@ class _PrivateChallengeCard extends StatelessWidget {
     required this.members,
     required this.icon,
     required this.color,
+    required this.winnerMethod,
   });
 
   final String name;
@@ -1087,112 +1133,137 @@ class _PrivateChallengeCard extends StatelessWidget {
   final IconData icon;
   final Color color;
 
+  /// 0 = Most Steps, 1 = Highest Goal Completion %.
+  final int winnerMethod;
+
   @override
   Widget build(BuildContext context) {
-    return FlatCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 22),
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PrivateChallengeDetailScreen(
+            name: name,
+            subtitle: subtitle,
+            dateRange: dateRange,
+            daysLeft: daysLeft,
+            winnerMethod: winnerMethod,
+            icon: icon,
+            color: color,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.bodyM.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0,
+        ),
+      ),
+      child: FlatCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.bodyM.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            subtitle,
-                            style: AppTypography.labelS.copyWith(
-                              fontWeight: FontWeight.w400,
-                              letterSpacing: 0,
+                            const SizedBox(height: 1),
+                            Text(
+                              subtitle,
+                              style: AppTypography.labelS.copyWith(
+                                fontWeight: FontWeight.w400,
+                                letterSpacing: 0,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(AppIcons.calendar, color: AppColors.textMuted, size: 11),
-                              const SizedBox(width: AppTheme.spaceXS),
-                              Flexible(
-                                child: Text(
-                                  dateRange,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTypography.labelS.copyWith(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w400,
-                                    letterSpacing: 0,
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(
+                                  AppIcons.calendar,
+                                  color: AppColors.textMuted,
+                                  size: 11,
+                                ),
+                                const SizedBox(width: AppTheme.spaceXS),
+                                Flexible(
+                                  child: Text(
+                                    dateRange,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.labelS.copyWith(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w400,
+                                      letterSpacing: 0,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _MemberAvatars(extra: members),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 5,
-                          backgroundColor: AppColors.accentSecondary.withValues(
-                            alpha: 0.2,
-                          ),
-                          valueColor: AlwaysStoppedAnimation<Color>(color),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      daysLeft,
-                      style: AppTypography.labelS.copyWith(
-                        color: color,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
+                      const SizedBox(width: 8),
+                      _MemberAvatars(extra: members),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 5,
+                            backgroundColor: AppColors.accentSecondary
+                                .withValues(alpha: 0.2),
+                            valueColor: AlwaysStoppedAnimation<Color>(color),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 8),
+                      Text(
+                        daysLeft,
+                        style: AppTypography.labelS.copyWith(
+                          color: color,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 6),
-          const Icon(AppIcons.chevronRight, color: AppColors.textMuted, size: 18),
-        ],
+            const SizedBox(width: 6),
+            const Icon(
+              AppIcons.chevronRight,
+              color: AppColors.textMuted,
+              size: 18,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1229,7 +1300,11 @@ class _MemberAvatars extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 1.5),
                   ),
-                  child: const Icon(AppIcons.profile, color: Colors.white, size: 12),
+                  child: const Icon(
+                    AppIcons.profile,
+                    color: Colors.white,
+                    size: 12,
+                  ),
                 ),
               );
             }),
@@ -1307,10 +1382,9 @@ class _CompletedChallengesTab extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
       children: [
-        _CompletedBanner(completedCount: _challenges.length)
-            .animate()
-            .fadeIn(delay: 60.ms)
-            .slideY(begin: 0.06),
+        _CompletedBanner(
+          completedCount: _challenges.length,
+        ).animate().fadeIn(delay: 60.ms).slideY(begin: 0.06),
         const SizedBox(height: 18),
 
         Row(
@@ -1331,7 +1405,11 @@ class _CompletedChallengesTab extends StatelessWidget {
                 letterSpacing: 0,
               ),
             ),
-            const Icon(AppIcons.expandMore, color: AppColors.textMuted, size: 14),
+            const Icon(
+              AppIcons.expandMore,
+              color: AppColors.textMuted,
+              size: 14,
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -1353,78 +1431,6 @@ class _CompletedChallengesTab extends StatelessWidget {
                     .slideY(begin: 0.06),
           ),
         ),
-
-        const SizedBox(height: 8),
-
-        // Encouragement footer
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.accentSecondary.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(AppIcons.premium, color: AppColors.accent, size: AppTheme.iconM),
-              ),
-              const SizedBox(width: AppTheme.spaceM),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Keep challenging yourself!',
-                      style: AppTypography.bodyS.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    Text(
-                      "You're building healthy habits and inspiring others.",
-                      style: AppTypography.labelS.copyWith(
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppTheme.spaceS),
-              GestureDetector(
-                onTap: () {},
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spaceM,
-                    vertical: AppTheme.spaceS,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusS),
-                  ),
-                  child: Text(
-                    'Browse New\nChallenges',
-                    textAlign: TextAlign.center,
-                    style: AppTypography.labelS.copyWith(
-                      color: AppColors.accent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                      height: 1.2,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ).animate().fadeIn(delay: 400.ms),
       ],
     );
   }
@@ -1517,11 +1523,7 @@ class _CompletedTrophyBadge extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 2),
               ),
-              child: const Icon(
-                AppIcons.check,
-                color: Colors.white,
-                size: 12,
-              ),
+              child: const Icon(AppIcons.check, color: Colors.white, size: 12),
             ),
           ),
         ],
@@ -1645,9 +1647,14 @@ class _CompletedChallengeCard extends StatelessWidget {
             children: [
               Text(
                 Formatters.stepCount(totalSteps),
-                style: AppTypography.titleS.copyWith(fontWeight: FontWeight.w800),
+                style: AppTypography.titleS.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-              Text('Total Steps', style: AppTypography.labelS.copyWith(fontSize: 9)),
+              Text(
+                'Total Steps',
+                style: AppTypography.labelS.copyWith(fontSize: 9),
+              ),
               const SizedBox(height: AppTheme.spaceXS),
               const Icon(
                 AppIcons.chevronRight,
@@ -1692,7 +1699,11 @@ class _RankBadge extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(AppIcons.trophy, color: Colors.white, size: AppTheme.iconS),
+          const Icon(
+            AppIcons.trophy,
+            color: Colors.white,
+            size: AppTheme.iconS,
+          ),
           const SizedBox(height: 2),
           Text(
             _ordinal,
@@ -1809,7 +1820,9 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
                         enabledBorder: _fieldBorder(),
                         focusedBorder: _fieldBorder(focused: true),
                         suffixIcon: Padding(
-                          padding: const EdgeInsets.only(right: AppTheme.spaceM),
+                          padding: const EdgeInsets.only(
+                            right: AppTheme.spaceM,
+                          ),
                           child: Align(
                             widthFactor: 1,
                             child: Text(
@@ -2032,14 +2045,14 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
   }
 
   OutlineInputBorder _fieldBorder({bool focused = false}) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusM),
-        borderSide: BorderSide(
-          color: focused
-              ? AppColors.accent
-              : AppColors.accentSecondary.withValues(alpha: 0.3),
-          width: focused ? 1.5 : 1,
-        ),
-      );
+    borderRadius: BorderRadius.circular(AppTheme.radiusM),
+    borderSide: BorderSide(
+      color: focused
+          ? AppColors.accent
+          : AppColors.accentSecondary.withValues(alpha: 0.3),
+      width: focused ? 1.5 : 1,
+    ),
+  );
 
   Future<void> _pickStartDate(BuildContext context) async {
     final picked = await showDatePicker(
@@ -2063,9 +2076,9 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
   }
 
   void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature coming soon')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$feature coming soon')));
   }
 
   void _createChallenge(BuildContext context) {
@@ -2086,9 +2099,9 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
   }
 
   void _showValidationError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _formatDate(DateTime d) {
@@ -2149,13 +2162,15 @@ class _DurationChip extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.labelM.copyWith(
-                  color: selected ? AppColors.accent : AppColors.textPrimary,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: AppTypography.labelM.copyWith(
+                    color: selected ? AppColors.accent : AppColors.textPrimary,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
               ),
             ),

@@ -8,7 +8,9 @@ import 'package:strola_health/domain/entities/user_profile.dart';
 /// the already-loaded instance so the profile can be read synchronously at
 /// startup (no first-frame flash of the wrong screen).
 final sharedPreferencesProvider = Provider<SharedPreferences>(
-  (ref) => throw UnimplementedError('sharedPreferencesProvider must be overridden in main()'),
+  (ref) => throw UnimplementedError(
+    'sharedPreferencesProvider must be overridden in main()',
+  ),
 );
 
 class UserProfileNotifier extends StateNotifier<UserProfile> {
@@ -41,8 +43,8 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
 
 final userProfileProvider =
     StateNotifierProvider<UserProfileNotifier, UserProfile>(
-  (ref) => UserProfileNotifier(ref.watch(sharedPreferencesProvider)),
-);
+      (ref) => UserProfileNotifier(ref.watch(sharedPreferencesProvider)),
+    );
 
 /// Whether the first-run 5-step setup has been completed.
 final onboardingCompleteProvider = Provider<bool>(
@@ -55,60 +57,47 @@ final onboardingCompleteProvider = Provider<bool>(
 class PrivacySettings {
   const PrivacySettings({
     this.publicProfile = true,
-    this.shareActivity = true,
-    this.showInLeaderboards = true,
-    this.allowFriendRequests = true,
     this.hideActivityData = false,
     this.hideAchievements = false,
     this.hideRecentActivity = false,
+    this.hideLocation = false,
   });
 
   final bool publicProfile;
-  final bool shareActivity;
-  final bool showInLeaderboards;
-  final bool allowFriendRequests;
   final bool hideActivityData;
   final bool hideAchievements;
   final bool hideRecentActivity;
+  final bool hideLocation;
 
   PrivacySettings copyWith({
     bool? publicProfile,
-    bool? shareActivity,
-    bool? showInLeaderboards,
-    bool? allowFriendRequests,
     bool? hideActivityData,
     bool? hideAchievements,
     bool? hideRecentActivity,
-  }) =>
-      PrivacySettings(
-        publicProfile: publicProfile ?? this.publicProfile,
-        shareActivity: shareActivity ?? this.shareActivity,
-        showInLeaderboards: showInLeaderboards ?? this.showInLeaderboards,
-        allowFriendRequests: allowFriendRequests ?? this.allowFriendRequests,
-        hideActivityData: hideActivityData ?? this.hideActivityData,
-        hideAchievements: hideAchievements ?? this.hideAchievements,
-        hideRecentActivity: hideRecentActivity ?? this.hideRecentActivity,
-      );
+    bool? hideLocation,
+  }) => PrivacySettings(
+    publicProfile: publicProfile ?? this.publicProfile,
+    hideActivityData: hideActivityData ?? this.hideActivityData,
+    hideAchievements: hideAchievements ?? this.hideAchievements,
+    hideRecentActivity: hideRecentActivity ?? this.hideRecentActivity,
+    hideLocation: hideLocation ?? this.hideLocation,
+  );
 
   Map<String, dynamic> toJson() => {
-        'publicProfile': publicProfile,
-        'shareActivity': shareActivity,
-        'showInLeaderboards': showInLeaderboards,
-        'allowFriendRequests': allowFriendRequests,
-        'hideActivityData': hideActivityData,
-        'hideAchievements': hideAchievements,
-        'hideRecentActivity': hideRecentActivity,
-      };
+    'publicProfile': publicProfile,
+    'hideActivityData': hideActivityData,
+    'hideAchievements': hideAchievements,
+    'hideRecentActivity': hideRecentActivity,
+    'hideLocation': hideLocation,
+  };
 
   factory PrivacySettings.fromJson(Map<String, dynamic> j) => PrivacySettings(
-        publicProfile: j['publicProfile'] as bool? ?? true,
-        shareActivity: j['shareActivity'] as bool? ?? true,
-        showInLeaderboards: j['showInLeaderboards'] as bool? ?? true,
-        allowFriendRequests: j['allowFriendRequests'] as bool? ?? true,
-        hideActivityData: j['hideActivityData'] as bool? ?? false,
-        hideAchievements: j['hideAchievements'] as bool? ?? false,
-        hideRecentActivity: j['hideRecentActivity'] as bool? ?? false,
-      );
+    publicProfile: j['publicProfile'] as bool? ?? true,
+    hideActivityData: j['hideActivityData'] as bool? ?? false,
+    hideAchievements: j['hideAchievements'] as bool? ?? false,
+    hideRecentActivity: j['hideRecentActivity'] as bool? ?? false,
+    hideLocation: j['hideLocation'] as bool? ?? false,
+  );
 }
 
 class PrivacySettingsNotifier extends StateNotifier<PrivacySettings> {
@@ -121,14 +110,15 @@ class PrivacySettingsNotifier extends StateNotifier<PrivacySettings> {
     final raw = prefs.getString(prefsKey);
     if (raw == null) return const PrivacySettings();
     try {
-      return PrivacySettings.fromJson(
-          jsonDecode(raw) as Map<String, dynamic>);
+      return PrivacySettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
       return const PrivacySettings();
     }
   }
 
-  Future<void> update(PrivacySettings Function(PrivacySettings) transform) async {
+  Future<void> update(
+    PrivacySettings Function(PrivacySettings) transform,
+  ) async {
     state = transform(state);
     await _prefs.setString(prefsKey, jsonEncode(state.toJson()));
   }
@@ -136,5 +126,5 @@ class PrivacySettingsNotifier extends StateNotifier<PrivacySettings> {
 
 final privacySettingsProvider =
     StateNotifierProvider<PrivacySettingsNotifier, PrivacySettings>(
-  (ref) => PrivacySettingsNotifier(ref.watch(sharedPreferencesProvider)),
-);
+      (ref) => PrivacySettingsNotifier(ref.watch(sharedPreferencesProvider)),
+    );

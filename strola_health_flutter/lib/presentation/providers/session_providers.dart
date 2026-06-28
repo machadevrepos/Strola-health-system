@@ -73,19 +73,18 @@ class SessionState {
     double? currentSpeedMps,
     DateTime? startTime,
     bool? gpsAvailable,
-  }) =>
-      SessionState(
-        status: status ?? this.status,
-        activityType: activityType ?? this.activityType,
-        elapsed: elapsed ?? this.elapsed,
-        steps: steps ?? this.steps,
-        distanceMeters: distanceMeters ?? this.distanceMeters,
-        routePoints: routePoints ?? this.routePoints,
-        currentLocation: currentLocation ?? this.currentLocation,
-        currentSpeedMps: currentSpeedMps ?? this.currentSpeedMps,
-        startTime: startTime ?? this.startTime,
-        gpsAvailable: gpsAvailable ?? this.gpsAvailable,
-      );
+  }) => SessionState(
+    status: status ?? this.status,
+    activityType: activityType ?? this.activityType,
+    elapsed: elapsed ?? this.elapsed,
+    steps: steps ?? this.steps,
+    distanceMeters: distanceMeters ?? this.distanceMeters,
+    routePoints: routePoints ?? this.routePoints,
+    currentLocation: currentLocation ?? this.currentLocation,
+    currentSpeedMps: currentSpeedMps ?? this.currentSpeedMps,
+    startTime: startTime ?? this.startTime,
+    gpsAvailable: gpsAvailable ?? this.gpsAvailable,
+  );
 }
 
 // ── Session notifier ──────────────────────────────────────────────────────────
@@ -165,52 +164,54 @@ class SessionNotifier extends StateNotifier<SessionState> {
 
       // Fresh fix in background — updates map as soon as it resolves.
       Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
-      ).then((pos) {
-        if (!state.isRunning) return;
-        state = state.copyWith(
-          currentLocation: LatLng(pos.latitude, pos.longitude),
-        );
-      }).catchError((_) {});
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              timeLimit: Duration(seconds: 10),
+            ),
+          )
+          .then((pos) {
+            if (!state.isRunning) return;
+            state = state.copyWith(
+              currentLocation: LatLng(pos.latitude, pos.longitude),
+            );
+          })
+          .catchError((_) {});
 
       // Continuous tracking — each new fix adds to distance and route polyline.
-      _gpsSubscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5, // emit every 5 m of movement
-        ),
-      ).listen((pos) {
-        if (!state.isRunning) return;
+      _gpsSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5, // emit every 5 m of movement
+            ),
+          ).listen((pos) {
+            if (!state.isRunning) return;
 
-        final speedMps = pos.speed.clamp(0.0, 30.0);
-        final newPoint = RoutePoint(
-          position: LatLng(pos.latitude, pos.longitude),
-          speedMps: speedMps,
-        );
+            final speedMps = pos.speed.clamp(0.0, 30.0);
+            final newPoint = RoutePoint(
+              position: LatLng(pos.latitude, pos.longitude),
+              speedMps: speedMps,
+            );
 
-        // Accumulate true GPS distance between successive fixes.
-        double additionalMeters = 0;
-        if (state.routePoints.isNotEmpty) {
-          final last = state.routePoints.last.position;
-          additionalMeters = Geolocator.distanceBetween(
-            last.latitude,
-            last.longitude,
-            pos.latitude,
-            pos.longitude,
-          );
-        }
+            // Accumulate true GPS distance between successive fixes.
+            double additionalMeters = 0;
+            if (state.routePoints.isNotEmpty) {
+              final last = state.routePoints.last.position;
+              additionalMeters = Geolocator.distanceBetween(
+                last.latitude,
+                last.longitude,
+                pos.latitude,
+                pos.longitude,
+              );
+            }
 
-        state = state.copyWith(
-          routePoints: [...state.routePoints, newPoint],
-          currentLocation: newPoint.position,
-          currentSpeedMps:
-              speedMps > 0 ? speedMps : state.currentSpeedMps,
-          distanceMeters: state.distanceMeters + additionalMeters,
-        );
-      });
+            state = state.copyWith(
+              routePoints: [...state.routePoints, newPoint],
+              currentLocation: newPoint.position,
+              currentSpeedMps: speedMps > 0 ? speedMps : state.currentSpeedMps,
+              distanceMeters: state.distanceMeters + additionalMeters,
+            );
+          });
     } catch (_) {
       // GPS errors are non-fatal — app degrades gracefully to step-only mode.
     }
@@ -227,6 +228,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
     state = state.copyWith(status: SessionStatus.active);
   }
 
+  /// Stops timers/GPS and builds the final [WorkoutSession], but does NOT
+  /// persist it — the summary screen decides whether to keep or discard it
+  /// (so accidentally-started sessions can be thrown away), via
+  /// [saveCompletedSession].
   Future<WorkoutSession> stop() async {
     _timer?.cancel();
     _timer = null;
@@ -250,10 +255,15 @@ class SessionNotifier extends StateNotifier<SessionState> {
       caloriesBurned: calories,
     );
 
-    await _ref.read(sessionRepositoryProvider).saveSession(session);
-
     state = const SessionState();
     return session;
+  }
+
+  Future<void> saveCompletedSession(WorkoutSession session) async {
+    await _ref
+        .read(sessionRepositoryProvider)
+        .saveSession(session, goal: _ref.read(dailyGoalProvider));
+    _ref.invalidate(sessionHistoryProvider);
   }
 
   @override
@@ -276,4 +286,25 @@ final sessionHistoryProvider = FutureProvider<List<WorkoutSession>>((ref) {
 
 final dailyStepsMapProvider = FutureProvider<Map<DateTime, int>>((ref) async {
   return ref.read(sessionRepositoryProvider).getRecentDailySteps(days: 30);
+});
+
+/// [month]'s recorded days, each paired with the goal that was active when
+/// it was last written — used so "days met goal" stays correct even after
+/// the user raises their goal partway through the month, and so browsing to
+/// a previous month reflects the goal that applied back then.
+final stepsForMonthWithGoalProvider =
+    FutureProvider.family<
+      List<({DateTime date, int steps, int goal})>,
+      DateTime
+    >((ref, month) {
+      return ref
+          .read(sessionRepositoryProvider)
+          .getStepsForMonthWithGoal(
+            month,
+            fallbackGoal: ref.read(dailyGoalProvider),
+          );
+    });
+
+final allTimeStepsProvider = FutureProvider<int>((ref) {
+  return ref.read(sessionRepositoryProvider).getAllTimeSteps();
 });

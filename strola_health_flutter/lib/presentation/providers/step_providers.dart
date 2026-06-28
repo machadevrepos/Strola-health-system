@@ -185,7 +185,11 @@ class StreakNotifier extends StateNotifier<StreakState> {
   Future<void> _onStepsChanged(int steps) async {
     await _ref
         .read(sessionRepositoryProvider)
-        .recordDailyTotal(DateTime.now(), steps);
+        .recordDailyTotal(
+          DateTime.now(),
+          steps,
+          goal: _ref.read(dailyGoalProvider),
+        );
     await _checkRollover();
   }
 

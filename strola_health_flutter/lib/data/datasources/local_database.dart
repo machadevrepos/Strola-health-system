@@ -15,7 +15,7 @@ class LocalDatabase {
     final dbPath = await getDatabasesPath();
     return openDatabase(
       join(dbPath, 'strola_health.db'),
-      version: 2,
+      version: 3,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE workout_sessions (
@@ -34,7 +34,8 @@ class LocalDatabase {
         await db.execute('''
           CREATE TABLE daily_steps (
             date TEXT PRIMARY KEY,
-            steps INTEGER NOT NULL
+            steps INTEGER NOT NULL,
+            goal INTEGER
           )
         ''');
       },
@@ -45,6 +46,14 @@ class LocalDatabase {
           await db.execute(
             'ALTER TABLE workout_sessions ADD COLUMN calories_burned INTEGER',
           );
+        }
+        if (oldVersion < 3) {
+          // Snapshots the goal that was active when each day's total was
+          // last written, so "days met goal" stays correct for days recorded
+          // under an old goal even after the user raises it later. NULL on
+          // existing rows (recorded before this column existed) — callers
+          // fall back to the current goal for those.
+          await db.execute('ALTER TABLE daily_steps ADD COLUMN goal INTEGER');
         }
       },
     );

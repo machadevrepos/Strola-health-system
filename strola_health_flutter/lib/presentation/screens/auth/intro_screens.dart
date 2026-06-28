@@ -2,36 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
-import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/presentation/providers/auth_providers.dart';
 
 class _IntroSlide {
-  const _IntroSlide({required this.icon, required this.title, required this.body});
-  final IconData icon;
+  const _IntroSlide({required this.image, required this.title, required this.body});
+  final String image;
   final String title;
   final String body;
 }
 
 const _slides = [
   _IntroSlide(
-    icon: AppIcons.steps,
+    image: 'assets/images/onboarding/onboard_1.png',
     title: 'Track Every Step',
-    body: 'Pair with your Strolla device for accurate, real-time step '
-        "tracking — or just carry your phone, we've got you either way.",
+    body: 'Never miss steps because your hands are busy. Pair your '
+        'Strolla device for accurate tracking wherever life takes you.',
   ),
   _IntroSlide(
-    icon: AppIcons.people,
+    image: 'assets/images/onboarding/onboard_2.png',
     title: 'Move Together',
-    body: 'Join a community of women cheering each other on, sharing '
-        'wins, and joining challenges together.',
+    body: 'Join a supportive community celebrating wins, sharing '
+        'encouragement, and taking on challenges together.',
   ),
   _IntroSlide(
-    icon: AppIcons.trophy,
+    image: 'assets/images/onboarding/onboard_3.png',
     title: 'Reach Your Goals',
-    body: 'Set a daily step goal, build streaks, and celebrate every '
-        'milestone — big or small.',
+    body: 'Set a daily step goal, build streaks, earn achievements, and '
+        'celebrate every milestone along the way.',
   ),
 ];
 
@@ -108,25 +107,31 @@ class _IntroScreensState extends ConsumerState<IntroScreens> {
                         horizontal: AppTheme.screenPaddingH,
                       ),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            width: 120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              color: AppColors.accentSecondary.withValues(alpha: 0.20),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              slide.icon,
-                              color: AppColors.accent,
-                              size: AppTheme.iconXXL,
-                            ),
-                          ).animate().fadeIn(duration: AppTheme.animSlow).scale(
-                                begin: const Offset(0.85, 0.85),
-                                curve: Curves.easeOutBack,
+                          // Claims whatever vertical space the title/body
+                          // below don't need, so the illustration fills the
+                          // gap instead of floating in dead space above and
+                          // below a small centered block.
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppTheme.spaceM,
                               ),
-                          const SizedBox(height: AppTheme.spaceXXL),
+                              child: Transform.scale(
+                                // 10% larger than what BoxFit.contain would
+                                // otherwise size it to, on top of the
+                                // entrance animation below.
+                                scale: 1.1,
+                                child: Image.asset(slide.image, fit: BoxFit.contain)
+                                    .animate()
+                                    .fadeIn(duration: AppTheme.animSlow)
+                                    .scale(
+                                      begin: const Offset(0.92, 0.92),
+                                      curve: Curves.easeOutCubic,
+                                    ),
+                              ),
+                            ),
+                          ),
                           Text(
                             slide.title,
                             textAlign: TextAlign.center,
@@ -141,6 +146,7 @@ class _IntroScreensState extends ConsumerState<IntroScreens> {
                               height: 1.5,
                             ),
                           ).animate().fadeIn(delay: 140.ms, duration: AppTheme.animSlow),
+                          const SizedBox(height: AppTheme.spaceL),
                         ],
                       ),
                     );

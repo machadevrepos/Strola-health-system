@@ -83,7 +83,10 @@ class StepRing extends StatelessWidget {
                 ),
                 pointers: [
                   RangePointer(
-                    value: steps.toDouble(),
+                    // Explicitly capped rather than relying on the gauge to
+                    // clamp an out-of-range value itself — steps regularly
+                    // exceed goal, and this axis's maximum is the goal.
+                    value: steps.toDouble().clamp(0, goal.toDouble()),
                     width: 0.13,
                     sizeUnit: GaugeSizeUnit.factor,
                     enableAnimation: true,
@@ -97,7 +100,12 @@ class StepRing extends StatelessWidget {
                       ],
                       stops: [0.0, 1.0],
                     ),
-                    cornerStyle: CornerStyle.bothCurve,
+                    // Rounded caps at both ends leave a hairline seam where
+                    // they meet once the sweep completes a full 360° loop —
+                    // flatten them right at full closure so the ring actually
+                    // looks closed instead of showing a small gap at the top.
+                    cornerStyle:
+                        steps >= goal ? CornerStyle.bothFlat : CornerStyle.bothCurve,
                   ),
                 ],
                 annotations: [
@@ -140,7 +148,7 @@ class _CenterAnnotation extends StatelessWidget {
   Widget build(BuildContext context) {
     final pct = (progress * 100).toInt();
     final subLabel = isGoalReached
-        ? 'Goal reached! 🌸'
+        ? 'Goal achieved! 🎉'
         : '$pct% of ${Formatters.stepCount(goal)}';
 
     return Column(

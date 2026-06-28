@@ -8,46 +8,54 @@ enum ActivityType {
   yoga,
   pilates,
   cardio,
+  biking,
+  hiit,
   other;
 
   /// Only outdoor activities use GPS route tracking.
-  bool get usesGps => this == outdoorWalk || this == outdoorRun;
+  bool get usesGps =>
+      this == outdoorWalk || this == outdoorRun || this == biking;
 
   /// Whether this activity tracks step count from the BLE device.
-  bool get countsSteps => this != yoga && this != pilates;
+  /// Biking is pedaling, not stepping — a step count wouldn't mean anything.
+  bool get countsSteps => this != yoga && this != pilates && this != biking;
 
   /// Whether a distance figure is meaningful to display.
   bool get showsDistance => usesGps || this == treadmill;
 
   /// MET (Metabolic Equivalent of Task) — used for calorie calculation.
   double get met => switch (this) {
-        outdoorWalk => 3.5,
-        outdoorRun => 8.0,
-        treadmill => 4.0,
-        strengthTraining => 3.5,
-        yoga => 2.5,
-        pilates => 3.0,
-        cardio => 5.0,
-        other => 3.0,
-      };
+    outdoorWalk => 3.5,
+    outdoorRun => 8.0,
+    treadmill => 4.0,
+    strengthTraining => 3.5,
+    yoga => 2.5,
+    pilates => 3.0,
+    cardio => 5.0,
+    biking => 7.5,
+    hiit => 8.0,
+    other => 3.0,
+  };
 
   /// Stride length in metres, used for step-based distance estimation.
   double get strideM => switch (this) {
-        outdoorRun => 1.0,
-        treadmill => 0.762,
-        _ => 0.762,
-      };
+    outdoorRun => 1.0,
+    treadmill => 0.762,
+    _ => 0.762,
+  };
 
   String get displayName => switch (this) {
-        outdoorWalk => 'Outdoor Walk',
-        outdoorRun => 'Outdoor Run',
-        treadmill => 'Treadmill',
-        strengthTraining => 'Strength',
-        yoga => 'Yoga',
-        pilates => 'Pilates',
-        cardio => 'Cardio',
-        other => 'Other',
-      };
+    outdoorWalk => 'Outdoor Walk',
+    outdoorRun => 'Outdoor Run',
+    treadmill => 'Treadmill',
+    strengthTraining => 'Strength',
+    yoga => 'Yoga',
+    pilates => 'Pilates',
+    cardio => 'Cardio',
+    biking => 'Biking',
+    hiit => 'HIIT',
+    other => 'Other',
+  };
 
   /// Backward-compatible parse — handles old 'walk'/'run' values from v1 DB.
   static ActivityType fromString(String? s) {
@@ -108,8 +116,7 @@ class WorkoutSession {
 
   double get distanceKm => distanceMeters / 1000;
 
-  int get calories =>
-      caloriesBurned ?? (steps * 0.04).toInt();
+  int get calories => caloriesBurned ?? (steps * 0.04).toInt();
 
   String get formattedDuration {
     final h = durationSeconds ~/ 3600;
@@ -133,45 +140,42 @@ class WorkoutSession {
   }
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'start_time': startTime.millisecondsSinceEpoch,
-        'end_time': endTime.millisecondsSinceEpoch,
-        'steps': steps,
-        'distance_meters': distanceMeters,
-        'duration_seconds': durationSeconds,
-        'activity_type': activityType.name,
-        'route_points': routePoints
-            .map(
-              (p) =>
-                  '${p.position.latitude},${p.position.longitude},${p.speedMps}',
-            )
-            .join(';'),
-        'calories_burned': caloriesBurned,
-      };
+    'id': id,
+    'start_time': startTime.millisecondsSinceEpoch,
+    'end_time': endTime.millisecondsSinceEpoch,
+    'steps': steps,
+    'distance_meters': distanceMeters,
+    'duration_seconds': durationSeconds,
+    'activity_type': activityType.name,
+    'route_points': routePoints
+        .map(
+          (p) => '${p.position.latitude},${p.position.longitude},${p.speedMps}',
+        )
+        .join(';'),
+    'calories_burned': caloriesBurned,
+  };
 
   factory WorkoutSession.fromMap(Map<String, dynamic> m) => WorkoutSession(
-        id: m['id'] as String,
-        startTime:
-            DateTime.fromMillisecondsSinceEpoch(m['start_time'] as int),
-        endTime: DateTime.fromMillisecondsSinceEpoch(m['end_time'] as int),
-        steps: m['steps'] as int,
-        distanceMeters: (m['distance_meters'] as num).toDouble(),
-        durationSeconds: m['duration_seconds'] as int,
-        activityType: ActivityType.fromString(m['activity_type'] as String?),
-        caloriesBurned: m['calories_burned'] as int?,
-        routePoints: (m['route_points'] as String? ?? '')
-            .split(';')
-            .where((s) => s.contains(','))
-            .map((s) {
-              final parts = s.split(',');
-              return RoutePoint(
-                position:
-                    LatLng(double.parse(parts[0]), double.parse(parts[1])),
-                speedMps: parts.length > 2
-                    ? (double.tryParse(parts[2]) ?? 0.0)
-                    : 0.0,
-              );
-            })
-            .toList(),
-      );
+    id: m['id'] as String,
+    startTime: DateTime.fromMillisecondsSinceEpoch(m['start_time'] as int),
+    endTime: DateTime.fromMillisecondsSinceEpoch(m['end_time'] as int),
+    steps: m['steps'] as int,
+    distanceMeters: (m['distance_meters'] as num).toDouble(),
+    durationSeconds: m['duration_seconds'] as int,
+    activityType: ActivityType.fromString(m['activity_type'] as String?),
+    caloriesBurned: m['calories_burned'] as int?,
+    routePoints: (m['route_points'] as String? ?? '')
+        .split(';')
+        .where((s) => s.contains(','))
+        .map((s) {
+          final parts = s.split(',');
+          return RoutePoint(
+            position: LatLng(double.parse(parts[0]), double.parse(parts[1])),
+            speedMps: parts.length > 2
+                ? (double.tryParse(parts[2]) ?? 0.0)
+                : 0.0,
+          );
+        })
+        .toList(),
+  );
 }

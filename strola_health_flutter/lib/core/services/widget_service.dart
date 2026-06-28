@@ -15,6 +15,24 @@ class WidgetService {
     await HomeWidget.setAppGroupId('group.com.machadev.strola_health');
   }
 
+  /// True only on Android 8+ launchers that support prompting the user to
+  /// pin a widget directly (`AppWidgetManager.requestPinAppWidget`). False
+  /// on iOS and unsupported launchers — there's no equivalent API on iOS,
+  /// Apple deliberately keeps adding a widget a manual, user-driven action.
+  static Future<bool> isPinSupported() async {
+    final supported = await HomeWidget.isRequestPinWidgetSupported();
+    return supported ?? false;
+  }
+
+  /// Shows the native Android system prompt to pin the home-screen widget.
+  /// Only call this after checking [isPinSupported].
+  static Future<void> requestPin() {
+    return HomeWidget.requestPinWidget(
+      androidName: _androidName,
+      qualifiedAndroidName: _qualifiedAndroid,
+    );
+  }
+
   /// Pushes latest stats to native widgets and requests a redraw.
   /// Safe to call on every step update — writes are cheap and async.
   static Future<void> update({

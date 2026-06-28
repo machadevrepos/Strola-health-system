@@ -130,6 +130,12 @@
             </intent-filter>
         </activity>
 
+        <!-- ── image_cropper (profile picture crop UI) ─────────────────── -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Ucrop.CropTheme"/>
+
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
