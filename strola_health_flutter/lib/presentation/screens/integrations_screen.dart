@@ -30,8 +30,9 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
   bool _loading = true;
   String? _busyProvider;
 
-  IntegrationProvider get _onDeviceProvider =>
-      Platform.isIOS ? IntegrationProvider.healthkit : IntegrationProvider.healthConnect;
+  IntegrationProvider get _onDeviceProvider => Platform.isIOS
+      ? IntegrationProvider.healthkit
+      : IntegrationProvider.healthConnect;
 
   @override
   void initState() {
@@ -58,7 +59,7 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
     final provider = _onDeviceProvider;
     setState(() => _busyProvider = provider.apiValue);
     try {
-      final granted = await HealthService(ref.read(backendApiProvider)).connect();
+      final granted = await ref.read(healthServiceProvider).connect();
       if (!mounted) return;
       if (granted) {
         setState(() => _connected = {..._connected, provider.apiValue});
@@ -72,10 +73,15 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
     }
   }
 
-  Future<void> _connectOAuth(IntegrationProvider provider, String displayName) async {
+  Future<void> _connectOAuth(
+    IntegrationProvider provider,
+    String displayName,
+  ) async {
     setState(() => _busyProvider = provider.apiValue);
     try {
-      final url = await ref.read(backendApiProvider).getOAuthAuthorizationUrl(provider);
+      final url = await ref
+          .read(backendApiProvider)
+          .getOAuthAuthorizationUrl(provider);
       final result = await FlutterWebAuth2.authenticate(
         url: url,
         callbackUrlScheme: _kOAuthCallbackScheme,
@@ -86,7 +92,9 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
         case 'success':
           setState(() => _connected = {..._connected, provider.apiValue});
         case 'pending_credentials':
-          _showMessage('$displayName isn\'t fully live yet — pending API credentials.');
+          _showMessage(
+            '$displayName isn\'t fully live yet — pending API credentials.',
+          );
         default:
           _showMessage('Could not connect to $displayName.');
       }
@@ -98,7 +106,9 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -116,13 +126,19 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
           shadowColor: Colors.transparent,
           leading: GestureDetector(
             onTap: () => Navigator.maybePop(context),
-            child: const Icon(AppIcons.back, color: AppColors.textPrimary, size: AppTheme.iconM),
+            child: const Icon(
+              AppIcons.back,
+              color: AppColors.textPrimary,
+              size: AppTheme.iconM,
+            ),
           ),
           title: Text('Connected Apps', style: AppTypography.titleM),
           centerTitle: true,
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.accent),
+              )
             : ListView(
                 padding: const EdgeInsets.all(AppTheme.screenPaddingH),
                 children: [
@@ -132,11 +148,13 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
                   ),
                   const SizedBox(height: AppTheme.spaceL),
                   _IntegrationTile(
-                    brand: Platform.isIOS ? BrandType.healthkit : BrandType.healthConnect,
+                    brand: Platform.isIOS
+                        ? BrandType.healthkit
+                        : BrandType.healthConnect,
                     name: Platform.isIOS ? 'Apple Health' : 'Health Connect',
                     subtitle: Platform.isIOS
-                        ? 'Sync steps, distance, and active calories'
-                        : 'Also covers Samsung Health and Google Fit data on this device',
+                        ? 'Two-way sync — also writes back so other apps can prefer Strolla'
+                        : 'Also covers Samsung Health and Google Fit — set Strolla as the preferred source in Health Connect',
                     connected: _connected.contains(onDevice.apiValue),
                     busy: _busyProvider == onDevice.apiValue,
                     onTap: _connectOnDevice,
@@ -146,27 +164,36 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
                     brand: BrandType.strava,
                     name: 'Strava',
                     subtitle: 'Import runs, rides, and walks',
-                    connected: _connected.contains(IntegrationProvider.strava.apiValue),
+                    connected: _connected.contains(
+                      IntegrationProvider.strava.apiValue,
+                    ),
                     busy: _busyProvider == IntegrationProvider.strava.apiValue,
-                    onTap: () => _connectOAuth(IntegrationProvider.strava, 'Strava'),
+                    onTap: () =>
+                        _connectOAuth(IntegrationProvider.strava, 'Strava'),
                   ),
                   const SizedBox(height: AppTheme.spaceM),
                   _IntegrationTile(
                     brand: BrandType.oura,
                     name: 'Oura',
                     subtitle: 'Sync daily activity from your Oura Ring',
-                    connected: _connected.contains(IntegrationProvider.oura.apiValue),
+                    connected: _connected.contains(
+                      IntegrationProvider.oura.apiValue,
+                    ),
                     busy: _busyProvider == IntegrationProvider.oura.apiValue,
-                    onTap: () => _connectOAuth(IntegrationProvider.oura, 'Oura'),
+                    onTap: () =>
+                        _connectOAuth(IntegrationProvider.oura, 'Oura'),
                   ),
                   const SizedBox(height: AppTheme.spaceM),
                   _IntegrationTile(
                     brand: BrandType.garmin,
                     name: 'Garmin',
                     subtitle: 'Sync activity from a connected Garmin device',
-                    connected: _connected.contains(IntegrationProvider.garmin.apiValue),
+                    connected: _connected.contains(
+                      IntegrationProvider.garmin.apiValue,
+                    ),
                     busy: _busyProvider == IntegrationProvider.garmin.apiValue,
-                    onTap: () => _connectOAuth(IntegrationProvider.garmin, 'Garmin'),
+                    onTap: () =>
+                        _connectOAuth(IntegrationProvider.garmin, 'Garmin'),
                     pendingApproval: true,
                   ),
                   const SizedBox(height: AppTheme.spaceXL),
@@ -175,12 +202,18 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.accentSecondary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppTheme.radiusL),
-                      border: Border.all(color: AppColors.accentSecondary.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: AppColors.accentSecondary.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(AppIcons.info, color: AppColors.accent, size: AppTheme.iconM),
+                        const Icon(
+                          AppIcons.info,
+                          color: AppColors.accent,
+                          size: AppTheme.iconM,
+                        ),
                         const SizedBox(width: AppTheme.spaceM),
                         Expanded(
                           child: Text(
@@ -238,10 +271,17 @@ class _IntegrationTile extends StatelessWidget {
                     if (pendingApproval) ...[
                       const SizedBox(width: AppTheme.spaceS),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                          color: AppColors.accentSecondary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                          color: AppColors.accentSecondary.withValues(
+                            alpha: 0.2,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusFull,
+                          ),
                         ),
                         child: Text(
                           'Pending approval',
@@ -263,7 +303,10 @@ class _IntegrationTile extends StatelessWidget {
             const SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.accent,
+              ),
             )
           else
             GestureDetector(

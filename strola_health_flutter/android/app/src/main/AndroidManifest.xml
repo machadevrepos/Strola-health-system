@@ -52,6 +52,13 @@
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_DISTANCE" />
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <!-- Write access — lets Strolla contribute its own step/distance/calorie
+         totals into Health Connect, so Samsung Health, Google Fit, and other
+         apps reading from it can be set (in Health Connect's own app
+         priority settings) to prefer Strolla's numbers over other sources. -->
+    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
+    <uses-permission android:name="android.permission.health.WRITE_DISTANCE" />
+    <uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED" />
 
     <application
         android:label="Strolla Health"

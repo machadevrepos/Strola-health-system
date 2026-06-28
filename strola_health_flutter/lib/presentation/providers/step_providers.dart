@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:strola_health/core/constants/step_goals.dart';
+import 'package:strola_health/core/services/health_service.dart';
 import 'package:strola_health/core/utils/fitness_calculator.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/data/repositories/session_repository.dart';
@@ -94,8 +95,7 @@ class UserWeightNotifier extends StateNotifier<double> {
   }
 }
 
-final userWeightKgProvider =
-    StateNotifierProvider<UserWeightNotifier, double>(
+final userWeightKgProvider = StateNotifierProvider<UserWeightNotifier, double>(
   (_) => UserWeightNotifier(),
 );
 
@@ -170,9 +170,9 @@ class StreakNotifier extends StateNotifier<StreakState> {
   static const lastSeenDateKey = 'streak_last_seen_date';
 
   static StreakState _load(SharedPreferences prefs) => StreakState(
-        current: prefs.getInt(currentKey) ?? 0,
-        longest: prefs.getInt(longestKey) ?? 0,
-      );
+    current: prefs.getInt(currentKey) ?? 0,
+    longest: prefs.getInt(longestKey) ?? 0,
+  );
 
   String _ymd(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -190,6 +190,18 @@ class StreakNotifier extends StateNotifier<StreakState> {
           steps,
           goal: _ref.read(dailyGoalProvider),
         );
+    // Best-effort, throttled internally — pushes Strolla's running total
+    // into Health Connect/HealthKit so other apps can be set to prefer it.
+    // No-ops on its own if write access was never granted.
+    unawaited(
+      _ref
+          .read(healthServiceProvider)
+          .pushLiveSteps(
+            todaySteps: steps,
+            todayDistanceMeters: _ref.read(distanceKmProvider) * 1000,
+            todayCalories: _ref.read(caloriesProvider),
+          ),
+    );
     await _checkRollover();
   }
 
@@ -244,10 +256,10 @@ final todayHourlyStepsProvider = Provider<List<int>>((ref) {
   final now = DateTime.now().hour;
 
   final hours = [
-    0, 0, 0, 0, 0, 0,              // 12AM–5AM: asleep
+    0, 0, 0, 0, 0, 0, // 12AM–5AM: asleep
     220, 970, 1380, 640, 290, 210, // 6AM–11AM: morning + commute
     820, 1240, 390, 180, 250, 460, // 12PM–5PM: lunch walk + desk
-    880, 1360, 800, 360, 100, 0,   // 6PM–11PM: evening walk + wind-down
+    880, 1360, 800, 360, 100, 0, // 6PM–11PM: evening walk + wind-down
   ];
 
   // Replace current hour with today's live step count clamped to chart scale

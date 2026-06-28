@@ -58,7 +58,7 @@
 	<key>NSHealthShareUsageDescription</key>
 	<string>Strolla Health reads your steps, distance, and active energy from Apple Health to keep your activity in sync.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>Strolla Health writes workout sessions to Apple Health so your activity stays in sync across apps.</string>
+	<string>Strolla Health writes your steps, distance, and active energy to Apple Health so other apps can prefer Strolla's numbers.</string>
 	<!-- OAuth callback (flutter_web_auth_2) — Strava/Oura/Garmin redirect here
 	     after consent; see integrations_screen.dart -->
 	<key>CFBundleURLTypes</key>
