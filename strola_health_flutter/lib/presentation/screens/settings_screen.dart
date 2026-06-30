@@ -8,7 +8,7 @@ import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/services/account_service.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
 import 'package:strola_health/presentation/providers/auth_providers.dart'
-    show AuthException;
+    show AuthException, firebaseAvailableProvider;
 import 'package:strola_health/presentation/providers/community_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/screens/integrations_screen.dart';
@@ -185,6 +185,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   void _confirmLogout(BuildContext context, WidgetRef ref) {
+    final hasBackend = ref.read(firebaseAvailableProvider);
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
@@ -192,9 +193,12 @@ class SettingsScreen extends ConsumerWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Log Out', style: AppTypography.titleM),
         content: Text(
-          "This clears your profile, weight, goal, streaks, and workout "
-          "history from this device — there's no backend yet to restore "
-          "them from, so this can't be undone.",
+          hasBackend
+              ? "This clears your profile, weight, goal, streaks, and "
+                    "workout history from this device. Signing back in to "
+                    "this account will restore it."
+              : "You'll be signed out, and can sign back in any time — "
+                    "your profile stays on this device.",
           style: AppTypography.bodyM,
         ),
         actions: [
@@ -948,9 +952,11 @@ class ContactUsPage extends StatelessWidget {
     return _SettingsScaffold(
       title: 'Contact Us',
       children: [
+        Text("We're here to help!", style: AppTypography.titleM),
+        const SizedBox(height: AppTheme.spaceXS),
         Text(
-          "We'd love to hear from you. Reach the Strolla team anytime — "
-          'questions, feedback, or just to say hello. 🌸',
+          'Have a question, need support, or want to share feedback? '
+          "We'd love to hear from you.",
           style: AppTypography.bodyM,
         ),
         const SizedBox(height: AppTheme.spaceL),

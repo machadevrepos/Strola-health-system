@@ -20,7 +20,10 @@ import 'package:strola_health/presentation/widgets/pressable_scale.dart';
 import 'package:strola_health/presentation/widgets/skeleton_loaders.dart';
 
 class ActivityScreen extends ConsumerStatefulWidget {
-  const ActivityScreen({super.key});
+  const ActivityScreen({super.key, this.initialTab = 0});
+
+  /// 0: Log, 1: Week, 2: Month.
+  final int initialTab;
 
   @override
   ConsumerState<ActivityScreen> createState() => _ActivityScreenState();
@@ -33,7 +36,11 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTab,
+    );
   }
 
   @override
@@ -44,79 +51,96 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ── Header ────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Row(
-                children: [
-                  Text(
-                        'Activity',
-                        style: AppTypography.displayL.copyWith(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -1.0,
+    // This screen isn't a bottom-nav destination — it's only ever reached by
+    // being pushed (e.g. Stats' "Recent Workouts" View All), so it always
+    // needs its own background and back button, unlike MainShell's tabs.
+    return Container(
+      decoration: const BoxDecoration(gradient: AppColors.bgGradient),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // ── Header ────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Row(
+                  children: [
+                    if (Navigator.of(context).canPop()) ...[
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: const Icon(
+                          AppIcons.back,
+                          color: AppColors.textPrimary,
+                          size: AppTheme.iconL,
                         ),
-                      )
-                      .animate()
-                      .fadeIn(duration: AppTheme.animSlow)
-                      .slideX(begin: 0.12),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Glass tab bar ──────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: FlatCard(
-                padding: const EdgeInsets.all(4),
-                borderRadius: 16,
-                child: TabBar(
-                  controller: _tabController,
-                  indicator: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.accent.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  dividerColor: Colors.transparent,
-                  labelColor: AppColors.accent,
-                  unselectedLabelColor: AppColors.textMuted,
-                  labelStyle: AppTypography.bodyS.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0,
-                  ),
-                  unselectedLabelStyle: AppTypography.bodyS.copyWith(
-                    letterSpacing: 0,
-                  ),
-                  tabs: const [
-                    Tab(text: 'Log'),
-                    Tab(text: 'Week'),
-                    Tab(text: 'Month'),
+                      ),
+                      const SizedBox(width: AppTheme.spaceS),
+                    ],
+                    Text(
+                          'Activity',
+                          style: AppTypography.displayL.copyWith(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1.0,
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: AppTheme.animSlow)
+                        .slideX(begin: 0.12),
                   ],
                 ),
               ),
-            ).animate().fadeIn(delay: 100.ms),
 
-            const SizedBox(height: 8),
+              const SizedBox(height: 16),
 
-            // ── Tab content ────────────────────────────────────────────
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                physics: const BouncingScrollPhysics(),
-                children: const [_LogTab(), _WeekTab(), _MonthTab()],
+              // ── Glass tab bar ──────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: FlatCard(
+                  padding: const EdgeInsets.all(4),
+                  borderRadius: 16,
+                  child: TabBar(
+                    controller: _tabController,
+                    indicator: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.accent.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    labelColor: AppColors.accent,
+                    unselectedLabelColor: AppColors.textMuted,
+                    labelStyle: AppTypography.bodyS.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                    unselectedLabelStyle: AppTypography.bodyS.copyWith(
+                      letterSpacing: 0,
+                    ),
+                    tabs: const [
+                      Tab(text: 'Log'),
+                      Tab(text: 'Week'),
+                      Tab(text: 'Month'),
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn(delay: 100.ms),
+
+              const SizedBox(height: 8),
+
+              // ── Tab content ────────────────────────────────────────────
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  physics: const BouncingScrollPhysics(),
+                  children: const [_LogTab(), _WeekTab(), _MonthTab()],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -208,7 +232,7 @@ class _SessionCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            type.displayName,
+                            session.displayName,
                             style: AppTypography.bodyM.copyWith(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.w700,

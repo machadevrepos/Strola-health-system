@@ -19,91 +19,93 @@ class ChallengesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // When shown as a shell tab (nothing to pop), keep the FAB clear of the
-    // bottom nav bar MainShell draws over the body — just enough to clear
-    // navBarHeight (64) plus a typical safe-area inset, not the generous
-    // 120 Home/Community use at the very end of a long scroll (here it sat
-    // at the top of mostly-empty space instead, pushing the FAB up high).
+    // When shown as a shell tab (nothing to pop), MainShell draws its own
+    // bottom nav bar and owns the create-challenge FAB itself (see
+    // main_shell.dart) — Flutter can only auto-position a FAB above a
+    // bottomNavigationBar that lives in the *same* Scaffold, so a FAB nested
+    // in here had nothing real to position against. MainShell's Scaffold
+    // also now correctly reserves space for that nav bar (no more
+    // `extendBody`), so this screen doesn't need to guess any clearance for
+    // it either — `Expanded` below is already sized to stop right above it.
     final isTab = !Navigator.of(context).canPop();
-    final navClearance = isTab ? 84.0 : 0.0;
+
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Row(
+        children: [
+          if (Navigator.of(context).canPop()) ...[
+            GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: const Icon(
+                AppIcons.back,
+                color: AppColors.textPrimary,
+                size: AppTheme.iconL,
+              ),
+            ),
+            const SizedBox(width: AppTheme.spaceS),
+          ],
+          Text(
+            'Challenges',
+            style: AppTypography.displayL.copyWith(
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1.0,
+            ),
+          ).animate().fadeIn(duration: AppTheme.animSlow).slideX(begin: 0.12),
+          const Spacer(),
+          const HeaderActions(),
+        ],
+      ),
+    );
+
+    final content = SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          header,
+          const SizedBox(height: 14),
+          const Expanded(child: ChallengesView()),
+        ],
+      ),
+    );
+
+    if (isTab) {
+      // No nested Scaffold needed — MainShell's own Scaffold already
+      // satisfies any Scaffold.of(context)/ScaffoldMessenger lookups below.
+      return Container(
+        decoration: const BoxDecoration(gradient: AppColors.bgGradient),
+        child: content,
+      );
+    }
 
     return Container(
       decoration: const BoxDecoration(gradient: AppColors.bgGradient),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
-                  children: [
-                    if (Navigator.of(context).canPop()) ...[
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: const Icon(
-                          AppIcons.back,
-                          color: AppColors.textPrimary,
-                          size: AppTheme.iconL,
-                        ),
-                      ),
-                      const SizedBox(width: AppTheme.spaceS),
-                    ],
-                    Text(
-                          'Challenges',
-                          style: AppTypography.displayL.copyWith(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1.0,
-                          ),
-                        )
-                        .animate()
-                        .fadeIn(duration: AppTheme.animSlow)
-                        .slideX(begin: 0.12),
-                    const Spacer(),
-                    const HeaderActions(),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: navClearance),
-                  child: const ChallengesView(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        floatingActionButton: Padding(
-          padding: EdgeInsets.only(bottom: navClearance),
-          child: Builder(
-            builder: (context) =>
-                FloatingActionButton(
-                      mini: true,
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const CreateChallengeScreen(),
-                        ),
-                      ),
-                      backgroundColor: AppColors.accent,
-                      elevation: 4,
-                      shape: const CircleBorder(),
-                      child: const Icon(
-                        AppIcons.add,
-                        color: Colors.white,
-                        size: AppTheme.iconL,
-                      ),
-                    )
-                    .animate()
-                    .fadeIn(delay: 400.ms)
-                    .scale(
-                      begin: const Offset(0.7, 0.7),
-                      curve: Curves.easeOutBack,
+        body: content,
+        floatingActionButton:
+            FloatingActionButton(
+                  mini: true,
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const CreateChallengeScreen(),
                     ),
-          ),
-        ),
+                  ),
+                  backgroundColor: AppColors.accent,
+                  elevation: 4,
+                  shape: const CircleBorder(),
+                  child: const Icon(
+                    AppIcons.add,
+                    color: Colors.white,
+                    size: AppTheme.iconL,
+                  ),
+                )
+                .animate()
+                .fadeIn(delay: 400.ms)
+                .scale(
+                  begin: const Offset(0.7, 0.7),
+                  curve: Curves.easeOutBack,
+                ),
       ),
     );
   }
@@ -843,10 +845,13 @@ class _PrivateChallengesTab extends StatelessWidget {
 
   final VoidCallback onCreateTap;
 
-  // (name, subtitle, dateRange, daysLeft, progress, members, icon, color,
+  // (name, subtitle, dateRange, daysLeft, progress, members, yourRank, color,
   //  winnerMethod — 0 = Most Steps, 1 = Highest Goal Completion %)
+  // `color` follows the same rank-coloring convention as Completed
+  // Challenges' rank badges (amber/blue/orange/green), not tied 1:1 to rank
+  // there either — just picked per entry for visual variety.
   static const _challenges =
-      <(String, String, String, String, double, int, IconData, Color, int)>[
+      <(String, String, String, String, double, int, int, Color, int)>[
         (
           'Weekend Warrior',
           'Step challenge',
@@ -854,8 +859,8 @@ class _PrivateChallengesTab extends StatelessWidget {
           '3 days left',
           0.72,
           2,
-          AppIcons.trophy,
-          AppColors.error,
+          1,
+          AppColors.goalAmber,
           0,
         ),
         (
@@ -865,8 +870,8 @@ class _PrivateChallengesTab extends StatelessWidget {
           '10 days left',
           0.66,
           1,
-          AppIcons.run,
-          AppColors.accentSecondary,
+          3,
+          Color(0xFFD97706),
           1,
         ),
         (
@@ -876,8 +881,8 @@ class _PrivateChallengesTab extends StatelessWidget {
           '2 days left',
           0.85,
           3,
-          AppIcons.streak,
-          AppColors.accent,
+          1,
+          AppColors.goalAmber,
           0,
         ),
         (
@@ -887,7 +892,7 @@ class _PrivateChallengesTab extends StatelessWidget {
           '19 days left',
           0.40,
           4,
-          AppIcons.steps,
+          4,
           AppColors.success,
           1,
         ),
@@ -898,8 +903,8 @@ class _PrivateChallengesTab extends StatelessWidget {
           '14 days left',
           0.55,
           2,
-          AppIcons.duration,
-          AppColors.accent,
+          2,
+          Color(0xFF0891B2),
           0,
         ),
       ];
@@ -953,7 +958,7 @@ class _PrivateChallengesTab extends StatelessWidget {
                       daysLeft: e.value.$4,
                       progress: e.value.$5,
                       members: e.value.$6,
-                      icon: e.value.$7,
+                      yourRank: e.value.$7,
                       color: e.value.$8,
                       winnerMethod: e.value.$9,
                     )
@@ -1119,7 +1124,7 @@ class _PrivateChallengeCard extends StatelessWidget {
     required this.daysLeft,
     required this.progress,
     required this.members,
-    required this.icon,
+    required this.yourRank,
     required this.color,
     required this.winnerMethod,
   });
@@ -1129,8 +1134,12 @@ class _PrivateChallengeCard extends StatelessWidget {
   final String dateRange;
   final String daysLeft;
   final double progress;
+
+  /// Members beyond the 3 shown in the overlapping avatar stack.
   final int members;
-  final IconData icon;
+
+  /// The signed-in user's current standing in this challenge's leaderboard.
+  final int yourRank;
   final Color color;
 
   /// 0 = Most Steps, 1 = Highest Goal Completion %.
@@ -1147,7 +1156,7 @@ class _PrivateChallengeCard extends StatelessWidget {
             dateRange: dateRange,
             daysLeft: daysLeft,
             winnerMethod: winnerMethod,
-            icon: icon,
+            icon: AppIcons.trophy,
             color: color,
           ),
         ),
@@ -1157,14 +1166,10 @@ class _PrivateChallengeCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 22),
+            _RankBadge(
+              rank: yourRank,
+              totalParticipants: members + 3,
+              color: color,
             ),
             const SizedBox(width: 12),
             Expanded(

@@ -6,11 +6,13 @@ import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/utils/fitness_calculator.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/providers/session_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
+import 'package:strola_health/presentation/screens/activity_screen.dart';
 import 'package:strola_health/presentation/screens/share_steps_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/header_actions.dart';
@@ -885,7 +887,9 @@ class _StepsTabState extends ConsumerState<_StepsTab> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    'This Month',
+                                    _isCurrentMonth
+                                        ? 'This Month'
+                                        : _fullMonthLabel(_selectedMonth),
                                     style: AppTypography.titleS.copyWith(
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 0,
@@ -900,14 +904,16 @@ class _StepsTabState extends ConsumerState<_StepsTab> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _fullMonthLabel(_selectedMonth),
-                              style: AppTypography.labelM.copyWith(
-                                fontWeight: FontWeight.w400,
-                                letterSpacing: 0,
+                            if (_isCurrentMonth) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                _fullMonthLabel(_selectedMonth),
+                                style: AppTypography.labelM.copyWith(
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: 0,
+                                ),
                               ),
-                            ),
+                            ],
                             const SizedBox(height: AppTheme.sectionGap),
                             TweenAnimationBuilder<double>(
                               tween: Tween(begin: 0, end: total.toDouble()),
@@ -1095,7 +1101,16 @@ class _StepsTabState extends ConsumerState<_StepsTab> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      _ViewAllLink(onTap: () {}),
+                      _ViewAllLink(
+                        onTap: () => _openMonthSheet(
+                          context,
+                          title: 'Steps This Month',
+                          values: data.map((e) => e.toDouble()).toList(),
+                          valueLabel: _compactSteps,
+                          unitLabel: 'steps',
+                          highlightIndex: bestDayIndex,
+                        ),
+                      ),
                     ],
                   ),
                   Text(
@@ -1470,7 +1485,9 @@ class _DistanceTabState extends ConsumerState<_DistanceTab> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    'This Month',
+                                    _isCurrentMonth
+                                        ? 'This Month'
+                                        : _fullMonthLabel(_selectedMonth),
                                     style: AppTypography.titleS.copyWith(
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 0,
@@ -1485,14 +1502,16 @@ class _DistanceTabState extends ConsumerState<_DistanceTab> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _fullMonthLabel(_selectedMonth),
-                              style: AppTypography.labelM.copyWith(
-                                fontWeight: FontWeight.w400,
-                                letterSpacing: 0,
+                            if (_isCurrentMonth) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                _fullMonthLabel(_selectedMonth),
+                                style: AppTypography.labelM.copyWith(
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: 0,
+                                ),
                               ),
-                            ),
+                            ],
                             const SizedBox(height: AppTheme.sectionGap),
                             TweenAnimationBuilder<double>(
                               tween: Tween(begin: 0, end: total),
@@ -1618,7 +1637,16 @@ class _DistanceTabState extends ConsumerState<_DistanceTab> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      _ViewAllLink(onTap: () {}),
+                      _ViewAllLink(
+                        onTap: () => _openMonthSheet(
+                          context,
+                          title: 'Distance This Month',
+                          values: data,
+                          valueLabel: (v) => v.toStringAsFixed(1),
+                          unitLabel: unitLabel,
+                          highlightIndex: bestDayIndex,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppTheme.spaceXS),
@@ -1865,6 +1893,18 @@ class _ActivityTab extends ConsumerWidget {
       _weeklyKcal.reduce((a, b) => a > b ? a : b),
     );
 
+    // Real, not mock — same all-time step total Steps/Distance use, run
+    // through the same calorie formula the rest of the app already uses.
+    final allTimeSteps = ref.watch(allTimeStepsProvider).value ?? 0;
+    final profile = ref.watch(userProfileProvider);
+    final weightKg = ref.watch(userWeightKgProvider);
+    final allTimeCalories = FitnessCalculator.activeCalories(
+      steps: allTimeSteps,
+      weightKg: weightKg,
+      heightCm: profile.heightCm,
+      gender: profile.gender,
+    );
+
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(
@@ -1942,7 +1982,18 @@ class _ActivityTab extends ConsumerWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      _ViewAllLink(onTap: () {}),
+                      _ViewAllLink(
+                        onTap: () => _openMonthSheet(
+                          context,
+                          title: 'Active Calories',
+                          values: _monthlyKcal
+                              .map((e) => e.toDouble())
+                              .toList(),
+                          valueLabel: (v) => v.round().toString(),
+                          unitLabel: 'kcal',
+                          highlightIndex: bestKcalIndex,
+                        ),
+                      ),
                     ],
                   ),
                   Text(
@@ -2052,39 +2103,18 @@ class _ActivityTab extends ConsumerWidget {
               ),
               const SizedBox(height: AppTheme.spaceM),
               _InsightRow(
-                icon: AppIcons.calories,
-                title: 'Active Calories',
-                subtitle: 'vs the previous 30 days',
-                value: '+6%\nvs last 30 days',
-                valueColor: AppColors.success,
+                icon: AppIcons.trophy,
+                title: 'Most Calories Burnt',
+                subtitle: 'in the last 30 days',
+                value: '${_monthlyKcal[bestKcalIndex]}\nkcal',
                 onTap: () => _openInsight(
                   context,
-                  icon: AppIcons.calories,
-                  title: 'Active Calories',
-                  headline: '+6% calories',
-                  subtitle: 'vs the previous 30 days',
+                  icon: AppIcons.trophy,
+                  title: 'Most Calories Burnt',
+                  headline: '${_monthlyKcal[bestKcalIndex]} kcal',
+                  subtitle: 'in the last 30 days',
                   body:
-                      'You burned more active calories this month than last. Your effort is paying off — keep that fire going!',
-                ),
-              ),
-              Divider(
-                color: AppColors.accent.withValues(alpha: 0.10),
-                height: 20,
-              ),
-              _InsightRow(
-                icon: AppIcons.run,
-                title: 'Workouts',
-                subtitle: 'vs the previous 30 days',
-                value: '+20%\nvs last 30 days',
-                valueColor: AppColors.success,
-                onTap: () => _openInsight(
-                  context,
-                  icon: AppIcons.run,
-                  title: 'Workouts',
-                  headline: '+20% workouts',
-                  subtitle: 'vs the previous 30 days',
-                  body:
-                      "You're moving more often than last month. Every session builds strength and energy — amazing consistency!",
+                      "The most active calories you've burned in a single day this month.",
                 ),
               ),
               Divider(
@@ -2093,17 +2123,36 @@ class _ActivityTab extends ConsumerWidget {
               ),
               _InsightRow(
                 icon: AppIcons.calendarMonth,
-                title: 'Active Days',
+                title: 'Average Per Day',
                 subtitle: 'in the last 30 days',
-                value: '24 of 30\ndays',
+                value: '$avgKcal\nkcal',
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.calendarMonth,
-                  title: 'Active Days',
-                  headline: '24 of 30 days',
-                  subtitle: 'active this month',
+                  title: 'Average Per Day',
+                  headline: '$avgKcal kcal / day',
+                  subtitle: 'in the last 30 days',
                   body:
-                      'You showed up on 24 of the last 30 days. Turning movement into a habit is exactly how lasting change happens.',
+                      'Your average active calories burned per day this month.',
+                ),
+              ),
+              Divider(
+                color: AppColors.accent.withValues(alpha: 0.10),
+                height: 20,
+              ),
+              _InsightRow(
+                icon: AppIcons.premium,
+                title: 'All-Time Calories Burnt',
+                subtitle: '${Formatters.stepCount(allTimeCalories)} kcal',
+                value: '',
+                onTap: () => _openInsight(
+                  context,
+                  icon: AppIcons.premium,
+                  title: 'All-Time Calories Burnt',
+                  headline: '${Formatters.stepCount(allTimeCalories)} kcal',
+                  subtitle: 'Since you joined Strolla',
+                  body:
+                      "The total active calories you've burned since joining Strolla.",
                 ),
               ),
             ],
@@ -2125,7 +2174,13 @@ class _ActivityTab extends ConsumerWidget {
                         'Recent Workouts',
                         style: AppTypography.titleS.copyWith(letterSpacing: 0),
                       ),
-                      _ViewAllLink(onTap: () {}),
+                      _ViewAllLink(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ActivityScreen(),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppTheme.spaceM),

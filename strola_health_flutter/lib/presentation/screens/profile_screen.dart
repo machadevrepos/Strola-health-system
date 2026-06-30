@@ -12,10 +12,12 @@ import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/presentation/providers/community_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
+import 'package:strola_health/presentation/providers/session_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/screens/achievements_screen.dart';
 import 'package:strola_health/presentation/screens/challenges_screen.dart';
 import 'package:strola_health/presentation/screens/onboarding/onboarding_screen.dart';
+import 'package:strola_health/presentation/screens/recent_activity_screen.dart';
 import 'package:strola_health/presentation/screens/settings_screen.dart';
 import 'package:strola_health/presentation/screens/view_profile_picture_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
@@ -51,6 +53,10 @@ class ProfileScreen extends ConsumerWidget {
         break;
       }
     }
+
+    // Shared with RecentActivityScreen's "View All" — same list, this is
+    // just its first 4 entries, so the preview and full page always agree.
+    final recentActivity = ref.watch(recentActivityProvider);
 
     return Container(
       decoration: const BoxDecoration(gradient: AppColors.bgGradient),
@@ -131,7 +137,8 @@ class ProfileScreen extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 // Avatar
-                                Column(
+                                Stack(
+                                  clipBehavior: Clip.none,
                                   children: [
                                     GestureDetector(
                                       onTap: () => _showAvatarSheet(
@@ -169,33 +176,36 @@ class ProfileScreen extends ConsumerWidget {
                                             : null,
                                       ),
                                     ),
-                                    const SizedBox(height: 6),
-                                    PressableScale(
-                                      onTap: () =>
-                                          _changeProfilePhoto(context, ref),
-                                      child: Container(
-                                        width: 26,
-                                        height: 26,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: AppColors.accent,
-                                          border: Border.all(
-                                            color: AppColors.bgSurface,
-                                            width: 2,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: AppColors.accent
-                                                  .withValues(alpha: 0.3),
-                                              blurRadius: 6,
-                                              offset: const Offset(0, 2),
+                                    Positioned(
+                                      bottom: -2,
+                                      right: -2,
+                                      child: PressableScale(
+                                        onTap: () =>
+                                            _changeProfilePhoto(context, ref),
+                                        child: Container(
+                                          width: 26,
+                                          height: 26,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: AppColors.accent,
+                                            border: Border.all(
+                                              color: AppColors.bgSurface,
+                                              width: 2,
                                             ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          AppIcons.camera,
-                                          color: Colors.white,
-                                          size: 13,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: AppColors.accent
+                                                    .withValues(alpha: 0.3),
+                                                blurRadius: 6,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: const Icon(
+                                            AppIcons.camera,
+                                            color: Colors.white,
+                                            size: 13,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -568,7 +578,12 @@ class ProfileScreen extends ConsumerWidget {
                                       ),
                                     ),
                                     PressableScale(
-                                      onTap: () {},
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const RecentActivityScreen(),
+                                        ),
+                                      ),
                                       child: Text(
                                         'View All',
                                         style: AppTypography.bodyS.copyWith(
@@ -580,67 +595,85 @@ class ProfileScreen extends ConsumerWidget {
                                   ],
                                 ),
                                 const SizedBox(height: AppTheme.spaceM),
-                                ...[
-                                  (
-                                    'Hit ${Formatters.stepCount(steps)} steps',
-                                    _todayStr(),
-                                  ),
-                                  (
-                                    'Completed Day $streak of the 10K Steps Challenge',
-                                    _daysAgoStr(1),
-                                  ),
-                                  ('Hit 11,009 steps', _daysAgoStr(1)),
-                                  ('Hit 9,842 steps', _daysAgoStr(2)),
-                                ].asMap().entries.map(
-                                  (e) => Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: AppTheme.spaceM,
+                                if (recentActivity.isEmpty)
+                                  Text(
+                                    'Start walking to see your activity here.',
+                                    style: AppTypography.bodyS.copyWith(
+                                      color: AppColors.textSecondary,
                                     ),
-                                    child:
-                                        Row(
-                                              children: [
-                                                Container(
-                                                  width: 32,
-                                                  height: 32,
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.accent
-                                                        .withValues(alpha: 0.1),
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: const Icon(
-                                                    AppIcons.steps,
-                                                    color: AppColors.accent,
-                                                    size: AppTheme.iconS,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    e.value.$1,
-                                                    style: AppTypography.bodyL
-                                                        .copyWith(fontSize: 13),
-                                                  ),
-                                                ),
-                                                Text(
-                                                  e.value.$2,
-                                                  style: AppTypography.labelS
-                                                      .copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w400,
-                                                        letterSpacing: 0,
+                                  )
+                                else
+                                  ...recentActivity
+                                      .take(4)
+                                      .toList()
+                                      .asMap()
+                                      .entries
+                                      .map(
+                                        (e) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: AppTheme.spaceM,
+                                          ),
+                                          child:
+                                              Row(
+                                                    children: [
+                                                      Container(
+                                                        width: 32,
+                                                        height: 32,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                              color: AppColors
+                                                                  .accent
+                                                                  .withValues(
+                                                                    alpha: 0.1,
+                                                                  ),
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                            ),
+                                                        child: const Icon(
+                                                          AppIcons.steps,
+                                                          color:
+                                                              AppColors.accent,
+                                                          size: AppTheme.iconS,
+                                                        ),
                                                       ),
-                                                ),
-                                              ],
-                                            )
-                                            .animate(
-                                              delay: Duration(
-                                                milliseconds: 220 + e.key * 60,
-                                              ),
-                                            )
-                                            .fadeIn(duration: AppTheme.animSlow)
-                                            .slideX(begin: 0.06),
-                                  ),
-                                ),
+                                                      const SizedBox(width: 10),
+                                                      Expanded(
+                                                        child: Text(
+                                                          'Hit ${Formatters.stepCount(e.value.value)} steps',
+                                                          style: AppTypography
+                                                              .bodyL
+                                                              .copyWith(
+                                                                fontSize: 13,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        _relativeDate(
+                                                          e.value.key,
+                                                        ),
+                                                        style: AppTypography
+                                                            .labelS
+                                                            .copyWith(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w400,
+                                                              letterSpacing: 0,
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  )
+                                                  .animate(
+                                                    delay: Duration(
+                                                      milliseconds:
+                                                          220 + e.key * 60,
+                                                    ),
+                                                  )
+                                                  .fadeIn(
+                                                    duration: AppTheme.animSlow,
+                                                  )
+                                                  .slideX(begin: 0.06),
+                                        ),
+                                      ),
                               ],
                             ),
                           ),
@@ -658,42 +691,13 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  String _todayStr() {
-    final now = DateTime.now();
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[now.month - 1]} ${now.day}, ${now.year}';
-  }
-
-  String _daysAgoStr(int daysAgo) {
-    final d = DateTime.now().subtract(Duration(days: daysAgo));
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[d.month - 1]} ${d.day}, ${d.year}';
+  /// "Today" / "Yesterday" for the last couple of days, an unambiguous
+  /// month+day for everything older — `Formatters.dayLabel` alone falls back
+  /// to a bare weekday name past that, which is ambiguous over many weeks.
+  String _relativeDate(DateTime date) {
+    final label = Formatters.dayLabel(date);
+    if (label == 'Today' || label == 'Yesterday') return label;
+    return Formatters.fullDate(date);
   }
 }
 

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
@@ -9,9 +8,7 @@ import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
-import 'package:strola_health/core/constants/notification_copy.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
-import 'package:strola_health/domain/entities/app_notification.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
 import 'package:strola_health/presentation/providers/navigation_providers.dart';
 import 'package:strola_health/presentation/providers/notification_providers.dart';
@@ -73,71 +70,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     } else if (!goalReached) {
       _goalCelebrated = false;
     }
-  }
-
-  /// Demo trigger — fires one real OS notification (random category each
-  /// tap) through the same pipeline every other notification in the app
-  /// uses, so it's an accurate preview, not a mockup.
-  void _sendDemoNotification() {
-    final demos = <(NotificationCategory, String, String, String)>[
-      (
-        NotificationCategory.goalAchieved,
-        NotificationCopy.goalAchievedTitle,
-        NotificationCopy.goalAchieved(),
-        'home',
-      ),
-      (
-        NotificationCategory.streak,
-        NotificationCopy.streakTitle,
-        NotificationCopy.streakMilestone(7),
-        'stats',
-      ),
-      (
-        NotificationCategory.challenge,
-        NotificationCopy.challengeTitle,
-        NotificationCopy.challengeMovedUp(5, 'May Walking Challenge'),
-        'challenges',
-      ),
-      (
-        NotificationCategory.community,
-        NotificationCopy.communityTitle,
-        NotificationCopy.communityLike('Sarah'),
-        'community',
-      ),
-      (
-        NotificationCategory.goalReminder,
-        NotificationCopy.goalReminderTitle,
-        NotificationCopy.goalReminder(remainingSteps: 1200),
-        'home',
-      ),
-      (
-        NotificationCategory.lowBattery,
-        NotificationCopy.lowBatteryTitle,
-        NotificationCopy.lowBattery(),
-        'home',
-      ),
-      (
-        NotificationCategory.deviceDisconnected,
-        NotificationCopy.deviceDisconnectedTitle,
-        NotificationCopy.deviceDisconnected(),
-        'home',
-      ),
-    ];
-    final pick = demos[Random().nextInt(demos.length)];
-
-    HapticsHelper.lightImpact();
-    ref
-        .read(notificationsProvider.notifier)
-        .add(
-          AppNotification(
-            id: DateTime.now().microsecondsSinceEpoch.toString(),
-            category: pick.$1,
-            title: pick.$2,
-            body: pick.$3,
-            timestamp: DateTime.now(),
-            routeTarget: pick.$4,
-          ),
-        );
   }
 
   @override
@@ -523,8 +455,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ).animate().fadeIn(delay: 510.ms).slideY(begin: 0.10),
                       ),
 
-                      // Bottom padding — clears the nav bar
-                      const SliverToBoxAdapter(child: SizedBox(height: 110)),
+                      // Comfortable breathing room at the end of the scroll —
+                      // MainShell's Scaffold already reserves space for the
+                      // nav bar itself, so this is just visual padding, not a
+                      // clearance guess.
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: AppTheme.sectionGap),
+                      ),
                     ],
                   ),
 
@@ -544,32 +481,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                     ),
                   ),
-
-                  // ── Demo: send a real notification ──────────────────────────
-                  Positioned(
-                        right: AppTheme.screenPaddingH,
-                        bottom: 130,
-                        child: PressableScale(
-                          onTap: _sendDemoNotification,
-                          child: Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: AppColors.accent,
-                              shape: BoxShape.circle,
-                              boxShadow: AppTheme.elevatedShadow,
-                            ),
-                            child: const Icon(
-                              AppIcons.notifications,
-                              color: Colors.white,
-                              size: AppTheme.iconM,
-                            ),
-                          ),
-                        ),
-                      )
-                      .animate()
-                      .fadeIn(delay: 600.ms)
-                      .scale(begin: const Offset(0.7, 0.7)),
                 ],
               ),
             ),

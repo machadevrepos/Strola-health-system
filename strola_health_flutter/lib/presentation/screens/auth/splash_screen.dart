@@ -45,7 +45,7 @@ class SplashScreen extends StatelessWidget {
               ).animate().fadeIn(delay: 150.ms, duration: AppTheme.animSlow),
               const SizedBox(height: AppTheme.spaceS),
               Text(
-                'Step into a healthier you',
+                'Every Step Counts',
                 style: AppTypography.bodyM.copyWith(
                   color: AppColors.textSecondary,
                 ),

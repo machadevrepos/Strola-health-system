@@ -21,22 +21,40 @@ const _reasonToBackend = {
   StrollaReason.other: 'other',
 };
 
+// Reverse of the two maps above — used to restore a profile fetched from
+// the backend back into this app's enums.
+const _genderFromBackend = {
+  'male': Gender.male,
+  'female': Gender.female,
+  'other': Gender.other,
+  'prefer_not_to_say': Gender.preferNotToSay,
+};
+
+const _reasonFromBackend = {
+  'stroller_wagon': StrollaReason.strollerWagon,
+  'walking_pad': StrollaReason.walkingPad,
+  'cant_wear_wearable': StrollaReason.cantWearWearable,
+  'accurate_tracking': StrollaReason.accurateTracking,
+  'other': StrollaReason.other,
+};
+
 /// Mirrors the backend's `DataSource` enum — only the 5 platform-integration
 /// values, not the BLE-device/manual-entry ones the backend also defines.
 enum IntegrationProvider { healthkit, healthConnect, oura, garmin, strava }
 
 extension IntegrationProviderX on IntegrationProvider {
   String get apiValue => switch (this) {
-        IntegrationProvider.healthkit => 'healthkit',
-        IntegrationProvider.healthConnect => 'health_connect',
-        IntegrationProvider.oura => 'oura',
-        IntegrationProvider.garmin => 'garmin',
-        IntegrationProvider.strava => 'strava',
-      };
+    IntegrationProvider.healthkit => 'healthkit',
+    IntegrationProvider.healthConnect => 'health_connect',
+    IntegrationProvider.oura => 'oura',
+    IntegrationProvider.garmin => 'garmin',
+    IntegrationProvider.strava => 'strava',
+  };
 
   /// True for HealthKit/Health Connect — read on-device, no OAuth redirect.
   bool get isOnDevice =>
-      this == IntegrationProvider.healthkit || this == IntegrationProvider.healthConnect;
+      this == IntegrationProvider.healthkit ||
+      this == IntegrationProvider.healthConnect;
 }
 
 /// Calls the FastAPI backend's `/api/v1` endpoints. Every method here
@@ -51,6 +69,42 @@ class BackendApi {
   Future<Map<String, dynamic>> getMe() async {
     final response = await _client.dio.get('/auth/me');
     return response.data as Map<String, dynamic>;
+  }
+
+  /// [getMe] parsed into this app's local model shapes — used to restore a
+  /// returning user's profile (including, critically, whether they've
+  /// already completed onboarding) when signing in on a device whose local
+  /// storage doesn't have it, e.g. after a previous logout wiped it, or a
+  /// fresh install. Local-only fields with no backend equivalent yet
+  /// (`photoPath`) are left unset.
+  Future<({UserProfile profile, int dailyGoalSteps, double? weightKg})>
+  getMyProfile() async {
+    final me = await getMe();
+    final profile = UserProfile(
+      username: me['username'] as String? ?? '',
+      name: me['name'] as String? ?? '',
+      location: me['location'] as String?,
+      bio: me['bio'] as String?,
+      heightCm: (me['height_cm'] as num?)?.toDouble() ?? 170,
+      gender:
+          _genderFromBackend[me['gender'] as String?] ?? Gender.preferNotToSay,
+      dateOfBirth: me['date_of_birth'] == null
+          ? null
+          : DateTime.parse(me['date_of_birth'] as String),
+      reasons: ((me['reasons'] as List?) ?? const [])
+          .map((r) => _reasonFromBackend[r as String])
+          .whereType<StrollaReason>()
+          .toSet(),
+      units: (me['units'] as String?) == 'imperial'
+          ? UnitSystem.imperial
+          : UnitSystem.metric,
+      onboardingComplete: me['onboarding_complete'] as bool? ?? false,
+    );
+    return (
+      profile: profile,
+      dailyGoalSteps: me['daily_goal_steps'] as int? ?? 10000,
+      weightKg: (me['weight_kg'] as num?)?.toDouble(),
+    );
   }
 
   /// `PATCH /users/me` — pushes the local profile (plus goal/weight, which
@@ -70,7 +124,10 @@ class BackendApi {
         'bio': profile.bio,
         'height_cm': profile.heightCm,
         'gender': _genderToBackend[profile.gender],
-        'date_of_birth': profile.dateOfBirth?.toIso8601String().split('T').first,
+        'date_of_birth': profile.dateOfBirth
+            ?.toIso8601String()
+            .split('T')
+            .first,
         'reasons': profile.reasons.map((r) => _reasonToBackend[r]).toList(),
         'units': profile.units.name,
         'onboarding_complete': profile.onboardingComplete,
@@ -91,8 +148,11 @@ class BackendApi {
   /// own `/callback` route finishes the exchange once the provider redirects
   /// back; this app never sees the client secret.
   Future<String> getOAuthAuthorizationUrl(IntegrationProvider provider) async {
-    final response = await _client.dio.get('/integrations/${provider.apiValue}/connect');
-    return (response.data as Map<String, dynamic>)['authorization_url'] as String;
+    final response = await _client.dio.get(
+      '/integrations/${provider.apiValue}/connect',
+    );
+    return (response.data as Map<String, dynamic>)['authorization_url']
+        as String;
   }
 
   /// `POST /integrations/{provider}/connected` — HealthKit/Health Connect

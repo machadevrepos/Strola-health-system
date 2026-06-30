@@ -49,7 +49,13 @@ class _MainShellState extends ConsumerState<MainShell> {
     registerNotificationDetectors(ref);
 
     return Scaffold(
-      extendBody: true,
+      // Was `extendBody: true`, which makes the body draw full-height behind
+      // the (opaque) nav bar instead of Flutter reserving space for it — every
+      // tab then had to guess that reserved amount itself (Challenges'
+      // navClearance, Home's and Community's hardcoded SizedBox spacers), and
+      // those guesses kept drifting from the bar's real height. False is the
+      // Scaffold default and makes Flutter size the body correctly for every
+      // tab automatically, with nothing to keep in sync by hand.
       body: Container(
         decoration: const BoxDecoration(gradient: AppColors.bgGradient),
         child: AnimatedSwitcher(
@@ -76,6 +82,27 @@ class _MainShellState extends ConsumerState<MainShell> {
         currentIndex: currentIndex,
         onTap: _onNavTap,
       ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.25),
+      // Owned here (not by ChallengesScreen) so Flutter positions it above
+      // _StrollaNavBar automatically — a FAB nested inside a screen with no
+      // bottomNavigationBar of its own has nothing to auto-position against.
+      floatingActionButton: currentIndex == 3
+          ? FloatingActionButton(
+              mini: true,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const CreateChallengeScreen(),
+                ),
+              ),
+              backgroundColor: AppColors.accent,
+              elevation: 4,
+              shape: const CircleBorder(),
+              child: const Icon(
+                AppIcons.add,
+                color: Colors.white,
+                size: AppTheme.iconL,
+              ),
+            )
+          : null,
     );
   }
 }
@@ -86,10 +113,7 @@ class _MainShellState extends ConsumerState<MainShell> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StrollaNavBar extends StatelessWidget {
-  const _StrollaNavBar({
-    required this.currentIndex,
-    required this.onTap,
-  });
+  const _StrollaNavBar({required this.currentIndex, required this.onTap});
 
   final int currentIndex;
   final void Function(int) onTap;

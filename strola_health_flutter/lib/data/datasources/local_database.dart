@@ -15,7 +15,7 @@ class LocalDatabase {
     final dbPath = await getDatabasesPath();
     return openDatabase(
       join(dbPath, 'strola_health.db'),
-      version: 3,
+      version: 4,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE workout_sessions (
@@ -27,7 +27,8 @@ class LocalDatabase {
             duration_seconds INTEGER NOT NULL,
             activity_type TEXT NOT NULL,
             route_points TEXT NOT NULL DEFAULT '',
-            calories_burned INTEGER
+            calories_burned INTEGER,
+            custom_activity_name TEXT
           )
         ''');
 
@@ -54,6 +55,12 @@ class LocalDatabase {
           // existing rows (recorded before this column existed) — callers
           // fall back to the current goal for those.
           await db.execute('ALTER TABLE daily_steps ADD COLUMN goal INTEGER');
+        }
+        if (oldVersion < 4) {
+          // User-entered name for an "Other" activity session (e.g. "Hiking").
+          await db.execute(
+            'ALTER TABLE workout_sessions ADD COLUMN custom_activity_name TEXT',
+          );
         }
       },
     );

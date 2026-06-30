@@ -23,6 +23,7 @@ class SessionState {
     this.currentSpeedMps,
     this.startTime,
     this.gpsAvailable = false,
+    this.customActivityName,
   });
 
   final SessionStatus status;
@@ -36,10 +37,19 @@ class SessionState {
   final DateTime? startTime;
   final bool gpsAvailable;
 
+  /// User-entered name for an [ActivityType.other] session (e.g. "Hiking").
+  final String? customActivityName;
+
   bool get isIdle => status == SessionStatus.idle;
   bool get isActive => status == SessionStatus.active;
   bool get isPaused => status == SessionStatus.paused;
   bool get isRunning => status != SessionStatus.idle;
+
+  /// What to actually show for this session — the custom name when set,
+  /// otherwise the activity type's own fixed name.
+  String get displayName => customActivityName?.isNotEmpty == true
+      ? customActivityName!
+      : activityType.displayName;
 
   double get distanceKm => distanceMeters / 1000;
 
@@ -73,6 +83,7 @@ class SessionState {
     double? currentSpeedMps,
     DateTime? startTime,
     bool? gpsAvailable,
+    String? customActivityName,
   }) => SessionState(
     status: status ?? this.status,
     activityType: activityType ?? this.activityType,
@@ -84,6 +95,7 @@ class SessionState {
     currentSpeedMps: currentSpeedMps ?? this.currentSpeedMps,
     startTime: startTime ?? this.startTime,
     gpsAvailable: gpsAvailable ?? this.gpsAvailable,
+    customActivityName: customActivityName ?? this.customActivityName,
   );
 }
 
@@ -97,7 +109,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
   StreamSubscription<Position>? _gpsSubscription;
   int _startStepCount = 0;
 
-  Future<void> startSession(ActivityType type) async {
+  Future<void> startSession(
+    ActivityType type, {
+    String? customActivityName,
+  }) async {
     _startStepCount = _ref.read(stepCountProvider);
     final now = DateTime.now();
 
@@ -109,6 +124,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
       distanceMeters: 0,
       routePoints: [],
       startTime: now,
+      customActivityName: customActivityName,
     );
 
     _timer = Timer.periodic(const Duration(seconds: 1), _onTick);
@@ -253,6 +269,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
       activityType: state.activityType,
       routePoints: state.routePoints,
       caloriesBurned: calories,
+      customActivityName: state.customActivityName,
     );
 
     state = const SessionState();
@@ -286,6 +303,43 @@ final sessionHistoryProvider = FutureProvider<List<WorkoutSession>>((ref) {
 
 final dailyStepsMapProvider = FutureProvider<Map<DateTime, int>>((ref) async {
   return ref.read(sessionRepositoryProvider).getRecentDailySteps(days: 30);
+});
+
+/// Days with recorded steps, most recent first — real data, padded out with
+/// deterministic filler days when there isn't yet enough real history (same
+/// "visual richness during development" pattern as the calendar heat-map in
+/// `activity_screen.dart`). Today's entry always reflects the live count.
+/// One shared list so the Profile screen's preview and its "View All" page
+/// always agree — the preview is just this list's first 4 entries.
+final recentActivityProvider = Provider<List<MapEntry<DateTime, int>>>((ref) {
+  final steps = ref.watch(stepCountProvider);
+  final recentMap = ref.watch(dailyStepsMapProvider).value ?? const {};
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final merged = {...recentMap, today: steps};
+
+  final real = merged.entries.where((e) => e.value > 0).toList()
+    ..sort((a, b) => b.key.compareTo(a.key));
+
+  const target = 16; // middle of the requested ~12–18 range
+  if (real.length >= target) return real;
+
+  final used = real.map((e) => e.key).toSet();
+  final padded = [...real];
+  var cursor = (real.isEmpty ? today : real.last.key).subtract(
+    const Duration(days: 1),
+  );
+  var seed = 1;
+  while (padded.length < target) {
+    if (!used.contains(cursor)) {
+      final mockSteps = 7600 + ((seed * 1597) % 6800);
+      padded.add(MapEntry(cursor, mockSteps));
+      used.add(cursor);
+      seed++;
+    }
+    cursor = cursor.subtract(const Duration(days: 1));
+  }
+  return padded;
 });
 
 /// [month]'s recorded days, each paired with the goal that was active when

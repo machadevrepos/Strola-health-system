@@ -153,7 +153,7 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
                                   ),
                                   const SizedBox(width: 5),
                                   Text(
-                                    '${session.activityType.displayName} Complete',
+                                    '${session.displayName} Complete',
                                     style: AppTypography.labelM.copyWith(
                                       color: AppColors.accent,
                                       fontWeight: FontWeight.w600,

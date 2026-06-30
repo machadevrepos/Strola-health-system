@@ -142,14 +142,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen>
           ],
         ),
       ),
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
-        child: AnimatedBuilder(
-          animation: _tabController,
-          builder: (_, __) => _tabController.index == 0
-              ? _NewPostFab()
-              : const SizedBox.shrink(),
-        ),
+      // MainShell's Scaffold reserves space for the real nav bar (no more
+      // `extendBody`), so this nested Scaffold's own bottom edge already
+      // stops right above it — Flutter positions the FAB correctly on its
+      // own, no manual bottom padding needed.
+      floatingActionButton: AnimatedBuilder(
+        animation: _tabController,
+        builder: (_, __) =>
+            _tabController.index == 0 ? _NewPostFab() : const SizedBox.shrink(),
       ),
     );
   }
@@ -286,7 +286,12 @@ class _FeedTab extends ConsumerWidget {
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 120)),
+            // Comfortable breathing room at the end of the scroll —
+            // MainShell's Scaffold already reserves space for the nav bar
+            // itself, so this is just visual padding, not a clearance guess.
+            const SliverToBoxAdapter(
+              child: SizedBox(height: AppTheme.sectionGap),
+            ),
           ],
         );
       },
@@ -689,8 +694,6 @@ class _PostCard extends ConsumerWidget {
                     color: AppColors.textMuted,
                     onTap: () {},
                   ),
-                  const Spacer(),
-                  _Reactors(count: post.likes),
                 ],
               ),
             ],
@@ -787,63 +790,6 @@ class _PostCard extends ConsumerWidget {
           ),
         );
       },
-    );
-  }
-}
-
-/// Overlapping reactor avatars + "+N" shown on the right of a post's action row.
-class _Reactors extends StatelessWidget {
-  const _Reactors({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    const colors = [
-      AppColors.accent,
-      AppColors.accentSecondary,
-      AppColors.goalAmber,
-    ];
-    final extra = (count / 8).round().clamp(1, 999);
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: 46,
-          height: 22,
-          child: Stack(
-            children: List.generate(3, (i) {
-              return Positioned(
-                left: i * 12.0,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: colors[i].withValues(alpha: 0.85),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  child: const Icon(
-                    AppIcons.profile,
-                    color: Colors.white,
-                    size: 12,
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-        const SizedBox(width: AppTheme.spaceXS),
-        Text(
-          '+$extra',
-          style: AppTypography.labelM.copyWith(
-            color: AppColors.textMuted,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0,
-          ),
-        ),
-      ],
     );
   }
 }

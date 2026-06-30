@@ -65,6 +65,7 @@ class SessionScreen extends ConsumerStatefulWidget {
 class _SessionScreenState extends ConsumerState<SessionScreen> {
   ActivityType _selectedType = ActivityType.outdoorWalk;
   bool _sessionStarted = false;
+  final _customNameController = TextEditingController();
 
   @override
   void dispose() {
@@ -72,7 +73,22 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
     if (session.isRunning) {
       ref.read(sessionProvider.notifier).stop();
     }
+    _customNameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleTypeSelected(ActivityType type) async {
+    if (type != ActivityType.other) {
+      setState(() => _selectedType = type);
+      return;
+    }
+    final name = await _showNameWorkoutDialog(
+      context,
+      initialName: _customNameController.text,
+    );
+    if (name == null) return; // cancelled — leave the previous selection
+    _customNameController.text = name;
+    setState(() => _selectedType = type);
   }
 
   Future<void> _startSession() async {
@@ -81,7 +97,12 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
       await Permission.locationWhenInUse.request();
     }
     HapticsHelper.heavyImpact();
-    await ref.read(sessionProvider.notifier).startSession(_selectedType);
+    final customName = _selectedType == ActivityType.other
+        ? _customNameController.text.trim()
+        : null;
+    await ref
+        .read(sessionProvider.notifier)
+        .startSession(_selectedType, customActivityName: customName);
     setState(() => _sessionStarted = true);
   }
 
@@ -121,9 +142,10 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
           )
         : _ActivityPickerView(
             selectedType: _selectedType,
-            onTypeChanged: (t) => setState(() => _selectedType = t),
+            onTypeChanged: _handleTypeSelected,
             onStart: _startSession,
             onClose: () => Navigator.of(context).pop(),
+            customNameController: _customNameController,
           );
   }
 }
@@ -138,12 +160,14 @@ class _ActivityPickerView extends StatelessWidget {
     required this.onTypeChanged,
     required this.onStart,
     required this.onClose,
+    required this.customNameController,
   });
 
   final ActivityType selectedType;
   final ValueChanged<ActivityType> onTypeChanged;
   final VoidCallback onStart;
   final VoidCallback onClose;
+  final TextEditingController customNameController;
 
   @override
   Widget build(BuildContext context) {
@@ -299,13 +323,24 @@ class _ActivityPickerView extends StatelessWidget {
                                     color: Colors.white,
                                   ),
                                   const SizedBox(width: AppTheme.spaceS),
-                                  Text(
-                                    'Start ${selectedType.displayName}',
-                                    style: AppTypography.titleM.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: -0.2,
-                                    ),
+                                  ValueListenableBuilder<TextEditingValue>(
+                                    valueListenable: customNameController,
+                                    builder: (_, value, __) {
+                                      final customName = value.text.trim();
+                                      final label =
+                                          selectedType == ActivityType.other &&
+                                              customName.isNotEmpty
+                                          ? customName
+                                          : selectedType.displayName;
+                                      return Text(
+                                        'Start $label',
+                                        style: AppTypography.titleM.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: -0.2,
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ],
                               ),
@@ -621,7 +656,7 @@ class _ActiveSessionView extends StatelessWidget {
                               ),
                               const SizedBox(width: 5),
                               Text(
-                                session.activityType.displayName,
+                                session.displayName,
                                 style: AppTypography.labelM.copyWith(
                                   color: AppColors.textPrimary,
                                   fontWeight: FontWeight.w600,
@@ -1142,6 +1177,174 @@ class _StopDialog extends StatelessWidget {
                     ),
                     child: Text(
                       'End Session',
+                      style: AppTypography.bodyL.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Name-this-workout dialog (Other activity) ─────────────────────────────────
+
+/// Prompts for a name for an "Other" activity. Returns the trimmed name
+/// (possibly empty — falls back to "Other"), or null if cancelled, in which
+/// case the caller should leave the previous selection untouched.
+Future<String?> _showNameWorkoutDialog(
+  BuildContext context, {
+  required String initialName,
+}) {
+  return showDialog<String>(
+    context: context,
+    builder: (_) => _NameWorkoutDialog(initialName: initialName),
+  );
+}
+
+class _NameWorkoutDialog extends StatefulWidget {
+  const _NameWorkoutDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_NameWorkoutDialog> createState() => _NameWorkoutDialogState();
+}
+
+class _NameWorkoutDialogState extends State<_NameWorkoutDialog> {
+  late final _controller = TextEditingController(text: widget.initialName);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.of(context).pop(_controller.text.trim());
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spaceXXL),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: AppColors.accentSecondary.withValues(alpha: 0.3),
+          ),
+          boxShadow: AppTheme.elevatedShadow,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                AppIcons.edit,
+                color: AppColors.accent,
+                size: AppTheme.iconXL,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceL),
+            Text(
+              'Name This Workout',
+              style: AppTypography.titleL.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceS),
+            Text(
+              'What are you doing? e.g. Hiking, Dancing, Gardening.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyS,
+            ),
+            const SizedBox(height: AppTheme.spaceL),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              maxLength: 30,
+              textCapitalization: TextCapitalization.words,
+              style: AppTypography.bodyM,
+              decoration: InputDecoration(
+                hintText: 'e.g. Hiking',
+                hintStyle: AppTypography.bodyM.copyWith(
+                  color: AppColors.textMuted,
+                ),
+                counterText: '',
+                filled: true,
+                fillColor: AppColors.bgDeep,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spaceL,
+                  vertical: AppTheme.spaceM,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                  borderSide: BorderSide(
+                    color: AppColors.accentSecondary.withValues(alpha: 0.3),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                  borderSide: BorderSide(
+                    color: AppColors.accentSecondary.withValues(alpha: 0.3),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                  borderSide: const BorderSide(
+                    color: AppColors.accent,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: AppTheme.spaceXXL),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      side: BorderSide(
+                        color: AppColors.accentSecondary.withValues(alpha: 0.4),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spaceM),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _submit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      'Continue',
                       style: AppTypography.bodyL.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,

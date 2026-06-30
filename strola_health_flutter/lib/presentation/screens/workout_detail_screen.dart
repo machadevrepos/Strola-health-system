@@ -90,7 +90,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 5),
                             Text(
-                              session.activityType.displayName,
+                              session.displayName,
                               style: AppTypography.labelM.copyWith(
                                 color: AppColors.accent,
                                 fontWeight: FontWeight.w600,

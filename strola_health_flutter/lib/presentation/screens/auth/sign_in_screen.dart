@@ -5,6 +5,7 @@ import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/services/account_service.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
 import 'package:strola_health/presentation/providers/auth_providers.dart';
 import 'package:strola_health/presentation/screens/auth/forgot_password_screen.dart';
@@ -57,6 +58,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         await ref
             .read(authServiceProvider)
             .signIn(email: _emailCtrl.text, password: _passwordCtrl.text);
+        // Restores this account's real onboarding status (and the rest of
+        // its profile) from the backend — without this, a returning user
+        // whose local storage doesn't have it (different device, or a
+        // previous logout wiped it) would incorrectly see onboarding again.
+        await restoreProfileFromBackend(ref);
       } else {
         // No backend yet — there's no account to check against, so this
         // just demonstrates the flow rather than verifying credentials.

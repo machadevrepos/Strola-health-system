@@ -22,6 +22,12 @@ class StepRing extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress = (steps / goal).clamp(0.0, 1.0);
     final isGoalReached = steps >= goal;
+    // How far into a *second* lap the ring is, once steps pass 100% of goal
+    // — e.g. 150% of goal shows as half the ring re-painted in the overflow
+    // shade. Capped at one extra full lap (200%) rather than wrapping with
+    // modulo, so someone who triples their goal doesn't visually look like
+    // they barely passed it.
+    final overflowFraction = ((steps / goal) - 1.0).clamp(0.0, 1.0);
 
     return Stack(
       alignment: Alignment.center,
@@ -96,7 +102,7 @@ class StepRing extends StatelessWidget {
                     gradient: const SweepGradient(
                       colors: [
                         AppColors.accentSecondary, // blush — sweep origin
-                        AppColors.accent,           // full accent coral
+                        AppColors.accent, // full accent coral
                       ],
                       stops: [0.0, 1.0],
                     ),
@@ -104,9 +110,34 @@ class StepRing extends StatelessWidget {
                     // they meet once the sweep completes a full 360° loop —
                     // flatten them right at full closure so the ring actually
                     // looks closed instead of showing a small gap at the top.
-                    cornerStyle:
-                        steps >= goal ? CornerStyle.bothFlat : CornerStyle.bothCurve,
+                    cornerStyle: steps >= goal
+                        ? CornerStyle.bothFlat
+                        : CornerStyle.bothCurve,
                   ),
+                  // Overflow lap — painted on top of the base ring, from the
+                  // same starting point, so it visually reads as "the ring
+                  // has gone around again" rather than a second separate arc.
+                  if (overflowFraction > 0)
+                    RangePointer(
+                      value: overflowFraction * goal,
+                      width: 0.13,
+                      sizeUnit: GaugeSizeUnit.factor,
+                      enableAnimation: true,
+                      animationDuration: 750,
+                      animationType: AnimationType.easeOutBack,
+                      gradient: const SweepGradient(
+                        colors: [
+                          AppColors
+                              .accent, // continues from the base ring's tip
+                          AppColors
+                              .goalAmber, // amber — same as goal-reached state
+                        ],
+                        stops: [0.0, 1.0],
+                      ),
+                      cornerStyle: overflowFraction >= 1.0
+                          ? CornerStyle.bothFlat
+                          : CornerStyle.bothCurve,
+                    ),
                 ],
                 annotations: [
                   GaugeAnnotation(

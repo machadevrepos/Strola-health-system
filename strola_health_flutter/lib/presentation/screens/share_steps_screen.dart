@@ -672,7 +672,7 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
               Expanded(
                 child: _SummaryStatCol(
                   icon: type.icon,
-                  value: type.displayName,
+                  value: session.displayName,
                   label: 'Activity',
                 ),
               ),
@@ -763,7 +763,7 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
         _WorkoutPreviewCard(
           session: session,
           message: _message.isEmpty
-              ? 'Just finished a ${type.displayName.toLowerCase()}! 💪'
+              ? 'Just finished a ${session.displayName.toLowerCase()}! 💪'
               : _message,
         ),
 
@@ -773,6 +773,20 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
   }
 
   // ── Social content (workout) ──────────────────────────────────────────────
+  // Activities that read oddly bare on their own ("Treadmill!") and need
+  // "workout" appended to read naturally ("Treadmill workout!"). Outdoor
+  // walk/run already read fine without it.
+  static const _needsWorkoutSuffix = {
+    ActivityType.treadmill,
+    ActivityType.strengthTraining,
+    ActivityType.yoga,
+    ActivityType.pilates,
+    ActivityType.cardio,
+    ActivityType.biking,
+    ActivityType.hiit,
+    ActivityType.other,
+  };
+
   Widget _socialWorkoutContent(_Destination dest, WorkoutSession session) {
     final color = brandColorOf(dest.brand);
     final isWhatsApp = dest.brand == BrandType.whatsapp;
@@ -783,7 +797,10 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
     final heroValue = type.showsDistance
         ? session.formattedDistance
         : session.formattedDuration;
-    final heroLabel = isWhatsApp ? '' : '${type.displayName}!';
+    final activityLabel = _needsWorkoutSuffix.contains(type)
+        ? '${session.displayName} workout'
+        : session.displayName;
+    final heroLabel = isWhatsApp ? '' : '$activityLabel!';
 
     return Column(
       children: [
@@ -842,17 +859,11 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
                               icon: AppIcons.duration,
                               value: session.formattedDuration,
                               label: 'Duration',
-                            )
-                          else if (type.countsSteps)
-                            _ShareStatItem(
-                              icon: AppIcons.steps,
-                              value: '${session.steps}',
-                              label: 'Steps',
                             ),
                           _ShareStatItem(
-                            icon: type.icon,
-                            value: type.displayName,
-                            label: 'Activity',
+                            icon: AppIcons.steps,
+                            value: '${session.steps}',
+                            label: 'Steps',
                           ),
                         ],
                       ),
@@ -1292,7 +1303,7 @@ class _WorkoutPreviewCard extends StatelessWidget {
             children: [
               _MiniStatItem(
                 icon: type.icon,
-                value: type.displayName,
+                value: session.displayName,
                 label: 'Activity',
               ),
               _MiniStatItem(

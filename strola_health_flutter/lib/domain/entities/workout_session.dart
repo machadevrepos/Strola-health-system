@@ -48,7 +48,7 @@ enum ActivityType {
     outdoorWalk => 'Outdoor Walk',
     outdoorRun => 'Outdoor Run',
     treadmill => 'Treadmill',
-    strengthTraining => 'Strength',
+    strengthTraining => 'Strength Training',
     yoga => 'Yoga',
     pilates => 'Pilates',
     cardio => 'Cardio',
@@ -99,6 +99,7 @@ class WorkoutSession {
     this.routePoints = const [],
     this.avgPaceSecPerKm,
     this.caloriesBurned,
+    this.customActivityName,
   });
 
   final String id;
@@ -113,6 +114,17 @@ class WorkoutSession {
 
   /// MET-based calories stored at session end; falls back to step-based for old records.
   final int? caloriesBurned;
+
+  /// User-entered name for an [ActivityType.other] session (e.g. "Hiking").
+  /// Null/empty for every other activity type, which already has its own
+  /// fixed name.
+  final String? customActivityName;
+
+  /// What to actually show for this session — the custom name when set,
+  /// otherwise the activity type's own fixed name.
+  String get displayName => customActivityName?.isNotEmpty == true
+      ? customActivityName!
+      : activityType.displayName;
 
   double get distanceKm => distanceMeters / 1000;
 
@@ -153,6 +165,7 @@ class WorkoutSession {
         )
         .join(';'),
     'calories_burned': caloriesBurned,
+    'custom_activity_name': customActivityName,
   };
 
   factory WorkoutSession.fromMap(Map<String, dynamic> m) => WorkoutSession(
@@ -164,6 +177,7 @@ class WorkoutSession {
     durationSeconds: m['duration_seconds'] as int,
     activityType: ActivityType.fromString(m['activity_type'] as String?),
     caloriesBurned: m['calories_burned'] as int?,
+    customActivityName: m['custom_activity_name'] as String?,
     routePoints: (m['route_points'] as String? ?? '')
         .split(';')
         .where((s) => s.contains(','))

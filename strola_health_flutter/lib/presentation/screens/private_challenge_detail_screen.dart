@@ -359,7 +359,7 @@ class _PrivateHowItWorksCard extends StatelessWidget {
                   byPercent
                       ? 'Whoever has the highest average daily goal '
                             'completion when the challenge ends wins.'
-                      : 'Whoever logs the highest total steps when the '
+                      : 'Whoever has the highest total steps when the '
                             'challenge ends wins.',
                   style: AppTypography.bodyS.copyWith(
                     color: AppColors.textSecondary,
