@@ -7,6 +7,13 @@ import {
   Users,
   ShieldWarning,
   Trophy,
+  BellRinging,
+  Crown,
+  LinkSimple,
+  TextAa,
+  ChartBar,
+  Scales,
+  Megaphone,
   Devices,
   IdentificationBadge,
   GearSix,
@@ -22,9 +29,22 @@ const NAV_ITEMS = [
   { href: "/users", label: "Users", icon: Users },
   { href: "/moderation", label: "Moderation", icon: ShieldWarning },
   { href: "/challenges", label: "Challenges & Badges", icon: Trophy },
+  { href: "/premium", label: "Premium", icon: Crown },
+  { href: "/notifications", label: "Push Notifications", icon: BellRinging },
+  { href: "/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/connected-apps", label: "Connected Apps", icon: LinkSimple },
+  { href: "/app-content", label: "App Content", icon: TextAa },
+  { href: "/analytics", label: "Analytics", icon: ChartBar },
+  { href: "/legal", label: "Legal", icon: Scales },
+  { href: "/settings", label: "Settings", icon: GearSix },
+];
+
+// Only reachable from this console — regular admins in strola_health_admin_next
+// don't have these in their sidebar at all (enforced separately by RequireRole
+// in each app's dashboard layout, not just by hiding the link here).
+const SUPER_ADMIN_NAV_ITEMS = [
   { href: "/fleet", label: "Fleet", icon: Devices },
   { href: "/staff", label: "Staff & Roles", icon: IdentificationBadge },
-  { href: "/settings", label: "Settings", icon: GearSix },
 ];
 
 export function Sidebar() {
@@ -33,6 +53,26 @@ export function Sidebar() {
   const { user, role, signOut } = useAuth();
   const operatorName = user?.displayName || user?.email || "Signed in";
   const operatorRole = role ? ROLE_LABEL[role] : "";
+
+  function renderLink(item: (typeof NAV_ITEMS)[number]) {
+    const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        data-active={active}
+        className={cn(
+          "group flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors",
+          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          "data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
+        )}
+      >
+        <Icon size={18} weight={active ? "fill" : "regular"} className="shrink-0" />
+        {item.label}
+      </Link>
+    );
+  }
 
   return (
     <aside className="flex h-full w-60 flex-col border-r border-sidebar-border bg-sidebar">
@@ -43,26 +83,13 @@ export function Sidebar() {
         <span className="text-sm font-semibold text-foreground">Strolla Super Admin</span>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-0.5 px-2 py-2">
-        {NAV_ITEMS.map((item) => {
-          const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              data-active={active}
-              className={cn(
-                "group flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors",
-                "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                "data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
-              )}
-            >
-              <Icon size={18} weight={active ? "fill" : "regular"} className="shrink-0" />
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-2">
+        {NAV_ITEMS.map(renderLink)}
+
+        <p className="mb-1 mt-4 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+          Super admin only
+        </p>
+        {SUPER_ADMIN_NAV_ITEMS.map(renderLink)}
       </nav>
 
       <div className="flex items-center gap-2.5 border-t border-sidebar-border px-3 py-3">

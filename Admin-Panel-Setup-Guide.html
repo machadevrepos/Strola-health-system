@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strolla Health — Admin Panel Setup Guide</title>
+<style>
+  :root {
+    --accent: #E07A7A;
+    --accent-secondary: #F6B1B1;
+    --accent-glow: rgba(224, 122, 122, 0.2);
+    --bg-deep: #FFF2F2;
+    --bg-mid: #FFF7F7;
+    --bg-surface: #FFFFFF;
+    --amber: #E9B44C;
+    --success: #55A56B;
+    --error: #E25858;
+    --text-primary: #333333;
+    --text-secondary: rgba(51,51,51,0.7);
+    --text-muted: rgba(51,51,51,0.45);
+    --border-soft: rgba(246,177,177,0.4);
+    --radius-l: 18px;
+    --radius-m: 14px;
+    --radius-full: 999px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text-primary);
+    background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-deep) 45%, var(--bg-mid) 100%);
+    line-height: 1.55;
+  }
+
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .hero {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .wordmark {
+    display: inline-block;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.8px;
+    color: var(--accent);
+    margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin: 0 0 10px;
+  }
+  .hero p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    max-width: 540px;
+    margin: 0 auto;
+  }
+
+  .overview {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin: 32px 0 44px;
+  }
+  .overview-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-l);
+    padding: 18px 16px;
+    box-shadow: 0 6px 18px rgba(224,122,122,0.08);
+  }
+  .overview-card .badge {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-full);
+    background: var(--accent-glow);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  .overview-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: -0.2px;
+  }
+  .overview-card p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .section {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-l);
+    padding: 28px 28px 30px;
+    margin-bottom: 22px;
+    box-shadow: 0 6px 18px rgba(224,122,122,0.06);
+  }
+  .section-eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 0 0 6px;
+  }
+  .section h2 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    margin: 0 0 16px;
+  }
+  .section > p.lead {
+    color: var(--text-secondary);
+    margin-top: -6px;
+    margin-bottom: 18px;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .step:last-child { margin-bottom: 0; }
+  .step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .step-body h4 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 4px 0 6px;
+  }
+  .step-body p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 10px;
+  }
+
+  .callout {
+    border-radius: var(--radius-m);
+    padding: 14px 16px;
+    font-size: 13.5px;
+    margin: 10px 0;
+    border: 1px solid transparent;
+  }
+  .callout.tip {
+    background: rgba(85,165,107,0.08);
+    border-color: rgba(85,165,107,0.25);
+    color: #2F6F44;
+  }
+  .callout.warn {
+    background: rgba(226,88,88,0.08);
+    border-color: rgba(226,88,88,0.25);
+    color: #A93E3E;
+  }
+  .callout.amber {
+    background: rgba(233,180,76,0.12);
+    border-color: rgba(233,180,76,0.35);
+    color: #8A6418;
+  }
+  .callout strong { font-weight: 700; }
+
+  .url-pill {
+    display: inline-block;
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-weight: 700;
+    font-family: 'Consolas', 'SF Mono', monospace;
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: var(--radius-full);
+  }
+
+  footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin-top: 40px;
+  }
+
+  @media (max-width: 640px) {
+    .overview { grid-template-columns: 1fr; }
+    .page { padding: 32px 16px 64px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="hero">
+    <div class="wordmark">strolla</div>
+    <h1>Admin Panel — Setup Guide</h1>
+    <p>A walkthrough for running the Strolla Health Admin Panel on your own computer. No backend, no Firebase project, no Python — just double-click and go.</p>
+  </div>
+
+  <div class="overview">
+    <div class="overview-card">
+      <div class="badge">1</div>
+      <h3>Node.js</h3>
+      <p>The only thing to install — a one-time, five-minute step.</p>
+    </div>
+    <div class="overview-card">
+      <div class="badge">2</div>
+      <h3>Admin Panel</h3>
+      <p>Day-to-day staff console — users, moderation, challenges, badges, premium, push notifications, analytics, and more.</p>
+    </div>
+  </div>
+
+  <div class="callout tip">
+    <strong>What this is:</strong> the panel runs entirely on its own, built-in sample data. There's no backend server, no Firebase project, and no Python or Java to install — just Node.js, and one double-click each time you want to open it.
+  </div>
+
+  <div class="section">
+    <p class="section-eyebrow">Before you start</p>
+    <h2>Install Node.js (one-time)</h2>
+    <p class="lead">This is the only thing you need to install. If you've already got Node.js on this computer, skip straight to the next section.</p>
+
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-body">
+        <h4>Download and install Node.js</h4>
+        <p>Go to <span class="url-pill">nodejs.org</span> and download the <strong>LTS</strong> version. Run the installer and click through with the defaults — nothing needs to be changed.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <p class="section-eyebrow">Step 1</p>
+    <h2>Get the project files</h2>
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-body">
+        <h4>Unzip the folder you were sent</h4>
+        <p>Extract it somewhere easy to find, like your Desktop. You'll see a file called <code>Start-Admin-Panel.bat</code> sitting at the top level, next to a folder — leave them where they are relative to each other.</p>
+      </div>
+    </div>
+    <div class="callout amber">
+      If Windows shows a blue "Windows protected your PC" warning the first time you double-click the <code>.bat</code> file — that's normal for any downloaded <code>.bat</code> file. Click <strong>More info</strong>, then <strong>Run anyway</strong>.
+    </div>
+  </div>
+
+  <div class="section">
+    <p class="section-eyebrow">Step 2</p>
+    <h2>Run the Admin Panel</h2>
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-body">
+        <h4>Double-click <code>Start-Admin-Panel.bat</code></h4>
+        <p>A black window opens and does the setup for you. The very first time, it installs some files and can take a couple of minutes — every time after that, it takes just a few seconds.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-body">
+        <h4>Your browser opens automatically</h4>
+        <p>It'll land on <span class="url-pill">http://localhost:3100</span>. If it doesn't open by itself, just go to that address yourself.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <p class="section-eyebrow">Logging in</p>
+    <h2>Signing in</h2>
+    <p class="lead">This is a demo build, so there's nothing to remember:</p>
+    <div class="step">
+      <div class="step-number">→</div>
+      <div class="step-body">
+        <h4>Easiest: click "Skip — continue as demo staff"</h4>
+        <p>Right on the sign-in page — takes you straight in.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">→</div>
+      <div class="step-body">
+        <h4>Or type any email and any password</h4>
+        <p>The demo doesn't check credentials — anything typed into both fields will sign you in.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <p class="section-eyebrow">If something goes wrong</p>
+    <h2>Troubleshooting</h2>
+
+    <div class="callout warn">
+      <strong>"Node.js was not found on this computer"</strong> — install it from <span class="url-pill">nodejs.org</span> (the LTS version), then double-click the <code>.bat</code> file again.
+    </div>
+    <div class="callout warn">
+      <strong>Browser opens but shows "can't reach this page"</strong> — the server was still starting up. Wait a few seconds and refresh, or check the black window for errors.
+    </div>
+    <div class="callout warn">
+      <strong>Nothing seems to happen when you double-click</strong> — check for a blue Windows SmartScreen warning that may have popped up behind other windows; click <strong>More info → Run anyway</strong>.
+    </div>
+    <div class="callout tip">
+      To stop the panel, just close its black window. To start it again later, double-click the same <code>.bat</code> file — no need to reinstall anything.
+    </div>
+  </div>
+
+  <footer>Strolla Health — internal testing guide</footer>
+</div>
+</body>
+</html>

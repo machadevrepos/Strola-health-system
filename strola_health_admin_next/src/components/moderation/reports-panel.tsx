@@ -7,21 +7,33 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResolveReportDialog } from "@/components/moderation/resolve-report-dialog";
-import { userDisplayName } from "@/lib/data/queries";
+import { WarnUserDialog } from "@/components/moderation/warn-user-dialog";
+import { BanUserDialog } from "@/components/users/ban-user-dialog";
+import { findUserById, userDisplayName } from "@/lib/data/queries";
 import { formatDateTime, initials } from "@/lib/format";
 import type { EnrichedPost, EnrichedReport } from "@/lib/data/queries";
-import type { ReportStatus } from "@/lib/types";
+import type { ReportStatus, UserProfile } from "@/lib/types";
 
 export function ReportsPanel({
   reports,
   posts,
+  users,
   onResolve,
+  onRemove,
+  onWarnUser,
+  onSuspendUser,
 }: {
   reports: EnrichedReport[];
   posts: EnrichedPost[];
+  users: UserProfile[];
   onResolve: (reportId: string, status: ReportStatus, note: string) => void | Promise<void>;
+  onRemove: (reportId: string) => void | Promise<void>;
+  onWarnUser: (reportId: string, userId: string, reason: string) => void | Promise<void>;
+  onSuspendUser: (reportId: string, userId: string, reason: string) => void | Promise<void>;
 }) {
   const [active, setActive] = React.useState<EnrichedReport | null>(null);
+  const [warnTarget, setWarnTarget] = React.useState<{ report: EnrichedReport; user: UserProfile } | null>(null);
+  const [suspendTarget, setSuspendTarget] = React.useState<{ report: EnrichedReport; user: UserProfile } | null>(null);
 
   const open = reports.filter((r) => r.status === "open");
   const resolved = reports.filter((r) => r.status !== "open");
@@ -39,7 +51,16 @@ export function ReportsPanel({
         ) : (
           <div className="space-y-2">
             {open.map((r) => (
-              <ReportRow key={r.id} report={r} post={r.target_type === "post" ? findPost(r.target_id) : undefined} onResolveClick={() => setActive(r)} />
+              <ReportRow
+                key={r.id}
+                report={r}
+                post={r.target_type === "post" ? findPost(r.target_id) : undefined}
+                resolvedByUser={undefined}
+                onIgnoreClick={() => setActive(r)}
+                onRemoveClick={r.target_type === "post" ? () => onRemove(r.id) : undefined}
+                onWarnClick={(user) => setWarnTarget({ report: r, user })}
+                onSuspendClick={(user) => setSuspendTarget({ report: r, user })}
+              />
             ))}
           </div>
         )}
@@ -50,7 +71,12 @@ export function ReportsPanel({
           <h3 className="mb-2 text-sm font-medium text-foreground">Resolved history ({resolved.length})</h3>
           <div className="space-y-2">
             {resolved.map((r) => (
-              <ReportRow key={r.id} report={r} post={r.target_type === "post" ? findPost(r.target_id) : undefined} />
+              <ReportRow
+                key={r.id}
+                report={r}
+                post={r.target_type === "post" ? findPost(r.target_id) : undefined}
+                resolvedByUser={r.resolved_by ? findUserById(users, r.resolved_by) ?? r.resolvedByUser : undefined}
+              />
             ))}
           </div>
         </section>
@@ -64,6 +90,24 @@ export function ReportsPanel({
           setActive(null);
         }}
       />
+
+      <WarnUserDialog
+        target={warnTarget ? { userId: warnTarget.user.id, userName: userDisplayName(warnTarget.user) } : null}
+        onOpenChange={(open) => !open && setWarnTarget(null)}
+        onConfirm={async (reason) => {
+          if (warnTarget) await onWarnUser(warnTarget.report.id, warnTarget.user.id, reason);
+          setWarnTarget(null);
+        }}
+      />
+
+      <BanUserDialog
+        user={suspendTarget?.user ?? null}
+        onOpenChange={(open) => !open && setSuspendTarget(null)}
+        onConfirm={async (reason) => {
+          if (suspendTarget) await onSuspendUser(suspendTarget.report.id, suspendTarget.user.id, reason);
+          setSuspendTarget(null);
+        }}
+      />
     </div>
   );
 }
@@ -71,13 +115,22 @@ export function ReportsPanel({
 function ReportRow({
   report,
   post,
-  onResolveClick,
+  resolvedByUser,
+  onIgnoreClick,
+  onRemoveClick,
+  onWarnClick,
+  onSuspendClick,
 }: {
   report: EnrichedReport;
   post?: EnrichedPost;
-  onResolveClick?: () => void;
+  resolvedByUser?: UserProfile;
+  onIgnoreClick?: () => void;
+  onRemoveClick?: () => void;
+  onWarnClick?: (user: UserProfile) => void;
+  onSuspendClick?: (user: UserProfile) => void;
 }) {
   const target = report.target_type === "post" ? post?.author : report.targetUser;
+  const isOpen = report.status === "open";
 
   return (
     <div className="rounded-lg border border-border p-3">
@@ -119,12 +172,35 @@ function ReportRow({
           Resolution: <span className="text-foreground">{report.resolution_note}</span>
         </p>
       )}
+      {report.status !== "open" && report.resolved_at && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {report.status === "resolved" ? "Resolved" : "Dismissed"} by{" "}
+          <span className="text-foreground">{resolvedByUser ? userDisplayName(resolvedByUser) : "a staff member"}</span>
+          {" "}
+          {formatDateTime(report.resolved_at)}
+        </p>
+      )}
 
-      {onResolveClick && (
-        <div className="mt-3">
-          <Button size="sm" onClick={onResolveClick}>
-            Resolve
+      {isOpen && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={onIgnoreClick}>
+            Ignore
           </Button>
+          {onRemoveClick && (
+            <Button size="sm" variant="outline" onClick={onRemoveClick}>
+              Remove
+            </Button>
+          )}
+          {target && (
+            <Button size="sm" variant="outline" onClick={() => onWarnClick?.(target)}>
+              Warn user
+            </Button>
+          )}
+          {target && (
+            <Button size="sm" variant="destructive" onClick={() => onSuspendClick?.(target)}>
+              Suspend account
+            </Button>
+          )}
         </div>
       )}
     </div>

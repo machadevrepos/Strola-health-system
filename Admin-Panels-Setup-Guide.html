@@ -327,15 +327,15 @@
 
   <div class="hero">
     <div class="wordmark">strolla</div>
-    <h1>Admin Panels — Setup &amp; Testing Guide</h1>
-    <p>A walkthrough for running the Admin Panel and Super Admin Panel on your own computer, so you can click around and test everything yourself.</p>
+    <h1>Admin Panels — Setup Guide</h1>
+    <p>A walkthrough for running the Admin Panel and Super Admin Panel on your own computer, so you can click around and test everything yourself. No backend, no Firebase project, no Python — just double-click and go.</p>
   </div>
 
   <div class="overview">
     <div class="overview-card">
       <div class="badge">1</div>
-      <h3>Backend</h3>
-      <p>The engine room. Runs once in the background and feeds real data to both panels.</p>
+      <h3>Node.js</h3>
+      <p>The only thing to install — a one-time, five-minute step.</p>
     </div>
     <div class="overview-card">
       <div class="badge">2</div>
@@ -349,214 +349,96 @@
     </div>
   </div>
 
+  <div class="callout tip">
+    <strong>What changed:</strong> both panels now run entirely on their own, built-in sample data. There's no backend server, no Firebase project, and no Python or Java to install — just Node.js, and one double-click each time you want to open a panel.
+  </div>
+
   <!-- BEFORE YOU START -->
   <div class="section">
     <p class="section-eyebrow">Before you start</p>
-    <h2>What you'll need installed</h2>
-    <p class="lead">Node.js is already on your machine. Three more free tools are needed — install these once and you're set for good.</p>
+    <h2>Install Node.js (one-time)</h2>
+    <p class="lead">This is the only thing you need to install. If you've already got Node.js on this computer, skip straight to the next section.</p>
 
-    <div class="step">
-      <div class="step-number">✓</div>
-      <div class="step-body">
-        <h4>Node.js — already installed</h4>
-        <p>Nothing to do here.</p>
-      </div>
-    </div>
     <div class="step">
       <div class="step-number">1</div>
       <div class="step-body">
-        <h4>Python</h4>
-        <p>Powers the backend. Download from <span class="url-pill">python.org</span> — during install, tick the box that says <strong>"Add Python to PATH."</strong></p>
+        <h4>Download and install Node.js</h4>
+        <p>Go to <span class="url-pill">nodejs.org</span> and download the <strong>LTS</strong> version. Run the installer and click through with the defaults — nothing needs to be changed.</p>
       </div>
-    </div>
-    <div class="step">
-      <div class="step-number">2</div>
-      <div class="step-body">
-        <h4>Firebase CLI</h4>
-        <p>Stands in for a real Firebase project on your computer, so no account or billing is needed. Open a terminal (see the tip below) and run:</p>
-        <div class="code-block">
-          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-          <pre>npm install -g firebase-tools</pre>
-        </div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-number">3</div>
-      <div class="step-body">
-        <h4>Java (JRE)</h4>
-        <p>Only needed because the Firebase emulator itself runs on it. Download from <span class="url-pill">adoptium.net</span> (choose the latest LTS version). Skip this if Java is already on your machine for something else.</p>
-      </div>
-    </div>
-
-    <div class="callout tip">
-      <strong>How to open a terminal in a folder:</strong> open the folder in File Explorer, click into the address bar at the top, type <code>cmd</code>, and press Enter. A black Command Prompt window opens, already pointed at that folder.
     </div>
   </div>
 
   <!-- DOWNLOAD -->
   <div class="section">
     <p class="section-eyebrow">Step 1</p>
-    <h2>Download the project</h2>
+    <h2>Get the project files</h2>
     <div class="step">
       <div class="step-number">1</div>
       <div class="step-body">
-        <h4>Get the code</h4>
-        <p>Go to the project page and click the green <strong>Code</strong> button, then <strong>Download ZIP</strong>. Once downloaded, extract/unzip it somewhere easy to find, like your Desktop.</p>
+        <h4>Unzip the folder you were sent</h4>
+        <p>Extract it somewhere easy to find, like your Desktop. Two files matter here: <code>Start-Admin-Panel.bat</code> and <code>Start-Super-Admin-Panel.bat</code>, sitting at the top level of the folder.</p>
       </div>
     </div>
     <div class="callout amber">
-      Inside the unzipped folder you'll see four folders: <code>strola_health_backend_fastApi</code>, <code>strola_health_admin_next</code>, <code>strola_health_super_admin_next</code>, and <code>strola_health_flutter</code>. You only need the first three for this guide.
+      If Windows shows a blue "Windows protected your PC" warning the first time you double-click one of these — that's normal for any downloaded <code>.bat</code> file. Click <strong>More info</strong>, then <strong>Run anyway</strong>.
     </div>
   </div>
-
-  <!-- BACKEND -->
-  <div class="section">
-    <p class="section-eyebrow">Step 2 — do this once each time you test</p>
-    <h2>Start the backend</h2>
-    <p class="lead">Both panels show real data only while this is running. Leave its terminal window open the whole time you're testing.</p>
-
-    <div class="step">
-      <div class="step-number">1</div>
-      <div class="step-body">
-        <h4>Start the local Firestore/Auth emulator</h4>
-        <p>Open a terminal inside <code>strola_health_backend_fastApi</code> and run:</p>
-        <div class="code-block">
-          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-          <pre>firebase emulators:start --only firestore,auth</pre>
-        </div>
-        <p>The first run downloads some files (takes a minute). When ready, you'll see a table confirming it's listening. <strong>Leave this window open</strong> and open a <em>new</em> terminal window for the next step.</p>
-      </div>
-    </div>
-
-    <div class="step">
-      <div class="step-number">2</div>
-      <div class="step-body">
-        <h4>Set up the backend (first time only)</h4>
-        <p>In a new terminal, inside <code>strola_health_backend_fastApi</code>:</p>
-        <div class="code-block">
-          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-          <pre>python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env</pre>
-        </div>
-        <p>Then open the new <code>.env</code> file in Notepad and fill in just these three lines (everything else can stay blank):</p>
-        <div class="code-block">
-          <div class="code-label">.env<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-          <pre>FIRESTORE_EMULATOR_HOST=localhost:8080
-FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
-FIREBASE_PROJECT_ID=strolla-health-dev</pre>
-        </div>
-      </div>
-    </div>
-
-    <div class="step">
-      <div class="step-number">3</div>
-      <div class="step-body">
-        <h4>Load sample data (first time only)</h4>
-        <p>With the emulator from step 1 still running, in the same terminal:</p>
-        <div class="code-block">
-          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-          <pre>python scripts/seed_emulator.py</pre>
-        </div>
-        <p>This fills the panels with realistic sample users, posts, devices, and challenges to click through — see the login details further down.</p>
-      </div>
-    </div>
-
-    <div class="step">
-      <div class="step-number">4</div>
-      <div class="step-body">
-        <h4>Start the backend itself</h4>
-        <div class="code-block">
-          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-          <pre>uvicorn app.main:app --reload</pre>
-        </div>
-        <p>Leave this running too. You now have <strong>two</strong> terminal windows open (emulator + backend) and both should stay open while you test.</p>
-      </div>
-    </div>
-
-    <div class="callout amber">
-      <strong>Bonus — want to peek behind the curtain?</strong> With the backend running, open <span class="url-pill">http://localhost:8000/docs</span> in your browser. That's the live, interactive API reference (Swagger UI) — every action either panel can take, listed out, with a "Try it" button on each one.
-    </div>
-  </div>
-
-  <div class="divider-label">the backend above must stay running for either panel below to work</div>
 
   <!-- ADMIN PANEL -->
   <div class="section">
-    <p class="section-eyebrow">Step 3</p>
+    <p class="section-eyebrow">Step 2</p>
     <h2>Run the Admin Panel</h2>
     <div class="step">
       <div class="step-number">1</div>
       <div class="step-body">
-        <h4>Open a new terminal</h4>
-        <p>Inside <code>strola_health_admin_next</code>, run:</p>
-        <div class="code-block">
-          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-          <pre>npm install
-copy .env.local.example .env.local
-npm run dev</pre>
-        </div>
+        <h4>Double-click <code>Start-Admin-Panel.bat</code></h4>
+        <p>A black window opens and does the setup for you. The very first time, it installs some files and can take a couple of minutes — every time after that, it takes just a few seconds.</p>
       </div>
     </div>
     <div class="step">
       <div class="step-number">2</div>
       <div class="step-body">
-        <h4>Open it in your browser</h4>
-        <p>Go to <span class="url-pill">http://localhost:3100</span> and log in with one of the accounts below.</p>
+        <h4>Your browser opens automatically</h4>
+        <p>It'll land on <span class="url-pill">http://localhost:3100</span>. If it doesn't open by itself, just go to that address yourself.</p>
       </div>
     </div>
   </div>
 
   <!-- SUPER ADMIN PANEL -->
   <div class="section">
-    <p class="section-eyebrow">Step 4</p>
+    <p class="section-eyebrow">Step 3</p>
     <h2>Run the Super Admin Panel</h2>
     <div class="step">
       <div class="step-number">1</div>
       <div class="step-body">
-        <h4>Open a new terminal</h4>
-        <p>Inside <code>strola_health_super_admin_next</code>, run:</p>
-        <div class="code-block">
-          <div class="code-label">Command Prompt<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-          <pre>npm install
-copy .env.local.example .env.local
-npm run dev</pre>
-        </div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-number">2</div>
-      <div class="step-body">
-        <h4>Open it in your browser</h4>
-        <p>Go to <span class="url-pill">http://localhost:3200</span> and log in with the super admin account below.</p>
+        <h4>Double-click <code>Start-Super-Admin-Panel.bat</code></h4>
+        <p>Same idea — a black window sets things up, then your browser opens to <span class="url-pill">http://localhost:3200</span>.</p>
       </div>
     </div>
     <div class="callout tip">
-      You can run both panels <strong>at the same time</strong> — they use different addresses (3100 and 3200), so just keep both terminal windows open alongside the backend ones.
+      You can run both panels <strong>at the same time</strong> — they use different addresses (3100 and 3200), so just keep both black windows open alongside each other.
     </div>
   </div>
 
   <!-- LOGIN -->
   <div class="section">
     <p class="section-eyebrow">Logging in</p>
-    <h2>Test accounts</h2>
-    <p class="lead">Both were created by the sample-data step above. Same password for both.</p>
-    <div class="creds">
-      <div class="cred-card">
-        <div class="role">Admin panel</div>
-        <div class="email">support.maya@strollahealth.com</div>
-        <div class="password-row">Password: <code>StrollaDev123!</code></div>
-      </div>
-      <div class="cred-card">
-        <div class="role">Super Admin panel</div>
-        <div class="email">founder.sarah@strollahealth.com</div>
-        <div class="password-row">Password: <code>StrollaDev123!</code></div>
+    <h2>Signing in</h2>
+    <p class="lead">This is a demo build, so there's nothing to remember:</p>
+    <div class="step">
+      <div class="step-number">→</div>
+      <div class="step-body">
+        <h4>Easiest: click "Skip — continue as demo staff"</h4>
+        <p>Right on the sign-in page — takes you straight in.</p>
       </div>
     </div>
-    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 14px;">
-      The Super Admin account also works on the regular Admin Panel — it's the only one that can also see Fleet and Staff &amp; Roles on the Super Admin Panel.
-    </p>
+    <div class="step">
+      <div class="step-number">→</div>
+      <div class="step-body">
+        <h4>Or type any email and any password</h4>
+        <p>The demo doesn't check credentials — anything typed into both fields will sign you in.</p>
+      </div>
+    </div>
   </div>
 
   <!-- TROUBLESHOOTING -->
@@ -565,33 +447,21 @@ npm run dev</pre>
     <h2>Troubleshooting</h2>
 
     <div class="callout warn">
-      <strong>"Address already in use"</strong> when starting something — another program on your computer is already using that port. Close other terminal windows from a previous attempt and try again.
+      <strong>"Node.js was not found on this computer"</strong> — install it from <span class="url-pill">nodejs.org</span> (the LTS version), then double-click the <code>.bat</code> file again.
     </div>
     <div class="callout warn">
-      <strong>Panel loads but every page shows an error</strong> — almost always means the backend or emulator terminal windows aren't running anymore. Check both are still open without errors.
+      <strong>Browser opens but shows "can't reach this page"</strong> — the server was still starting up. Wait a few seconds and refresh, or check the black window for errors.
     </div>
     <div class="callout warn">
-      <strong>Nothing happens when you type a command</strong> — make sure the terminal is open inside the right folder (the prompt should show the folder name).
+      <strong>Nothing seems to happen when you double-click</strong> — check for a blue Windows SmartScreen warning that may have popped up behind other windows; click <strong>More info → Run anyway</strong>.
     </div>
     <div class="callout tip">
-      Lost the login details? Re-run <code>python scripts/seed_emulator.py</code> — it's safe to run again any time and refills the same sample data.
+      To stop a panel, just close its black window. To start it again later, double-click the same <code>.bat</code> file — no need to reinstall anything.
     </div>
   </div>
 
   <footer>Strolla Health — internal testing guide</footer>
 </div>
-
-<script>
-  function copyCode(btn) {
-    const pre = btn.closest('.code-block').querySelector('pre');
-    navigator.clipboard.writeText(pre.textContent.trim()).then(() => {
-      const original = btn.textContent;
-      btn.textContent = 'Copied!';
-      btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
-    });
-  }
-</script>
 
 </body>
 </html>

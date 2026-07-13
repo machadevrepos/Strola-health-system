@@ -1,13 +1,22 @@
 import type {
   AnalyticsEvent,
   AnalyticsEventType,
+  Announcement,
+  AppContentEntry,
+  AppSettings,
   Badge,
+  BetaOverride,
   Challenge,
   ChallengeParticipant,
+  CommunityComment,
   CommunityPost,
+  CrashReport,
   DailyActivitySummary,
   Device,
   FeatureFlag,
+  IntegrationConnection,
+  LegalDocument,
+  PushNotification,
   Report,
   UserBadge,
   UserProfile,
@@ -47,6 +56,9 @@ interface UserSeed {
   subscription: Partial<UserProfile["subscription"]>;
   banned?: boolean;
   ban_reason?: string;
+  postingBanned?: boolean;
+  postingBanReason?: string;
+  isAmbassador?: boolean;
   deleted?: boolean;
   reasons?: UserProfile["reasons"];
 }
@@ -58,7 +70,7 @@ const userSeeds: UserSeed[] = [
   { id: "usr_004", email: "j.kowalczyk88@gmail.com", username: "jkowalczyk", name: "James Kowalczyk", location: "Sheffield, UK", gender: "male", height_cm: 174, weight_kg: 76, daily_goal_steps: 12000, role: "user", createdDaysAgo: 211, subscription: { tier: "free", status: "expired" } },
   { id: "usr_005", email: "mei.lin.99@gmail.com", username: "mei.lin", name: "Mei Lin", location: "Birmingham, UK", bio: "Walking pad at my desk, every single day.", gender: "female", height_cm: 159, weight_kg: 55, daily_goal_steps: 9000, role: "user", createdDaysAgo: 64, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-26), comp_reason: "signup_trial" }, reasons: ["walking_pad"] },
   { id: "usr_006", email: "dan.holloway@hotmail.com", username: "dan.h", name: "Dan Holloway", location: "Edinburgh, UK", gender: "male", height_cm: 183, weight_kg: 88, daily_goal_steps: 10000, role: "user", createdDaysAgo: 301, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-14) } },
-  { id: "usr_007", email: "alex.reyes@gmail.com", username: "alex.r", name: "Alex Reyes", location: "Cardiff, UK", gender: "other", height_cm: 171, weight_kg: 69, daily_goal_steps: 15000, role: "user", createdDaysAgo: 47, subscription: { tier: "premium", status: "active", comp_until: daysAgo(-150), comp_reason: "kickstarter_backer" } },
+  { id: "usr_007", email: "alex.reyes@gmail.com", username: "alex.r", name: "Alex Reyes", location: "Cardiff, UK", gender: "other", height_cm: 171, weight_kg: 69, daily_goal_steps: 15000, role: "user", createdDaysAgo: 47, subscription: { tier: "premium", status: "active", comp_until: daysAgo(-150), comp_reason: "kickstarter_backer" }, isAmbassador: true },
   { id: "usr_008", email: "fatima.hussain22@gmail.com", username: "fatima.h", name: "Fatima Hussain", location: "Glasgow, UK", bio: "Night-shift A&E nurse, can't wear a watch on the ward.", gender: "female", height_cm: 165, weight_kg: 60, daily_goal_steps: 7000, role: "user", createdDaysAgo: 33, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-4), comp_reason: "signup_trial" }, reasons: ["cant_wear_wearable"] },
   { id: "usr_009", email: "ollie.fenwick@gmail.com", username: "ollie.fenwick", name: "Ollie Fenwick", location: "Newcastle, UK", gender: "male", height_cm: 177, weight_kg: 79, daily_goal_steps: 10000, role: "user", createdDaysAgo: 19, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-26), comp_reason: "signup_trial" } },
   { id: "usr_010", email: "ruth.adeyemi@gmail.com", username: "ruth.a", name: "Ruth Adeyemi", location: "London, UK", gender: "female", height_cm: 170, weight_kg: 67, daily_goal_steps: 8500, role: "user", createdDaysAgo: 5, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-25), comp_reason: "signup_trial" } },
@@ -66,19 +78,16 @@ const userSeeds: UserSeed[] = [
   { id: "usr_012", email: "lena.kovac@gmail.com", username: "lena.k", name: "Lena Kovac", location: "Nottingham, UK", gender: "female", height_cm: 162, weight_kg: 58, daily_goal_steps: 9500, role: "user", createdDaysAgo: 78, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-2) } },
   { id: "usr_013", email: "deleted-user-9f2@strolla.health", username: "deleted_9f2a8b1c", name: "Deleted User", gender: "prefer_not_to_say", height_cm: 170, weight_kg: null, daily_goal_steps: 10000, role: "user", createdDaysAgo: 260, subscription: { tier: "free", status: "expired" }, deleted: true },
   { id: "usr_014", email: "ben.okafor@gmail.com", username: "ben.okafor", name: "Ben Okafor", location: "Leicester, UK", gender: "male", height_cm: 175, weight_kg: 73, daily_goal_steps: 11000, role: "user", createdDaysAgo: 13, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-17), comp_reason: "signup_trial" } },
-  { id: "usr_015", email: "grace.tan@gmail.com", username: "grace.tan", name: "Grace Tan", location: "Southampton, UK", gender: "female", height_cm: 160, weight_kg: 54, daily_goal_steps: 7500, role: "user", createdDaysAgo: 156, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-30) } },
+  { id: "usr_015", email: "grace.tan@gmail.com", username: "grace.tan", name: "Grace Tan", location: "Southampton, UK", gender: "female", height_cm: 160, weight_kg: 54, daily_goal_steps: 7500, role: "user", createdDaysAgo: 156, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-30) }, isAmbassador: true },
   { id: "usr_016", email: "support.maya@strollahealth.com", username: "maya.ops", name: "Maya Whitfield", location: "Remote", gender: "female", height_cm: 167, weight_kg: 63, daily_goal_steps: 8000, role: "admin", createdDaysAgo: 305, subscription: { tier: "free", status: "active" } },
   { id: "usr_017", email: "founder.sarah@strollahealth.com", username: "sarah.founder", name: "Sarah Pemberton", location: "Remote", gender: "female", height_cm: 165, weight_kg: 60, daily_goal_steps: 8000, role: "super_admin", createdDaysAgo: 365, subscription: { tier: "free", status: "active" } },
-  { id: "usr_018", email: "callum.ferris@gmail.com", username: "callum.f", name: "Callum Ferris", location: "Aberdeen, UK", gender: "male", height_cm: 178, weight_kg: 84, daily_goal_steps: 10000, role: "user", createdDaysAgo: 41, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-1), comp_reason: "signup_trial" } },
+  { id: "usr_018", email: "callum.ferris@gmail.com", username: "callum.f", name: "Callum Ferris", location: "Aberdeen, UK", gender: "male", height_cm: 178, weight_kg: 84, daily_goal_steps: 10000, role: "user", createdDaysAgo: 41, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-1), comp_reason: "signup_trial" }, postingBanned: true, postingBanReason: "Repeated 'free premium code' spam links across multiple posts (see rep_001, rep_006)." },
   { id: "usr_019", email: "isabel.cruz@gmail.com", username: "isabel.cruz", name: "Isabel Cruz", location: "Coventry, UK", gender: "female", height_cm: 158, weight_kg: 52, daily_goal_steps: 6500, role: "user", createdDaysAgo: 9, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-21), comp_reason: "signup_trial" } },
   { id: "usr_020", email: "harvey.nash@gmail.com", username: "harvey.nash", name: "Harvey Nash", location: "Belfast, UK", gender: "male", height_cm: 172, weight_kg: 70, daily_goal_steps: 10000, role: "user", createdDaysAgo: 2, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-28), comp_reason: "signup_trial" } },
   // Genuinely free: trial already lapsed, never subscribed, never admin-granted.
   { id: "usr_021", email: "noah.sinclair@gmail.com", username: "noah.sinclair", name: "Noah Sinclair", location: "York, UK", gender: "male", height_cm: 180, weight_kg: 86, daily_goal_steps: 8000, role: "user", createdDaysAgo: 6, subscription: { tier: "free", status: "expired" } },
   { id: "usr_022", email: "aisha.begum@gmail.com", username: "aisha.begum", name: "Aisha Begum", location: "Bradford, UK", gender: "female", height_cm: 161, weight_kg: 57, daily_goal_steps: 7000, role: "user", createdDaysAgo: 15, subscription: { tier: "free", status: "expired" } },
   { id: "usr_023", email: "connor.walsh@gmail.com", username: "connor.walsh", name: "Connor Walsh", location: "Derby, UK", gender: "male", height_cm: 176, weight_kg: 80, daily_goal_steps: 9000, role: "user", createdDaysAgo: 24, subscription: { tier: "free", status: "expired" } },
-  // Staff: two more for a realistic Staff & Roles page.
-  { id: "usr_024", email: "trust-safety.priyanka@strollahealth.com", username: "priyanka.ts", name: "Priyanka Rao", location: "Remote", gender: "female", height_cm: 164, weight_kg: 58, daily_goal_steps: 8000, role: "admin", createdDaysAgo: 112, subscription: { tier: "free", status: "active" } },
-  { id: "usr_025", email: "support.danny@strollahealth.com", username: "danny.ops", name: "Danny Osei", location: "Remote", gender: "male", height_cm: 180, weight_kg: 77, daily_goal_steps: 8000, role: "admin", createdDaysAgo: 11, subscription: { tier: "free", status: "active" } },
 ];
 
 export const mockUsers: UserProfile[] = userSeeds.map((seed) => ({
@@ -88,7 +97,11 @@ export const mockUsers: UserProfile[] = userSeeds.map((seed) => ({
   name: seed.deleted ? "Deleted User" : seed.name,
   location: seed.deleted ? null : seed.location ?? null,
   bio: seed.deleted ? null : seed.bio ?? null,
-  photo_url: null,
+  // Roughly half the seeded users have a profile photo, the other half
+  // don't — mirrors a real user base (not everyone uploads one) and gives
+  // the admin panel's "view photo" affordance something real to render
+  // instead of only ever showing initials.
+  photo_url: seed.deleted || Number(seed.id.slice(-3)) % 2 !== 0 ? null : `https://i.pravatar.cc/300?u=${seed.id}`,
   height_cm: seed.height_cm,
   gender: seed.gender,
   date_of_birth: seed.deleted ? null : daysAgo(365 * (24 + (seed.id.length % 12))).slice(0, 10),
@@ -119,6 +132,9 @@ export const mockUsers: UserProfile[] = userSeeds.map((seed) => ({
   },
   banned: !!seed.banned,
   ban_reason: seed.ban_reason ?? null,
+  posting_banned: !!seed.postingBanned,
+  posting_ban_reason: seed.postingBanReason ?? null,
+  is_ambassador: !!seed.isAmbassador,
   deleted: !!seed.deleted,
   deleted_at: seed.deleted ? daysAgo(40) : null,
   created_at: daysAgo(seed.createdDaysAgo),
@@ -132,13 +148,14 @@ export function getUser(id: string): UserProfile | undefined {
 // --- Devices ------------------------------------------------------------------
 
 export const mockDevices: Device[] = [
-  { id: "dev_001", serial_number: "STR-10042", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:11", firmware_version: "1.4.2", manufacturing_batch: "B-2025-11", owner_user_id: "usr_001", paired_at: daysAgo(180), last_seen_at: daysAgo(0, 7, 40), battery_level: 62, created_at: daysAgo(190) },
-  { id: "dev_002", serial_number: "STR-10043", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:12", firmware_version: "1.4.2", manufacturing_batch: "B-2025-11", owner_user_id: "usr_003", paired_at: daysAgo(90), last_seen_at: daysAgo(0, 6, 12), battery_level: 88, created_at: daysAgo(190) },
-  { id: "dev_003", serial_number: "STR-10044", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:13", firmware_version: "1.3.0", manufacturing_batch: "B-2025-11", owner_user_id: "usr_006", paired_at: daysAgo(295), last_seen_at: daysAgo(3, 18, 0), battery_level: 14, created_at: daysAgo(300) },
-  { id: "dev_004", serial_number: "STR-10045", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: null, manufacturing_batch: "B-2025-12", owner_user_id: null, paired_at: null, last_seen_at: null, battery_level: null, created_at: daysAgo(60) },
-  { id: "dev_005", serial_number: "STR-10046", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: null, manufacturing_batch: "B-2025-12", owner_user_id: null, paired_at: null, last_seen_at: null, battery_level: null, created_at: daysAgo(60) },
-  { id: "dev_006", serial_number: "STR-10047", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:16", firmware_version: "1.4.2", manufacturing_batch: "B-2025-12", owner_user_id: "usr_012", paired_at: daysAgo(70), last_seen_at: daysAgo(0, 8, 5), battery_level: 45, created_at: daysAgo(75) },
-  { id: "dev_007", serial_number: "STR-10048", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:17", firmware_version: "1.2.1", manufacturing_batch: "B-2025-09", owner_user_id: "usr_015", paired_at: daysAgo(150), last_seen_at: daysAgo(12, 9, 0), battery_level: 3, created_at: daysAgo(160) },
+  { id: "dev_001", serial_number: "STR-10042", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:11", firmware_version: "1.4.2", manufacturing_batch: "B-2025-11", owner_user_id: "usr_001", paired_at: daysAgo(180), last_seen_at: daysAgo(0, 7, 40), battery_level: 62, created_at: daysAgo(190), replaced_at: null },
+  { id: "dev_002", serial_number: "STR-10043", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:12", firmware_version: "1.4.2", manufacturing_batch: "B-2025-11", owner_user_id: "usr_003", paired_at: daysAgo(90), last_seen_at: daysAgo(0, 6, 12), battery_level: 88, created_at: daysAgo(190), replaced_at: null },
+  { id: "dev_003", serial_number: "STR-10044", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:13", firmware_version: "1.3.0", manufacturing_batch: "B-2025-11", owner_user_id: "usr_006", paired_at: daysAgo(295), last_seen_at: daysAgo(3, 18, 0), battery_level: 14, created_at: daysAgo(300), replaced_at: null },
+  { id: "dev_004", serial_number: "STR-10045", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: null, manufacturing_batch: "B-2025-12", owner_user_id: null, paired_at: null, last_seen_at: null, battery_level: null, created_at: daysAgo(60), replaced_at: null },
+  { id: "dev_005", serial_number: "STR-10046", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: null, manufacturing_batch: "B-2025-12", owner_user_id: null, paired_at: null, last_seen_at: null, battery_level: null, created_at: daysAgo(60), replaced_at: null },
+  { id: "dev_006", serial_number: "STR-10047", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:16", firmware_version: "1.4.2", manufacturing_batch: "B-2025-12", owner_user_id: "usr_012", paired_at: daysAgo(70), last_seen_at: daysAgo(0, 8, 5), battery_level: 45, created_at: daysAgo(75), replaced_at: null },
+  { id: "dev_007", serial_number: "STR-10048", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:17", firmware_version: "1.2.1", manufacturing_batch: "B-2025-09", owner_user_id: "usr_015", paired_at: daysAgo(150), last_seen_at: daysAgo(12, 9, 0), battery_level: 3, created_at: daysAgo(160), replaced_at: null },
+  { id: "dev_008", serial_number: "STR-10039", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: "1.1.0", manufacturing_batch: "B-2025-08", owner_user_id: null, paired_at: null, last_seen_at: daysAgo(80, 10, 0), battery_level: null, created_at: daysAgo(200), replaced_at: daysAgo(75) },
 ];
 
 // --- Workout sessions + daily summaries (featured users only) ---------------
@@ -195,11 +212,13 @@ interface PostSeed {
   badge_emoji?: string;
   image_url?: string;
   hidden?: { by: string; reason: string; daysAgo: number };
+  pinned?: boolean;
+  commentsLocked?: boolean;
 }
 
 const postSeeds: PostSeed[] = [
   { id: "post_001", author_id: "usr_003", content: "Morning stroller walk before the school run, 5.2km and the baby's already asleep. Small wins.", daysAgo: 0, likes: 24, comments: 6, step_count: 6820, image_url: "https://picsum.photos/seed/strolla-park-morning/800/500" },
-  { id: "post_002", author_id: "usr_007", content: "Hit 70,400 steps this week, new personal best. The 10K Daily Streak challenge is brutal but it works.", daysAgo: 0, likes: 41, comments: 11, step_count: 70400, badge_emoji: "🔥" },
+  { id: "post_002", author_id: "usr_007", content: "Hit 70,400 steps this week, new personal best. The 10K Daily Streak challenge is brutal but it works.", daysAgo: 0, likes: 41, comments: 11, step_count: 70400, badge_emoji: "🔥", pinned: true },
   { id: "post_003", author_id: "usr_015", content: "Finally back to my pre-injury pace. 8 weeks of physio and walking pads, worth every minute.", daysAgo: 1, likes: 58, comments: 19, step_count: 5320, badge_emoji: "⭐" },
   { id: "post_004", author_id: "usr_006", content: "Rainy Edinburgh run this morning, route through the Meadows. Strolla device didn't drop connection once.", daysAgo: 1, likes: 19, comments: 4, step_count: 9120, image_url: "https://picsum.photos/seed/strolla-edinburgh-run/800/500" },
   { id: "post_005", author_id: "usr_011", content: "This app is a scam and everyone posting here is fake, unsubscribe before they take your money", daysAgo: 1, likes: 2, comments: 3 },
@@ -211,7 +230,7 @@ const postSeeds: PostSeed[] = [
   { id: "post_011", author_id: "usr_018", content: "DM me for a free Strolla premium code, link in bio", daysAgo: 4, likes: 1, comments: 0, hidden: { by: "usr_016", reason: "Spam / scam link in a post impersonating an official promotion.", daysAgo: 4 } },
   { id: "post_012", author_id: "usr_009", content: "First week with the tracker. Already 3,000 steps ahead of where I was on my phone alone.", daysAgo: 5, likes: 16, comments: 3, step_count: 8100 },
   { id: "post_013", author_id: "usr_019", content: "Cardiff Bay loop, perfect evening for it.", daysAgo: 5, likes: 21, comments: 2, image_url: "https://picsum.photos/seed/strolla-cardiff-bay/800/500" },
-  { id: "post_014", author_id: "usr_011", content: "anyone else think the leaderboard is rigged lol staff accounts always at the top", daysAgo: 6, likes: 4, comments: 6, hidden: { by: "usr_016", reason: "Unsubstantiated accusation against staff, escalating in comments. Hidden pending review.", daysAgo: 6 } },
+  { id: "post_014", author_id: "usr_011", content: "anyone else think the leaderboard is rigged lol staff accounts always at the top", daysAgo: 6, likes: 4, comments: 6, hidden: { by: "usr_016", reason: "Unsubstantiated accusation against staff, escalating in comments. Hidden pending review.", daysAgo: 6 }, commentsLocked: true },
   { id: "post_015", author_id: "usr_014", content: "Day 1. Goal is 11,000. Let's see how this goes.", daysAgo: 7, likes: 9, comments: 1 },
   { id: "post_016", author_id: "usr_003", content: "Two months postpartum and the stroller walks are genuinely the best part of my day.", daysAgo: 8, likes: 71, comments: 23, step_count: 6200, image_url: "https://picsum.photos/seed/strolla-stroller-path/800/500" },
   { id: "post_017", author_id: "usr_020", content: "Just paired my device, the setup took two minutes. Impressed.", daysAgo: 1, likes: 6, comments: 1 },
@@ -235,6 +254,56 @@ export const mockPosts: CommunityPost[] = postSeeds.map((seed) => ({
         hidden_at: daysAgo(seed.hidden.daysAgo, 14, 0),
       }
     : { hidden: false, hidden_by: null, hidden_reason: null, hidden_at: null },
+  pinned: !!seed.pinned,
+  comments_locked: !!seed.commentsLocked,
+}));
+
+// --- Comments ------------------------------------------------------------------
+
+interface CommentSeed {
+  id: string;
+  post_id: string;
+  author_id: string;
+  content: string;
+  daysAgo: number;
+  hidden?: boolean;
+}
+
+const commentSeeds: CommentSeed[] = [
+  { id: "cmt_001", post_id: "post_001", author_id: "usr_012", content: "That's such a lovely way to start the day. My little one is a bit older now, cherish this time!", daysAgo: 0 },
+  { id: "cmt_002", post_id: "post_001", author_id: "usr_008", content: "5.2km before the school run is no joke, well done.", daysAgo: 0 },
+  { id: "cmt_003", post_id: "post_002", author_id: "usr_006", content: "That's an insane week. What's your secret to the streak?", daysAgo: 0 },
+  { id: "cmt_004", post_id: "post_002", author_id: "usr_001", content: "70k in a week?! Absolute legend.", daysAgo: 0 },
+  { id: "cmt_005", post_id: "post_002", author_id: "usr_015", content: "This is exactly the motivation I needed today.", daysAgo: 0 },
+  { id: "cmt_006", post_id: "post_003", author_id: "usr_003", content: "So happy for you, physio recovery is no joke. Keep going!", daysAgo: 1 },
+  { id: "cmt_007", post_id: "post_005", author_id: "usr_016", content: "Hi there — sorry to hear you feel that way. Happy to talk through any concerns directly, just DM us.", daysAgo: 1 },
+  { id: "cmt_008", post_id: "post_005", author_id: "usr_009", content: "Been using it for 3 months, definitely not a scam for me — maybe try contacting support?", daysAgo: 1 },
+  {
+    id: "cmt_009",
+    post_id: "post_014",
+    author_id: "usr_004",
+    content: "Pretty sure that's not how the leaderboard works, staff steps count the same as anyone else's.",
+    daysAgo: 6,
+  },
+  {
+    id: "cmt_010",
+    post_id: "post_014",
+    author_id: "usr_011",
+    content: "convenient that you'd say that though isn't it",
+    daysAgo: 6,
+    hidden: true,
+  },
+  { id: "cmt_011", post_id: "post_008", author_id: "usr_003", content: "Nurses are unstoppable, respect.", daysAgo: 3 },
+  { id: "cmt_012", post_id: "post_016", author_id: "usr_010", content: "This made my morning, thank you for sharing.", daysAgo: 8 },
+];
+
+export const mockComments: CommunityComment[] = commentSeeds.map((seed) => ({
+  id: seed.id,
+  post_id: seed.post_id,
+  author_id: seed.author_id,
+  content: seed.content,
+  timestamp: daysAgo(seed.daysAgo, 10 + (seed.id.length % 8), 30),
+  hidden: !!seed.hidden,
 }));
 
 // --- Reports -------------------------------------------------------------------
@@ -251,11 +320,12 @@ export const mockReports: Report[] = [
 // --- Challenges + participants -----------------------------------------------
 
 export const mockChallenges: Challenge[] = [
-  { id: "chal_001", title: "10K Daily Streak", description: "Hit 10,000 steps every day for 7 days straight.", goal_steps: 70000, start_date: dateKey(10), end_date: dateKey(-4), badge_emoji: "🔥", accent_color_value: null, visibility: "public", is_official: true, invite_code: null, created_by: null, created_at: daysAgo(11) },
-  { id: "chal_002", title: "50km This Month", description: "Walk or run 50 kilometres before the month ends.", goal_steps: 65616, start_date: dateKey(20), end_date: dateKey(-9), badge_emoji: "🗺️", accent_color_value: null, visibility: "public", is_official: false, invite_code: null, created_by: "usr_016", created_at: daysAgo(21) },
-  { id: "chal_003", title: "Weekend Warrior", description: "Get 25,000 steps over Saturday and Sunday.", goal_steps: 25000, start_date: dateKey(4), end_date: dateKey(-2), badge_emoji: "⚡", accent_color_value: null, visibility: "public", is_official: false, invite_code: null, created_by: "usr_016", created_at: daysAgo(5) },
-  { id: "chal_004", title: "Office Walking Club", description: "Private challenge for the Leeds office crew, 40k steps each over two weeks.", goal_steps: 40000, start_date: dateKey(13), end_date: dateKey(-1), badge_emoji: "🏢", accent_color_value: null, visibility: "private", is_official: false, invite_code: "LDS-WALK-22", created_by: "usr_001", created_at: daysAgo(14) },
-  { id: "chal_005", title: "May Step Sprint", description: "Last month's official challenge, archived for reference.", goal_steps: 60000, start_date: "2026-05-01", end_date: "2026-05-31", badge_emoji: "🏆", accent_color_value: null, visibility: "public", is_official: false, invite_code: null, created_by: null, created_at: "2026-04-29T09:00:00Z" },
+  { id: "chal_001", title: "10K Daily Streak", description: "Hit 10,000 steps every day for 7 days straight.", goal_steps: 70000, start_date: dateKey(10), end_date: dateKey(-4), badge_emoji: "🔥", accent_color_value: null, visibility: "public", is_official: true, invite_code: null, created_by: null, created_at: daysAgo(11), image_url: "https://picsum.photos/seed/strolla-challenge-10k/800/500", rules: "Steps must be recorded by a paired Strolla device or a connected health app — manual entries don't count toward the goal.", winner_type: "most_steps", status: "published", winner_user_id: "usr_007", admin_notes: null },
+  { id: "chal_002", title: "50km This Month", description: "Walk or run 50 kilometres before the month ends.", goal_steps: 65616, start_date: dateKey(20), end_date: dateKey(-9), badge_emoji: "🗺️", accent_color_value: null, visibility: "public", is_official: false, invite_code: null, created_by: "usr_016", created_at: daysAgo(21), image_url: null, rules: "Distance is calculated from steps using each participant's stride length — GPS-tracked sessions are not required.", winner_type: "most_steps", status: "published", winner_user_id: "usr_002", admin_notes: null },
+  { id: "chal_003", title: "Weekend Warrior", description: "Get 25,000 steps over Saturday and Sunday.", goal_steps: 25000, start_date: dateKey(4), end_date: dateKey(-2), badge_emoji: "⚡", accent_color_value: null, visibility: "public", is_official: false, invite_code: null, created_by: "usr_016", created_at: daysAgo(5), image_url: null, rules: "Winner is whoever clears the highest percentage of their own personal daily goal, not raw steps — keeps it fair across different fitness levels.", winner_type: "goal_completion_pct", status: "published", winner_user_id: "usr_001", admin_notes: null },
+  { id: "chal_004", title: "Office Walking Club", description: "Private challenge for the Leeds office crew, 40k steps each over two weeks.", goal_steps: 40000, start_date: dateKey(13), end_date: dateKey(-1), badge_emoji: "🏢", accent_color_value: null, visibility: "private", is_official: false, invite_code: "LDS-WALK-22", created_by: "usr_001", created_at: daysAgo(14), image_url: null, rules: "Invite-only — steps count the same as any public challenge.", winner_type: "most_steps", status: "published", winner_user_id: "usr_001", admin_notes: null },
+  { id: "chal_005", title: "May Step Sprint", description: "Last month's official challenge, archived for reference.", goal_steps: 60000, start_date: "2026-05-01", end_date: "2026-05-31", badge_emoji: "🏆", accent_color_value: null, visibility: "public", is_official: false, invite_code: null, created_by: null, created_at: "2026-04-29T09:00:00Z", image_url: null, rules: null, winner_type: "most_steps", status: "archived", winner_user_id: null, admin_notes: "Archived before per-challenge winner tracking existed — no leaderboard data retained for this one." },
+  { id: "chal_006", title: "August Boost", description: "Early draft for next month's official challenge — not visible to users yet.", goal_steps: 80000, start_date: dateKey(-11), end_date: dateKey(-41), badge_emoji: "🚀", accent_color_value: null, visibility: "public", is_official: false, invite_code: null, created_by: "usr_016", created_at: daysAgo(0), image_url: null, rules: null, winner_type: "most_steps", status: "draft", winner_user_id: null, admin_notes: null },
 ];
 
 function participant(challengeId: string, userId: string, steps: number, lockedGoal: number, joinedDaysAgo: number, left?: number): ChallengeParticipant {
@@ -290,12 +360,13 @@ export const mockParticipants: ChallengeParticipant[] = [
 // --- Badges --------------------------------------------------------------------
 
 export const mockBadges: Badge[] = [
-  { id: "badge_001", name: "First Steps", description: "Completed onboarding and logged your first day of steps.", emoji: "👟", created_at: daysAgo(300) },
-  { id: "badge_002", name: "Early Bird", description: "Logged a walk before 7am, five times.", emoji: "🌅", created_at: daysAgo(280) },
-  { id: "badge_003", name: "Streak Master", description: "Hit your daily goal 30 days in a row.", emoji: "🔥", created_at: daysAgo(260) },
-  { id: "badge_004", name: "Marathon Mile", description: "Walked or ran a cumulative 42.2km in a single week.", emoji: "🏃", created_at: daysAgo(240) },
-  { id: "badge_005", name: "Community Champion", description: "Posted 25 times and helped others stay motivated.", emoji: "💬", created_at: daysAgo(200) },
-  { id: "badge_006", name: "Founding Walker", description: "Joined during the Kickstarter launch window.", emoji: "🚀", created_at: daysAgo(360) },
+  { id: "badge_001", name: "First Steps", description: "Completed onboarding and logged your first day of steps.", emoji: "👟", requirement_metric: "total_steps", requirement_value: 1, enabled: true, visible: true, created_at: daysAgo(300) },
+  { id: "badge_002", name: "Early Bird", description: "Logged a walk before 7am, five times.", emoji: "🌅", requirement_metric: "early_morning_sessions", requirement_value: 5, enabled: true, visible: true, created_at: daysAgo(280) },
+  { id: "badge_003", name: "Streak Master", description: "Hit your daily goal 30 days in a row.", emoji: "🔥", requirement_metric: "streak_days", requirement_value: 30, enabled: true, visible: true, created_at: daysAgo(260) },
+  { id: "badge_004", name: "Marathon Mile", description: "Walked or ran a cumulative 42.2km in a single week.", emoji: "🏃", requirement_metric: "total_steps", requirement_value: 59000, enabled: true, visible: true, created_at: daysAgo(240) },
+  { id: "badge_005", name: "Community Champion", description: "Posted 25 times and helped others stay motivated.", emoji: "💬", requirement_metric: "community_posts", requirement_value: 25, enabled: true, visible: true, created_at: daysAgo(200) },
+  // Kickstarter window has long closed — no one can newly earn this, but past awards stand and it stays visible in the catalog.
+  { id: "badge_006", name: "Founding Walker", description: "Joined during the Kickstarter launch window.", emoji: "🚀", requirement_metric: "total_steps", requirement_value: 0, enabled: false, visible: true, created_at: daysAgo(360) },
 ];
 
 export const mockUserBadges: UserBadge[] = [
@@ -393,3 +464,162 @@ function buildAnalyticsEvents(): AnalyticsEvent[] {
 export const mockAnalyticsEvents: AnalyticsEvent[] = buildAnalyticsEvents();
 
 export type EventTypeFilter = AnalyticsEventType;
+
+// --- Crash reports (synthetic — no real Crashlytics/Sentry pipeline yet) ------
+
+export const mockCrashReports: CrashReport[] = [
+  { id: "crash_001", user_id: "usr_009", platform: "android", app_version: "1.4.2", summary: "NullPointerException in BleStepService.onCharacteristicChanged", occurred_at: daysAgo(0, 6, 52) },
+  { id: "crash_002", user_id: "usr_014", platform: "ios", app_version: "1.4.2", summary: "Fatal: index out of range in WeeklyChart bar rendering", occurred_at: daysAgo(1, 19, 10) },
+  { id: "crash_003", user_id: null, platform: "android", app_version: "1.4.1", summary: "OutOfMemoryError loading route polyline on session summary", occurred_at: daysAgo(2, 8, 5) },
+  { id: "crash_004", user_id: "usr_005", platform: "ios", app_version: "1.4.2", summary: "Fatal: unexpectedly found nil unwrapping HealthKit authorization result", occurred_at: daysAgo(3, 21, 40) },
+  { id: "crash_005", user_id: "usr_020", platform: "android", app_version: "1.4.2", summary: "IllegalStateException: fragment not attached to activity (session screen)", occurred_at: daysAgo(4, 7, 15) },
+];
+
+// --- Push notification send history --------------------------------------------
+
+export const mockPushNotifications: PushNotification[] = [
+  { id: "push_001", segment: "everyone", title: "10K Daily Streak is live!", body: "Join now and compete for the top spot this week.", recipient_count: 20, sent_by: "usr_016", sent_at: daysAgo(10, 9, 0) },
+  { id: "push_002", segment: "premium", title: "New: extra stats tabs", body: "Day/week/month breakdowns are now live in your Stats tab.", recipient_count: 8, sent_by: "usr_017", sent_at: daysAgo(25, 14, 30) },
+  { id: "push_003", segment: "inactive_30d", title: "We miss you 👋", body: "Your streak is waiting — even a short walk today keeps it alive.", recipient_count: 4, sent_by: "usr_016", sent_at: daysAgo(6, 11, 0) },
+  { id: "push_004", segment: "tracker_owners", title: "Firmware update available", body: "A small battery-life improvement is ready for your Strolla tracker.", recipient_count: 7, sent_by: "usr_016", sent_at: daysAgo(45, 10, 15) },
+];
+
+// --- Connected apps (per-user platform integrations) ---------------------------
+
+function integration(
+  userId: string,
+  provider: IntegrationConnection["provider"],
+  connectedDaysAgo: number,
+  syncedHoursAgo = 6
+): IntegrationConnection {
+  return {
+    id: `int_${userId}_${provider}`,
+    user_id: userId,
+    provider,
+    status: "connected",
+    scopes: provider === "healthkit" || provider === "health_connect" ? ["steps", "distance", "calories"] : ["activity:read"],
+    external_athlete_id: provider === "healthkit" || provider === "health_connect" ? null : `${provider}_${userId.slice(-3)}`,
+    last_synced_at: daysAgo(0, 24 - syncedHoursAgo, 0),
+    connected_at: daysAgo(connectedDaysAgo),
+    error_message: null,
+  };
+}
+
+export const mockIntegrationConnections: IntegrationConnection[] = [
+  integration("usr_001", "healthkit", 120),
+  integration("usr_002", "health_connect", 80),
+  integration("usr_003", "healthkit", 60),
+  integration("usr_005", "health_connect", 40),
+  integration("usr_006", "strava", 200),
+  integration("usr_006", "healthkit", 200),
+  integration("usr_007", "strava", 30),
+  integration("usr_008", "health_connect", 20),
+  integration("usr_009", "healthkit", 15),
+  integration("usr_012", "oura", 90),
+  integration("usr_012", "healthkit", 90),
+  integration("usr_015", "garmin", 110),
+  { id: "int_usr_018_strava", user_id: "usr_018", provider: "strava", status: "error", scopes: ["activity:read"], external_athlete_id: "strava_018", last_synced_at: daysAgo(9, 10, 0), connected_at: daysAgo(50), error_message: "Token expired — user needs to reconnect." },
+];
+
+// --- App content (editable copy, no app release needed) ------------------------
+
+export const mockAppContent: AppContentEntry[] = [
+  { key: "welcome.sign_in_subtitle", category: "welcome_messages", label: "Sign-in screen subtitle", value: "Welcome back — let's keep that streak going.", updated_at: daysAgo(40) },
+  { key: "welcome.onboarding_intro", category: "welcome_messages", label: "Onboarding intro", value: "Strolla makes every step count, whichever way you move.", updated_at: daysAgo(90) },
+  { key: "welcome.first_sync_complete", category: "welcome_messages", label: "First device sync complete", value: "You're all set — your Strolla tracker is live.", updated_at: daysAgo(90) },
+
+  { key: "challenge.default_description", category: "challenge_descriptions", label: "Default challenge description template", value: "Hit the step goal before the challenge ends to earn the badge.", updated_at: daysAgo(60) },
+  { key: "challenge.of_the_month_banner", category: "challenge_descriptions", label: "Challenge of the Month banner", value: "This month's challenge is live — join now and compete for the top spot.", updated_at: daysAgo(10) },
+
+  { key: "quote.daily_1", category: "motivational_quotes", label: "Daily quote #1", value: "Small steps every day add up to big changes.", updated_at: daysAgo(200) },
+  { key: "quote.daily_2", category: "motivational_quotes", label: "Daily quote #2", value: "You don't have to go fast, you just have to go.", updated_at: daysAgo(200) },
+  { key: "quote.goal_reached", category: "motivational_quotes", label: "Goal reached quote", value: "Look at you go — goal smashed.", updated_at: daysAgo(150) },
+
+  { key: "notification.goal_reminder", category: "notification_text", label: "Goal reminder (75%+ of the way there)", value: "You're only a few steps away from today's goal.", updated_at: daysAgo(30) },
+  { key: "notification.goal_achieved", category: "notification_text", label: "Goal achieved", value: "Goal achieved! Nice work today.", updated_at: daysAgo(30) },
+  { key: "notification.streak_3day", category: "notification_text", label: "3-day streak", value: "3-day streak! Keep it going.", updated_at: daysAgo(30) },
+  { key: "notification.low_battery", category: "notification_text", label: "Low battery", value: "Your Strolla battery is running low.", updated_at: daysAgo(30) },
+
+  { key: "empty.no_activity", category: "empty_states", label: "No activity yet", value: "No activity yet — your first walk will show up here.", updated_at: daysAgo(70) },
+  { key: "empty.no_challenges", category: "empty_states", label: "No challenges joined", value: "You're not in any challenges yet — browse what's live and jump in.", updated_at: daysAgo(70) },
+  { key: "empty.no_community_posts", category: "empty_states", label: "No community posts", value: "Nothing here yet — be the first to share how your walk went today.", updated_at: daysAgo(70) },
+];
+
+// --- Legal documents -------------------------------------------------------------
+
+export const mockLegalDocuments: LegalDocument[] = [
+  {
+    type: "privacy_policy",
+    version: 3,
+    content:
+      "Strolla Health collects step, distance, and location data you choose to share in order to power your step ring, session tracking, and challenges. We never sell your personal data. You can request a full export or deletion of your data at any time from Settings > Privacy.",
+    updated_at: daysAgo(45),
+    requires_reaccept: false,
+  },
+  {
+    type: "terms",
+    version: 2,
+    content:
+      "By using Strolla Health you agree to use the app and any paired Strolla tracker for personal, non-commercial fitness tracking. Premium subscriptions renew automatically unless cancelled at least 24 hours before the renewal date.",
+    updated_at: daysAgo(120),
+    requires_reaccept: false,
+  },
+  {
+    type: "community_guidelines",
+    version: 4,
+    content:
+      "Be kind. No harassment, spam, or scam links. Celebrate other people's progress the way you'd want your own celebrated. Posts that break these guidelines will be hidden, and repeat or serious violations may result in a posting ban or account suspension.",
+    updated_at: daysAgo(6),
+    requires_reaccept: true,
+  },
+];
+
+// --- App settings (global defaults) ----------------------------------------------
+
+// --- Beta overrides (per-user/email/ambassador feature access) ------------------
+
+export const mockBetaOverrides: BetaOverride[] = [
+  { id: "beta_001", feature_key: "extra_stats_tabs", target_type: "ambassador", target_value: "", created_by: "usr_016", created_at: daysAgo(20) },
+  { id: "beta_002", feature_key: "widget", target_type: "user_id", target_value: "usr_009", created_by: "usr_016", created_at: daysAgo(5) },
+  { id: "beta_003", feature_key: "activity_insights", target_type: "email", target_value: "beta.tester@strollahealth.com", created_by: "usr_017", created_at: daysAgo(2) },
+];
+
+// --- Announcements (in-app banner shown once per user on open) -----------------
+
+export const mockAnnouncements: Announcement[] = [
+  {
+    id: "ann_001",
+    emoji: "🎉",
+    message: "July Challenge is Live! Join now and compete for the top spot.",
+    link_target: "challenge_of_the_month",
+    active: true,
+    starts_at: daysAgo(10),
+    ends_at: daysAgo(-20),
+    created_by: "usr_016",
+    created_at: daysAgo(10),
+  },
+  {
+    id: "ann_002",
+    emoji: "🚀",
+    message: "New Feature: Share your steps to Instagram!",
+    link_target: "share_steps",
+    active: false,
+    starts_at: daysAgo(35),
+    ends_at: daysAgo(21),
+    created_by: "usr_017",
+    created_at: daysAgo(36),
+  },
+];
+
+export const mockAppSettings: AppSettings = {
+  default_daily_goal_steps: 10000,
+  challenge_default_duration_days: 7,
+  challenge_default_goal_steps: 50000,
+  notify_goal_reminder_default: true,
+  notify_streak_default: true,
+  notify_challenge_updates_default: true,
+  max_image_size_mb: 10,
+  max_post_length: 500,
+  max_bio_length: 160,
+  updated_at: daysAgo(30),
+};

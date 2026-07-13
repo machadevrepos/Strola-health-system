@@ -21,11 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Challenge, ChallengeVisibility } from "@/lib/types";
+import type { Challenge, ChallengeVisibility, ChallengeWinnerType } from "@/lib/types";
 
 const VISIBILITY_LABEL: Record<ChallengeVisibility, string> = {
   public: "Public",
   private: "Private (invite-only)",
+};
+
+const WINNER_TYPE_LABEL: Record<ChallengeWinnerType, string> = {
+  most_steps: "Most steps",
+  goal_completion_pct: "Highest goal completion %",
 };
 
 export interface ChallengeFormValues {
@@ -36,6 +41,9 @@ export interface ChallengeFormValues {
   end_date: string;
   badge_emoji: string;
   visibility: ChallengeVisibility;
+  image_url: string;
+  rules: string;
+  winner_type: ChallengeWinnerType;
 }
 
 const EMPTY: ChallengeFormValues = {
@@ -46,6 +54,9 @@ const EMPTY: ChallengeFormValues = {
   end_date: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10),
   badge_emoji: "🏆",
   visibility: "public",
+  image_url: "",
+  rules: "",
+  winner_type: "most_steps",
 };
 
 export function ChallengeFormDialog({
@@ -74,6 +85,9 @@ export function ChallengeFormDialog({
             end_date: challenge.end_date.slice(0, 10),
             badge_emoji: challenge.badge_emoji,
             visibility: challenge.visibility,
+            image_url: challenge.image_url ?? "",
+            rules: challenge.rules ?? "",
+            winner_type: challenge.winner_type,
           }
         : EMPTY
     );
@@ -151,15 +165,46 @@ export function ChallengeFormDialog({
               />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="ch-visibility">Visibility</Label>
+              <Select value={values.visibility} onValueChange={(v) => v && setValues({ ...values, visibility: v as ChallengeVisibility })}>
+                <SelectTrigger id="ch-visibility"><SelectValue>{VISIBILITY_LABEL[values.visibility]}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Private (invite-only)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="ch-winner-type">Winner type</Label>
+              <Select value={values.winner_type} onValueChange={(v) => v && setValues({ ...values, winner_type: v as ChallengeWinnerType })}>
+                <SelectTrigger id="ch-winner-type"><SelectValue>{WINNER_TYPE_LABEL[values.winner_type]}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="most_steps">Most steps</SelectItem>
+                  <SelectItem value="goal_completion_pct">Highest goal completion %</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="grid gap-2">
-            <Label htmlFor="ch-visibility">Visibility</Label>
-            <Select value={values.visibility} onValueChange={(v) => v && setValues({ ...values, visibility: v as ChallengeVisibility })}>
-              <SelectTrigger id="ch-visibility"><SelectValue>{VISIBILITY_LABEL[values.visibility]}</SelectValue></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="public">Public</SelectItem>
-                <SelectItem value="private">Private (invite-only)</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="ch-image">Image URL</Label>
+            <Input
+              id="ch-image"
+              value={values.image_url}
+              onChange={(e) => setValues({ ...values, image_url: e.target.value })}
+              placeholder="https://…"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="ch-rules">Rules</Label>
+            <Textarea
+              id="ch-rules"
+              rows={3}
+              value={values.rules}
+              onChange={(e) => setValues({ ...values, rules: e.target.value })}
+              placeholder="e.g. Steps must be recorded by a paired device or connected health app."
+            />
           </div>
         </div>
         <DialogFooter>

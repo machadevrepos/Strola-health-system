@@ -129,14 +129,18 @@ class StepRing extends StatelessWidget {
                         colors: [
                           AppColors
                               .accent, // continues from the base ring's tip
-                          AppColors
-                              .goalAmber, // amber — same as goal-reached state
+                          AppColors.accentDeep, // deep rose — overflow lap
                         ],
                         stops: [0.0, 1.0],
                       ),
+                      // Only round the leading tip. Rounding the start too
+                      // (bothCurve) carves a visible notch right where this
+                      // lap begins, since that point sits flush against the
+                      // base ring's own flat closure — the two caps didn't
+                      // match, which read as a gap at the top of the circle.
                       cornerStyle: overflowFraction >= 1.0
                           ? CornerStyle.bothFlat
-                          : CornerStyle.bothCurve,
+                          : CornerStyle.endCurve,
                     ),
                 ],
                 annotations: [

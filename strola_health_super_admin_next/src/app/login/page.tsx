@@ -10,9 +10,12 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getFirebaseAuth } from "@/lib/firebase-client";
+import { IS_MOCK_MODE } from "@/lib/mock-mode";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { mockSignIn } = useAuth();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
@@ -24,6 +27,11 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
+      if (IS_MOCK_MODE) {
+        mockSignIn(email);
+        router.push("/");
+        return;
+      }
       await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
       router.push("/");
     } catch {
@@ -31,6 +39,11 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function continueAsDemo() {
+    mockSignIn(email || "founder.sarah@strollahealth.com");
+    router.push("/");
   }
 
   return (
@@ -41,7 +54,9 @@ export default function LoginPage() {
             S
           </div>
           <CardTitle>Sign in to Strolla Super Admin</CardTitle>
-          <CardDescription>Super admin access only.</CardDescription>
+          <CardDescription>
+            {IS_MOCK_MODE ? "Demo build — any email and password works." : "Super admin access only."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -53,7 +68,8 @@ export default function LoginPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                placeholder={IS_MOCK_MODE ? "founder.sarah@strollahealth.com" : undefined}
+                required={!IS_MOCK_MODE}
                 autoFocus
               />
             </div>
@@ -66,7 +82,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
+                  required={!IS_MOCK_MODE}
                 />
                 <InputGroupAddon align="inline-end">
                   <InputGroupButton
@@ -85,6 +101,11 @@ export default function LoginPage() {
               {submitting && <CircleNotch size={14} className="animate-spin" />}
               Sign in
             </Button>
+            {IS_MOCK_MODE && (
+              <Button type="button" variant="outline" className="w-full" onClick={continueAsDemo}>
+                Skip — continue as demo staff
+              </Button>
+            )}
           </form>
         </CardContent>
       </Card>

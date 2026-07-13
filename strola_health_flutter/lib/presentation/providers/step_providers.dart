@@ -14,7 +14,12 @@ import 'package:strola_health/presentation/providers/profile_providers.dart';
 // ── Live step count ──────────────────────────────────────────────────────────
 
 class StepCountNotifier extends StateNotifier<int> {
-  StepCountNotifier(this._ref) : super(3247) {
+  // Starts at 95% of the daily goal (not a fixed step count) so the step
+  // ring loads right at the edge of "goal reached" — lets whoever's
+  // debugging the ring see the near-full, goal-reached, and overflow-lap
+  // states within a few mock ticks instead of waiting from a cold ~3k start.
+  StepCountNotifier(this._ref)
+    : super((_ref.read(dailyGoalProvider) * 0.95).round()) {
     _ref.listen<AsyncValue<int>>(
       bleStepStreamProvider,
       (_, next) => next.whenData((steps) => state = steps),

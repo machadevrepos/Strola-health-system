@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, DotsThree, PencilSimple, Trash, Star, Lock, Globe, CircleNotch } from "@phosphor-icons/react";
+import { Plus, DotsThree, PencilSimple, Trash, Star, Lock, Globe, CircleNotch, PaperPlaneTilt, Archive } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,9 +64,14 @@ export function ChallengesGrid({
 
   async function createChallenge(values: ChallengeFormValues) {
     try {
-      const created = await apiCreateChallenge({ ...values, created_by: currentUser?.uid });
+      const created = await apiCreateChallenge({
+        ...values,
+        image_url: values.image_url || null,
+        rules: values.rules || null,
+        created_by: currentUser?.uid,
+      });
       setChallenges((prev) => [created, ...prev]);
-      toast.success("Challenge created");
+      toast.success("Challenge created — it's a draft until you publish it");
       logAction("Created challenge", values.title);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Couldn't create challenge"));
@@ -76,7 +81,11 @@ export function ChallengesGrid({
   async function saveChallenge(values: ChallengeFormValues) {
     if (!editTarget) return;
     try {
-      const updated = await updateChallenge(editTarget.id, values);
+      const updated = await updateChallenge(editTarget.id, {
+        ...values,
+        image_url: values.image_url || null,
+        rules: values.rules || null,
+      });
       setChallenges((prev) => prev.map((c) => (c.id === editTarget.id ? updated : c)));
       toast.success("Challenge updated");
       logAction("Edited challenge", values.title);
@@ -84,6 +93,17 @@ export function ChallengesGrid({
       toast.error(apiErrorMessage(err, "Couldn't update challenge"));
     } finally {
       setEditTarget(null);
+    }
+  }
+
+  async function setLifecycleStatus(challenge: Challenge, status: Challenge["status"]) {
+    try {
+      const updated = await updateChallenge(challenge.id, { status });
+      setChallenges((prev) => prev.map((c) => (c.id === challenge.id ? updated : c)));
+      toast.success(status === "published" ? "Challenge published" : "Challenge archived");
+      logAction(status === "published" ? "Published challenge" : "Archived challenge", challenge.title);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't update this challenge"));
     }
   }
 
@@ -164,6 +184,21 @@ export function ChallengesGrid({
                       <DropdownMenuItem onClick={() => setEditTarget(c)}>
                         <PencilSimple size={14} /> Edit
                       </DropdownMenuItem>
+                      {c.status === "draft" && (
+                        <DropdownMenuItem onClick={() => setLifecycleStatus(c, "published")}>
+                          <PaperPlaneTilt size={14} /> Publish
+                        </DropdownMenuItem>
+                      )}
+                      {c.status === "published" && (
+                        <DropdownMenuItem onClick={() => setLifecycleStatus(c, "archived")}>
+                          <Archive size={14} /> Archive
+                        </DropdownMenuItem>
+                      )}
+                      {c.status === "archived" && (
+                        <DropdownMenuItem onClick={() => setLifecycleStatus(c, "published")}>
+                          <PaperPlaneTilt size={14} /> Restore to published
+                        </DropdownMenuItem>
+                      )}
                       {!c.is_official && (
                         <DropdownMenuItem onClick={() => setOfficial(c.id)}>
                           <Star size={14} /> Set as official monthly
@@ -203,8 +238,10 @@ export function ChallengesGrid({
                   <span className="font-mono text-muted-foreground">{participantCounts[c.id] ?? 0} joined</span>
                 </div>
 
-                <div className="mt-3 flex items-center gap-2">
-                  <ChallengeStatusBadge status={status} />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {c.status === "draft" && <Badge variant="outline">Draft</Badge>}
+                  {c.status === "archived" && <Badge variant="secondary">Archived</Badge>}
+                  {c.status === "published" && <ChallengeStatusBadge status={status} />}
                   <Badge variant="outline" className="gap-1">
                     {c.visibility === "private" ? <Lock size={11} /> : <Globe size={11} />}
                     {c.visibility}

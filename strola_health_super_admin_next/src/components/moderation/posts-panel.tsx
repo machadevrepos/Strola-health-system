@@ -14,6 +14,11 @@ import {
   ChatCircle,
   MagnifyingGlass,
   CircleNotch,
+  PushPin,
+  PushPinSlash,
+  LockSimple,
+  LockSimpleOpen,
+  ProhibitInset,
 } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +48,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { HidePostDialog } from "@/components/moderation/hide-post-dialog";
-import { EditPostDialog } from "@/components/moderation/edit-post-dialog";
+import { EditPostDialog, type EditPostValues } from "@/components/moderation/edit-post-dialog";
+import { BanFromPostingDialog } from "@/components/moderation/ban-from-posting-dialog";
 import { userDisplayName } from "@/lib/data/queries";
 import { formatRelative, initials } from "@/lib/format";
 import type { EnrichedPost } from "@/lib/data/queries";
@@ -65,13 +71,19 @@ export function PostsPanel({
   onRemovePhoto,
   onEdit,
   onDelete,
+  onTogglePin,
+  onToggleCommentsLocked,
+  onBanFromPosting,
 }: {
   posts: EnrichedPost[];
   onHide: (postId: string, reason: string) => void | Promise<void>;
   onUnhide: (postId: string) => void;
   onRemovePhoto: (postId: string) => void;
-  onEdit: (postId: string, content: string) => void | Promise<void>;
+  onEdit: (postId: string, values: EditPostValues) => void | Promise<void>;
   onDelete: (postId: string) => void | Promise<void>;
+  onTogglePin: (postId: string, pinned: boolean) => void | Promise<void>;
+  onToggleCommentsLocked: (postId: string, locked: boolean) => void | Promise<void>;
+  onBanFromPosting: (userId: string, reason: string) => void | Promise<void>;
 }) {
   const [filter, setFilter] = React.useState<Filter>("all");
   const [query, setQuery] = React.useState("");
@@ -80,6 +92,7 @@ export function PostsPanel({
   const [deleteTarget, setDeleteTarget] = React.useState<EnrichedPost | null>(null);
   const [deleting, setDeleting] = React.useState(false);
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
+  const [banTarget, setBanTarget] = React.useState<{ userId: string; userName: string } | null>(null);
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -143,6 +156,16 @@ export function PostsPanel({
                   {userDisplayName(post.author)}
                 </Link>
                 <span className="text-xs text-muted-foreground">{formatRelative(post.timestamp)}</span>
+                {post.pinned && (
+                  <Badge variant="outline" className="gap-1">
+                    <PushPin size={11} weight="fill" /> Pinned
+                  </Badge>
+                )}
+                {post.comments_locked && (
+                  <Badge variant="outline" className="gap-1">
+                    <LockSimple size={11} /> Comments locked
+                  </Badge>
+                )}
                 {post.moderation.hidden && <Badge variant="destructive">Hidden</Badge>}
               </div>
               <p className="mt-1 text-sm text-foreground">{post.content}</p>
@@ -159,6 +182,10 @@ export function PostsPanel({
               <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1"><Heart size={13} /> {post.likes_count}</span>
                 <span className="flex items-center gap-1"><ChatCircle size={13} /> {post.comments_count}</span>
+                {post.step_count != null && (
+                  <span className="font-mono">{post.step_count.toLocaleString("en-GB")} steps</span>
+                )}
+                {post.badge_emoji && <span>{post.badge_emoji}</span>}
               </div>
             </div>
             <DropdownMenu>
@@ -182,6 +209,14 @@ export function PostsPanel({
                     <ImageBroken size={14} /> Remove photo
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => onTogglePin(post.id, !post.pinned)}>
+                  {post.pinned ? <PushPinSlash size={14} /> : <PushPin size={14} />}
+                  {post.pinned ? "Unpin post" : "Pin post"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onToggleCommentsLocked(post.id, !post.comments_locked)}>
+                  {post.comments_locked ? <LockSimpleOpen size={14} /> : <LockSimple size={14} />}
+                  {post.comments_locked ? "Unlock comments" : "Lock comments"}
+                </DropdownMenuItem>
                 {post.moderation.hidden ? (
                   <DropdownMenuItem onClick={() => onUnhide(post.id)}>
                     <Eye size={14} /> Unhide
@@ -191,6 +226,12 @@ export function PostsPanel({
                     <EyeSlash size={14} /> Hide
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setBanTarget({ userId: post.author_id, userName: userDisplayName(post.author) })}
+                >
+                  <ProhibitInset size={14} /> Ban author from posting
+                </DropdownMenuItem>
                 <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(post)}>
                   <Trash size={14} /> Delete permanently
                 </DropdownMenuItem>
@@ -219,9 +260,17 @@ export function PostsPanel({
       <EditPostDialog
         post={editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
-        onSave={async (content) => {
-          if (editTarget) await onEdit(editTarget.id, content);
+        onSave={async (values) => {
+          if (editTarget) await onEdit(editTarget.id, values);
           setEditTarget(null);
+        }}
+      />
+      <BanFromPostingDialog
+        target={banTarget}
+        onOpenChange={(open) => !open && setBanTarget(null)}
+        onConfirm={async (reason) => {
+          if (banTarget) await onBanFromPosting(banTarget.userId, reason);
+          setBanTarget(null);
         }}
       />
 

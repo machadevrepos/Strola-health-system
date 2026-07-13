@@ -831,13 +831,6 @@ class _StepsTabState extends ConsumerState<_StepsTab> {
     final total = data.reduce((a, b) => a + b);
     final prevTotal = 183520; // mock previous month
     final pct = ((total - prevTotal) / prevTotal * 100).round();
-    // `progress` stays clamped — it only ever feeds the ring's fill, which
-    // can't visually exceed full. `progressPct` is the displayed text.
-    final progress = (total / (goal * 31)).clamp(0.0, 1.0);
-    final progressPct = ((total / (goal * 31)) * 100).toInt();
-    final bestDay = data.reduce((a, b) => a > b ? a : b);
-    final bestDayIndex = data.indexOf(bestDay);
-    final avgPerDay = total ~/ data.where((d) => d > 0).length;
 
     // Real, not mock — each day is compared against whatever goal was
     // active when it was recorded, so raising the goal later doesn't
@@ -848,6 +841,32 @@ class _StepsTabState extends ConsumerState<_StepsTab> {
     final daysMetGoal = monthGoalData.where((d) => d.steps >= d.goal).length;
     final daysElapsed = _daysElapsedIn(_selectedMonth);
     final allTimeSteps = ref.watch(allTimeStepsProvider).value ?? 0;
+
+    // The ring's target used to be a flat `goal * 31` — today's current
+    // goal, applied to every day of the month and to a hardcoded 31-day
+    // count. That meant raising your goal on the 20th silently raised the
+    // bar for the 1st-19th too, and a 28/30-day month was always measured
+    // against 31 days of target. Sum each day's own snapshotted goal
+    // instead — the one actually active when that day was recorded — and
+    // only fall back to today's goal for days with nothing recorded yet
+    // (today itself before it's written, or a day the app wasn't opened).
+    final goalByDate = {
+      for (final d in monthGoalData)
+        DateTime(d.date.year, d.date.month, d.date.day): d.goal,
+    };
+    final monthlyGoalTarget = [
+      for (var day = 1; day <= _daysInMonth(_selectedMonth); day++)
+        goalByDate[DateTime(_selectedMonth.year, _selectedMonth.month, day)] ??
+            goal,
+    ].fold<int>(0, (sum, g) => sum + g);
+
+    // `progress` stays clamped — it only ever feeds the ring's fill, which
+    // can't visually exceed full. `progressPct` is the displayed text.
+    final progress = (total / monthlyGoalTarget).clamp(0.0, 1.0);
+    final progressPct = ((total / monthlyGoalTarget) * 100).toInt();
+    final bestDay = data.reduce((a, b) => a > b ? a : b);
+    final bestDayIndex = data.indexOf(bestDay);
+    final avgPerDay = total ~/ data.where((d) => d > 0).length;
 
     final weeklySteps = ref
         .watch(weeklyStepsProvider)
@@ -1024,7 +1043,7 @@ class _StepsTabState extends ConsumerState<_StepsTab> {
                                   ),
                                   const SizedBox(height: 1),
                                   Text(
-                                    '${Formatters.stepCount(goal * 31)} steps',
+                                    '${Formatters.stepCount(monthlyGoalTarget)} steps',
                                     style: AppTypography.labelS.copyWith(
                                       color: AppColors.accent,
                                       fontSize: 9,
@@ -2104,13 +2123,13 @@ class _ActivityTab extends ConsumerWidget {
               const SizedBox(height: AppTheme.spaceM),
               _InsightRow(
                 icon: AppIcons.trophy,
-                title: 'Most Calories Burnt',
+                title: 'Most Active Day',
                 subtitle: 'in the last 30 days',
                 value: '${_monthlyKcal[bestKcalIndex]}\nkcal',
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.trophy,
-                  title: 'Most Calories Burnt',
+                  title: 'Most Active Day',
                   headline: '${_monthlyKcal[bestKcalIndex]} kcal',
                   subtitle: 'in the last 30 days',
                   body:
@@ -2142,13 +2161,13 @@ class _ActivityTab extends ConsumerWidget {
               ),
               _InsightRow(
                 icon: AppIcons.premium,
-                title: 'All-Time Calories Burnt',
+                title: 'All-Time Calories Burned',
                 subtitle: '${Formatters.stepCount(allTimeCalories)} kcal',
                 value: '',
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.premium,
-                  title: 'All-Time Calories Burnt',
+                  title: 'All-Time Calories Burned',
                   headline: '${Formatters.stepCount(allTimeCalories)} kcal',
                   subtitle: 'Since you joined Strolla',
                   body:

@@ -3,7 +3,13 @@
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 
-export function DauTrendChart({ data }: { data: { date: string; count: number }[] }) {
+export function DauTrendChart({
+  data,
+  seriesName = "Active users",
+}: {
+  data: { date: string; count: number }[];
+  seriesName?: string;
+}) {
   const formatted = data.map((d) => ({
     ...d,
     label: new Date(d.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
@@ -36,7 +42,7 @@ export function DauTrendChart({ data }: { data: { date: string; count: number }[
         <Area
           type="monotone"
           dataKey="count"
-          name="Active users"
+          name={seriesName}
           stroke="var(--color-primary)"
           strokeWidth={2}
           fill="url(#dauFill)"

@@ -14,10 +14,14 @@ import {
   Medal,
   Trophy,
   BatteryMedium,
+  Key,
+  EnvelopeSimple,
+  ProhibitInset,
   X,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge as UiBadge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,19 +45,25 @@ import { BanUserDialog } from "@/components/users/ban-user-dialog";
 import { GrantPremiumMenu } from "@/components/users/grant-premium-menu";
 import { DeleteAccountDialog } from "@/components/users/delete-account-dialog";
 import { RoleChangeDialog, type PendingRoleChange } from "@/components/users/role-change-dialog";
+import { SendEmailDialog } from "@/components/users/send-email-dialog";
+import { BanFromPostingDialog } from "@/components/moderation/ban-from-posting-dialog";
 import { logAction } from "@/lib/audit-log-store";
 import { hasAdminGrantedPremium, userDisplayName } from "@/lib/data/queries";
 import {
   adminUnpairDevice,
   awardBadge as apiAwardBadge,
   banUser,
+  banUserFromPosting,
   changeUserRole,
   deleteUser,
   fetchUser,
   grantPremium as apiGrantPremium,
+  resetUserPassword,
   revokeBadge as apiRevokeBadge,
   revokePremium as apiRevokePremium,
+  sendUserEmail,
   unbanUser,
+  unbanUserFromPosting,
   updateUser,
   updateUserPrivacy,
 } from "@/lib/data/api";
@@ -102,6 +112,9 @@ export function UserDetailView({
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [pendingRole, setPendingRole] = React.useState<PendingRoleChange | null>(null);
   const [pickedBadgeId, setPickedBadgeId] = React.useState("");
+  const [emailOpen, setEmailOpen] = React.useState(false);
+  const [resettingPassword, setResettingPassword] = React.useState(false);
+  const [postingBanOpen, setPostingBanOpen] = React.useState(false);
 
   const name = userDisplayName(user);
   const awardable = allBadges.filter((b) => !badges.some((a) => a.badge_id === b.id));
@@ -124,6 +137,16 @@ export function UserDetailView({
       logAction("Edited profile", name);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Couldn't save profile changes"));
+    }
+  }
+
+  async function toggleAmbassador() {
+    try {
+      const updated = await updateUser(user.id, { is_ambassador: !user.is_ambassador });
+      setUser(updated);
+      logAction(updated.is_ambassador ? "Marked ambassador" : "Unmarked ambassador", name);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't update ambassador status"));
     }
   }
 
@@ -218,6 +241,55 @@ export function UserDetailView({
     }
   }
 
+  async function sendPasswordReset() {
+    setResettingPassword(true);
+    try {
+      await resetUserPassword(user.id);
+      toast.success(`Password reset email sent to ${user.email ?? name}`);
+      logAction("Sent password reset email", name);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't send the reset email"));
+    } finally {
+      setResettingPassword(false);
+    }
+  }
+
+  async function sendEmail(values: { subject: string; body: string }) {
+    try {
+      await sendUserEmail(user.id, values);
+      toast.success(`Email sent to ${user.email ?? name}`);
+      logAction(`Sent email "${values.subject}"`, name);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't send this email"));
+    } finally {
+      setEmailOpen(false);
+    }
+  }
+
+  async function banFromPosting(reason: string) {
+    try {
+      await banUserFromPosting(user.id, reason);
+      setUser((u) => ({ ...u, posting_banned: true, posting_ban_reason: reason }));
+      toast.success(`${name} banned from posting`);
+      logAction("Banned user from posting", `${name} — ${reason}`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't ban this user from posting"));
+    } finally {
+      setPostingBanOpen(false);
+    }
+  }
+
+  async function unbanFromPosting() {
+    try {
+      await unbanUserFromPosting(user.id);
+      setUser((u) => ({ ...u, posting_banned: false, posting_ban_reason: null }));
+      toast.success(`${name} can post again`);
+      logAction("Unbanned user from posting", name);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't lift this posting ban"));
+    }
+  }
+
   async function unpairDevice(deviceId: string) {
     try {
       await adminUnpairDevice(deviceId);
@@ -264,6 +336,7 @@ export function UserDetailView({
       <div className="flex flex-wrap items-start justify-between gap-4 pb-5">
         <div className="flex items-center gap-3">
           <Avatar className="size-12">
+            {user.photo_url && <AvatarImage src={user.photo_url} alt={name} />}
             <AvatarFallback className="text-base">{initials(name)}</AvatarFallback>
           </Avatar>
           <div>
@@ -272,12 +345,16 @@ export function UserDetailView({
               <RoleBadge role={user.role} />
               <AccountStatusBadge user={user} />
               <SubscriptionBadge subscription={user.subscription} />
+              {user.posting_banned && <UiBadge className="bg-destructive/12 text-destructive">Posting banned</UiBadge>}
             </div>
             <p className="text-sm text-muted-foreground">
               {user.email ?? `@${user.username}`} {"·"} joined {formatDate(user.created_at)}
             </p>
             {user.banned && user.ban_reason && (
               <p className="mt-1 text-sm text-destructive">Ban reason: {user.ban_reason}</p>
+            )}
+            {user.posting_banned && user.posting_ban_reason && (
+              <p className="mt-1 text-sm text-destructive">Posting ban reason: {user.posting_ban_reason}</p>
             )}
           </div>
         </div>
@@ -287,6 +364,12 @@ export function UserDetailView({
             {/* Routine actions */}
             <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
               <PencilSimple size={14} /> Edit profile
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)}>
+              <EnvelopeSimple size={14} /> Send email
+            </Button>
+            <Button variant="outline" size="sm" onClick={sendPasswordReset} disabled={resettingPassword}>
+              <Key size={14} /> Reset password
             </Button>
             {hasComp ? (
               <Button variant="outline" size="sm" onClick={revokePremium}>
@@ -309,6 +392,15 @@ export function UserDetailView({
                 <SelectItem value="super_admin">{ROLE_LABEL.super_admin}</SelectItem>
               </SelectContent>
             </Select>
+            {user.posting_banned ? (
+              <Button variant="outline" size="sm" onClick={unbanFromPosting}>
+                <CheckCircle size={14} /> Unban from posting
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setPostingBanOpen(true)}>
+                <ProhibitInset size={14} /> Ban from posting
+              </Button>
+            )}
             {user.banned ? (
               <Button variant="outline" size="sm" onClick={unban}>
                 <CheckCircle size={14} /> Unban
@@ -348,6 +440,15 @@ export function UserDetailView({
               <DetailRow label="Units" value={titleCase(user.units)} />
               <DetailRow label="Daily goal" value={`${formatNumber(user.daily_goal_steps)} steps`} />
               <DetailRow label="Date of birth" value={user.date_of_birth ? formatDate(user.date_of_birth) : "—"} />
+              <DetailRow
+                label="Why they use Strolla"
+                value={user.reasons.length > 0 ? user.reasons.map(titleCase).join(", ") : "—"}
+              />
+              <DetailRow label="Onboarding" value={user.onboarding_complete ? "Complete" : "Incomplete"} />
+              <div className="flex items-center justify-between border-b border-border py-1.5 last:border-0">
+                <span className="text-sm text-muted-foreground">Ambassador</span>
+                <Switch checked={user.is_ambassador} onCheckedChange={toggleAmbassador} />
+              </div>
             </CardContent>
           </Card>
           <Card className="border-border shadow-none">
@@ -566,6 +667,12 @@ export function UserDetailView({
       <BanUserDialog user={banOpen ? user : null} onOpenChange={setBanOpen} onConfirm={ban} />
       <DeleteAccountDialog user={user} open={deleteOpen} onOpenChange={setDeleteOpen} onConfirm={deleteAccount} />
       <RoleChangeDialog pending={pendingRole} onOpenChange={(open) => !open && setPendingRole(null)} onConfirm={confirmRoleChange} />
+      <SendEmailDialog user={emailOpen ? user : null} onOpenChange={setEmailOpen} onConfirm={sendEmail} />
+      <BanFromPostingDialog
+        target={postingBanOpen ? { userId: user.id, userName: name } : null}
+        onOpenChange={setPostingBanOpen}
+        onConfirm={banFromPosting}
+      />
     </div>
   );
 }

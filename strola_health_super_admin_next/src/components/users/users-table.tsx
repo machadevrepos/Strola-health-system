@@ -15,6 +15,8 @@ import {
   CaretRight,
   X,
   CircleNotch,
+  Key,
+  EnvelopeSimple,
 } from "@phosphor-icons/react";
 import {
   AlertDialog,
@@ -37,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,9 +49,10 @@ import {
 import { AccountStatusBadge, RoleBadge, SubscriptionBadge } from "@/components/shell/status-badges";
 import { BanUserDialog } from "@/components/users/ban-user-dialog";
 import { GrantPremiumConfirmDialog, type PendingGrant } from "@/components/users/grant-premium-confirm-dialog";
+import { SendEmailDialog } from "@/components/users/send-email-dialog";
 import { formatDate, initials } from "@/lib/format";
 import { hasAdminGrantedPremium, userDisplayName as displayName } from "@/lib/data/queries";
-import { banUser, grantPremium, revokePremium, unbanUser } from "@/lib/data/api";
+import { banUser, grantPremium, resetUserPassword, revokePremium, sendUserEmail, unbanUser } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
 import { logAction } from "@/lib/audit-log-store";
 import type { UserProfile } from "@/lib/types";
@@ -111,6 +114,7 @@ export function UsersTable({ users: initialUsers }: { users: UserProfile[] }) {
   const [role, setRole] = React.useState<RoleFilter>("all");
   const [status, setStatus] = React.useState<StatusFilter>("all");
   const [banTarget, setBanTarget] = React.useState<UserProfile | null>(null);
+  const [emailTarget, setEmailTarget] = React.useState<UserProfile | null>(null);
   const [pendingGrant, setPendingGrant] = React.useState<PendingGrant | null>(null);
   const [grantTargetId, setGrantTargetId] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -212,6 +216,29 @@ export function UsersTable({ users: initialUsers }: { users: UserProfile[] }) {
       logAction("Terminated premium", displayName(user));
     } catch (err) {
       toast.error(apiErrorMessage(err, "Couldn't revoke premium"));
+    }
+  }
+
+  async function sendPasswordReset(user: UserProfile) {
+    try {
+      await resetUserPassword(user.id);
+      toast.success(`Password reset email sent to ${displayName(user)}`);
+      logAction("Sent password reset email", displayName(user));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't send the reset email"));
+    }
+  }
+
+  async function sendEmail(values: { subject: string; body: string }) {
+    if (!emailTarget) return;
+    try {
+      await sendUserEmail(emailTarget.id, values);
+      toast.success(`Email sent to ${displayName(emailTarget)}`);
+      logAction(`Sent email "${values.subject}"`, displayName(emailTarget));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't send this email"));
+    } finally {
+      setEmailTarget(null);
     }
   }
 
@@ -327,6 +354,7 @@ export function UsersTable({ users: initialUsers }: { users: UserProfile[] }) {
                 <TableCell>
                   <div className="flex items-center gap-2.5">
                     <Avatar className="size-8">
+                      {u.photo_url && <AvatarImage src={u.photo_url} alt={displayName(u)} />}
                       <AvatarFallback className="text-xs">{initials(displayName(u))}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
@@ -357,6 +385,16 @@ export function UsersTable({ users: initialUsers }: { users: UserProfile[] }) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem render={<Link href={`/users/${u.id}`} />}>View profile</DropdownMenuItem>
+                      {!u.deleted && (
+                        <DropdownMenuItem onClick={() => setEmailTarget(u)}>
+                          <EnvelopeSimple size={14} /> Send email
+                        </DropdownMenuItem>
+                      )}
+                      {!u.deleted && (
+                        <DropdownMenuItem onClick={() => sendPasswordReset(u)}>
+                          <Key size={14} /> Reset password
+                        </DropdownMenuItem>
+                      )}
                       {!u.deleted && !u.banned && (
                         <DropdownMenuItem variant="destructive" onClick={() => setBanTarget(u)}>
                           <Prohibit size={14} /> Ban user
@@ -432,6 +470,8 @@ export function UsersTable({ users: initialUsers }: { users: UserProfile[] }) {
         }}
         onConfirm={confirmGrantPremium}
       />
+
+      <SendEmailDialog user={emailTarget} onOpenChange={(open) => !open && setEmailTarget(null)} onConfirm={sendEmail} />
 
       <AlertDialog open={bulkBanOpen} onOpenChange={(open) => !bulkBanning && setBulkBanOpen(open)}>
         <AlertDialogContent>

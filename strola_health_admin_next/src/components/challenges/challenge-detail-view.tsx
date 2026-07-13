@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Trophy, UserMinus, Star, Lock, Globe, CircleNotch } from "@phosphor-icons/react";
+import { ArrowLeft, Trophy, UserMinus, Star, Lock, Globe, CircleNotch, Copy } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,12 @@ export function ChallengeDetailView({
         <ArrowLeft size={14} /> All challenges
       </Link>
 
+      {challenge.image_url && (
+        <div className="relative mb-4 h-40 w-full overflow-hidden rounded-lg sm:h-56">
+          <Image src={challenge.image_url} alt="" fill className="object-cover" sizes="100vw" />
+        </div>
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-3 pb-5">
         <div className="flex items-center gap-3">
           <span className="text-3xl">{challenge.badge_emoji}</span>
@@ -81,14 +88,46 @@ export function ChallengeDetailView({
             <p className="text-sm text-muted-foreground">{challenge.description}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <ChallengeStatusBadge status={status} />
+        <div className="flex flex-wrap items-center gap-2">
+          {challenge.status === "draft" && <Badge variant="outline">Draft</Badge>}
+          {challenge.status === "archived" && <Badge variant="secondary">Archived</Badge>}
+          {challenge.status === "published" && <ChallengeStatusBadge status={status} />}
           <Badge variant="outline" className="gap-1">
             {challenge.visibility === "private" ? <Lock size={11} /> : <Globe size={11} />}
             {challenge.visibility}
           </Badge>
         </div>
       </div>
+
+      {challenge.visibility === "private" && challenge.invite_code && (
+        <Card className="mb-4 border-border shadow-none">
+          <CardContent className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-medium text-foreground">Invite code</h3>
+              <p className="mt-0.5 font-mono text-sm text-muted-foreground">{challenge.invite_code}</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(challenge.invite_code!);
+                toast.success("Invite code copied");
+              }}
+            >
+              <Copy size={14} /> Copy
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {challenge.rules && (
+        <Card className="mb-4 border-border shadow-none">
+          <CardContent>
+            <h3 className="mb-1.5 text-sm font-medium text-foreground">Rules</h3>
+            <p className="text-sm text-muted-foreground">{challenge.rules}</p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="border-border p-3 shadow-none">

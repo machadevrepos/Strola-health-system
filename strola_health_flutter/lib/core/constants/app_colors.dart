@@ -12,6 +12,7 @@ class AppColors {
   static const Color accent = Color(0xFFE07A7A);
   static const Color accentGlow = Color(0x33E07A7A);
   static const Color accentSecondary = Color(0xFFF6B1B1); // soft blush
+  static const Color accentDeep = Color(0xFFC1495F); // deep rose — overflow lap ring
 
   // ── Goal hit — warm amber ─────────────────────────────────────────────────
   static const Color goalAmber = Color(0xFFE9B44C);

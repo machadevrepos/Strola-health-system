@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Plus, DotsThree, PencilSimple, Trash, CircleNotch } from "@phosphor-icons/react";
+import { Plus, DotsThree, PencilSimple, Trash, CircleNotch, EyeSlash } from "@phosphor-icons/react";
+import { Badge as UiBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,9 +23,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { BadgeFormDialog, type BadgeFormValues } from "@/components/challenges/badge-form-dialog";
+import { BadgeFormDialog, METRIC_LABEL, type BadgeFormValues } from "@/components/challenges/badge-form-dialog";
 import { logAction } from "@/lib/audit-log-store";
 import { ApiError } from "@/lib/api-client";
+import { formatNumber } from "@/lib/format";
 import { createBadge as apiCreateBadge, deleteBadge as apiDeleteBadge, updateBadge } from "@/lib/data/api";
 import type { Badge as BadgeT } from "@/lib/types";
 
@@ -87,6 +90,16 @@ export function BadgesGrid({
     }
   }
 
+  async function toggleEnabled(badge: BadgeT, enabled: boolean) {
+    try {
+      const updated = await updateBadge(badge.id, { enabled });
+      setBadges((prev) => prev.map((b) => (b.id === badge.id ? updated : b)));
+      logAction(enabled ? "Enabled badge" : "Disabled badge", badge.name);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't update this badge"));
+    }
+  }
+
   return (
     <div>
       <div className="mb-3 flex justify-end">
@@ -103,7 +116,14 @@ export function BadgesGrid({
                 <div className="flex items-center gap-2.5">
                   <span className="text-2xl">{b.emoji}</span>
                   <div>
-                    <p className="text-sm font-medium text-foreground">{b.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-foreground">{b.name}</p>
+                      {!b.visible && (
+                        <UiBadge variant="outline" className="gap-1 text-[10px]">
+                          <EyeSlash size={10} /> Hidden
+                        </UiBadge>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">{awardCounts[b.id] ?? 0} awarded</p>
                   </div>
                 </div>
@@ -124,6 +144,13 @@ export function BadgesGrid({
                 </DropdownMenu>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">{b.description}</p>
+              <p className="mt-2 font-mono text-xs text-muted-foreground">
+                {METRIC_LABEL[b.requirement_metric]} ≥ {formatNumber(b.requirement_value)}
+              </p>
+              <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+                <span className="text-xs text-muted-foreground">Enabled</span>
+                <Switch size="sm" checked={b.enabled} onCheckedChange={(v) => toggleEnabled(b, !!v)} />
+              </div>
             </CardContent>
           </Card>
         ))}

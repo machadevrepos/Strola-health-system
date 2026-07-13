@@ -7,6 +7,13 @@ import {
   Users,
   ShieldWarning,
   Trophy,
+  BellRinging,
+  Crown,
+  LinkSimple,
+  TextAa,
+  ChartBar,
+  Scales,
+  Megaphone,
   GearSix,
   MagnifyingGlass,
 } from "@phosphor-icons/react";
@@ -28,6 +35,13 @@ const DESTINATIONS = [
   { href: "/users", label: "Users", icon: Users },
   { href: "/moderation", label: "Moderation", icon: ShieldWarning },
   { href: "/challenges", label: "Challenges & Badges", icon: Trophy },
+  { href: "/premium", label: "Premium", icon: Crown },
+  { href: "/notifications", label: "Push Notifications", icon: BellRinging },
+  { href: "/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/connected-apps", label: "Connected Apps", icon: LinkSimple },
+  { href: "/app-content", label: "App Content", icon: TextAa },
+  { href: "/analytics", label: "Analytics", icon: ChartBar },
+  { href: "/legal", label: "Legal", icon: Scales },
   { href: "/settings", label: "Settings", icon: GearSix },
 ];
 

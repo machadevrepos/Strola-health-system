@@ -3,12 +3,18 @@
 import { PageHeader } from "@/components/shell/page-header";
 import { PageError, PageLoading } from "@/components/shell/page-states";
 import { SettingsView } from "@/components/settings/settings-view";
-import { fetchAllDevices, fetchFeatureFlags, fetchUsers } from "@/lib/data/api";
+import { fetchAllDevices, fetchAppSettings, fetchBetaOverrides, fetchFeatureFlags, fetchUsers } from "@/lib/data/api";
 import { useApiData } from "@/lib/use-api-data";
 
 async function loadSettings() {
-  const [devices, flags, users] = await Promise.all([fetchAllDevices(), fetchFeatureFlags(), fetchUsers()]);
-  return { devices, flags, users };
+  const [devices, flags, users, appSettings, betaOverrides] = await Promise.all([
+    fetchAllDevices(),
+    fetchFeatureFlags(),
+    fetchUsers(),
+    fetchAppSettings(),
+    fetchBetaOverrides(),
+  ]);
+  return { devices, flags, users, appSettings, betaOverrides };
 }
 
 export default function SettingsPage() {

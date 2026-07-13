@@ -56,6 +56,16 @@ export interface UserProfile {
   subscription: Subscription;
   banned: boolean;
   ban_reason: string | null;
+  // Lighter than `banned` — the account itself stays active (still counts
+  // steps, joins challenges, etc.) but can't create posts or comments.
+  // Distinct action for a community-only problem that doesn't warrant a
+  // full account suspension.
+  posting_banned: boolean;
+  posting_ban_reason: string | null;
+  // Named cohort for beta access — see BetaOverride's "ambassador" target
+  // type, which grants a feature to every user with this set rather than
+  // one at a time.
+  is_ambassador: boolean;
   deleted: boolean;
   deleted_at: string | null;
   created_at: string;
@@ -76,6 +86,10 @@ export interface Device {
   last_seen_at: string | null;
   battery_level: number | null;
   created_at: string;
+  // Set when a unit is retired via "Mark replaced" (warranty swap, lost
+  // unit, etc.) — distinct from a never-assigned in-stock device, which has
+  // this null and no owner either.
+  replaced_at: string | null;
 }
 
 export type ActivityType =
@@ -172,6 +186,17 @@ export interface CommunityPost {
   badge_emoji: string | null;
   image_url: string | null;
   moderation: ModerationInfo;
+  pinned: boolean;
+  comments_locked: boolean;
+}
+
+export interface CommunityComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  content: string;
+  timestamp: string;
+  hidden: boolean;
 }
 
 export type ReportTargetType = "post" | "user";
@@ -192,6 +217,19 @@ export interface Report {
 
 export type ChallengeVisibility = "public" | "private";
 
+// Draft: being set up, not visible to users yet. Published: live — every
+// challenge that existed before this field was added is backfilled as
+// published in mock-data.ts. Archived: kept for the "Completed Public
+// Challenges" historical record, no longer editable in the normal flow.
+export type ChallengeLifecycleStatus = "draft" | "published" | "archived";
+
+// How a winner is determined once the challenge ends. Most-steps is the raw
+// cumulative total; goal-completion-% relates each participant's steps to
+// their own locked_daily_goal, so someone with a lower personal goal can
+// still "win" by comfortably clearing it, not just whoever walked most in
+// absolute terms.
+export type ChallengeWinnerType = "most_steps" | "goal_completion_pct";
+
 export interface Challenge {
   id: string;
   title: string;
@@ -206,6 +244,16 @@ export interface Challenge {
   invite_code: string | null;
   created_by: string | null;
   created_at: string;
+  image_url: string | null;
+  rules: string | null;
+  winner_type: ChallengeWinnerType;
+  status: ChallengeLifecycleStatus;
+  // Defaults to whoever leads by `winner_type` once the challenge ends —
+  // editable afterward for "edit winner information if needed" (e.g. a
+  // disqualification discovered after the fact).
+  winner_user_id: string | null;
+  // Free-text, admin-only — never shown to users.
+  admin_notes: string | null;
 }
 
 export interface ChallengeParticipant {
@@ -218,11 +266,35 @@ export interface ChallengeParticipant {
   left_at: string | null;
 }
 
+// The metric a badge's requirement is checked against — kept small and
+// closed rather than free text, so the app can actually evaluate "has this
+// user met the requirement" instead of a description that only means
+// something to a human reader. Extend this list (not the description) when
+// the client wants a new kind of requirement.
+export type BadgeRequirementMetric =
+  | "total_steps"
+  | "session_steps"
+  | "streak_days"
+  | "challenges_completed"
+  | "early_morning_sessions"
+  | "community_posts";
+
 export interface Badge {
   id: string;
   name: string;
   description: string;
   emoji: string;
+  requirement_metric: BadgeRequirementMetric;
+  // Threshold for requirement_metric, e.g. 100_000 for "100k Steps" —
+  // editable so the client can raise "100k Steps" to "150k Steps" without an
+  // app release, per her own example.
+  requirement_value: number;
+  // Whether the badge can currently be earned at all.
+  enabled: boolean;
+  // Whether an unearned badge is shown to users as a locked/upcoming goal —
+  // a badge can be enabled (past awards stand) but hidden from the catalog
+  // while still being decided on.
+  visible: boolean;
   created_at: string;
 }
 
@@ -262,4 +334,126 @@ export interface FeatureFlag {
   required_tier: SubscriptionTier;
   description: string | null;
   updated_at: string;
+}
+
+// There's no real crash-reporting pipeline (Crashlytics/Sentry) wired in
+// yet — this type exists purely so the Dashboard's "Recent app crashes" stat
+// has a real shape to point at once one is. Mock data only for now.
+export interface CrashReport {
+  id: string;
+  user_id: string | null;
+  platform: "ios" | "android";
+  app_version: string;
+  summary: string;
+  occurred_at: string;
+}
+
+// Global defaults the app falls back to — a single row, not a list, since
+// there's exactly one of these at a time (unlike feature flags, which are
+// per-feature).
+export interface AppSettings {
+  default_daily_goal_steps: number;
+  challenge_default_duration_days: number;
+  challenge_default_goal_steps: number;
+  notify_goal_reminder_default: boolean;
+  notify_streak_default: boolean;
+  notify_challenge_updates_default: boolean;
+  max_image_size_mb: number;
+  max_post_length: number;
+  max_bio_length: number;
+  updated_at: string;
+}
+
+// Grants a feature to a specific slice of users without touching the global
+// FeatureFlag gate everyone else sees — the client's "enable beta features
+// for specific users/emails/ambassadors without affecting everyone else."
+export type BetaOverrideTargetType = "user_id" | "email" | "ambassador";
+
+export interface BetaOverride {
+  id: string;
+  feature_key: string; // matches FeatureFlag.key
+  target_type: BetaOverrideTargetType;
+  // A user id or an email for the first two target types; unused (empty) for
+  // "ambassador", since that grants every is_ambassador user at once.
+  target_value: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+// A message the app shows once per user on open — the client's own examples
+// are a challenge launch and a new-feature announcement, so this is
+// deliberately simple free text + emoji rather than a structured template
+// system.
+export interface Announcement {
+  id: string;
+  emoji: string;
+  message: string;
+  // Optional deep-link destination inside the app, e.g. "challenge_of_month"
+  // or "community" — lets a "Join now" message actually take the user
+  // somewhere.
+  link_target: string | null;
+  active: boolean;
+  starts_at: string;
+  // Null = show indefinitely until deactivated.
+  ends_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export type LegalDocumentType = "privacy_policy" | "terms" | "community_guidelines";
+
+export interface LegalDocument {
+  type: LegalDocumentType;
+  version: number;
+  content: string;
+  updated_at: string;
+  // True only for the version that was published with a forced re-accept —
+  // the app blocks usage until the user accepts again. A routine copy fix
+  // doesn't need this; a material change to what users agreed to does.
+  requires_reaccept: boolean;
+}
+
+// A single piece of app copy the client can edit without a developer or app
+// release. `key` is what the Flutter app would look this up by — everything
+// else is presentation for this editor.
+export type AppContentCategory =
+  | "welcome_messages"
+  | "challenge_descriptions"
+  | "motivational_quotes"
+  | "notification_text"
+  | "empty_states";
+
+export interface AppContentEntry {
+  key: string;
+  category: AppContentCategory;
+  label: string;
+  value: string;
+  updated_at: string;
+}
+
+// Every audience the client asked to be able to target. "everyone" and the
+// tier/geography ones are derived straight from UserProfile; the last two
+// (challenge_participants, tracker_owners) need the participant/device
+// collections too — see `segmentAudienceIds` in queries.ts.
+export type PushSegment =
+  | "everyone"
+  | "premium"
+  | "free"
+  | "canada"
+  | "usa"
+  | "inactive_30d"
+  | "challenge_participants"
+  | "tracker_owners";
+
+// No real push provider (FCM) wired in yet — sending just records history
+// and reports the audience size it would have reached, computed at send
+// time from the same mock collections the segment picker itself reads.
+export interface PushNotification {
+  id: string;
+  segment: PushSegment;
+  title: string;
+  body: string;
+  recipient_count: number;
+  sent_by: string | null;
+  sent_at: string;
 }
