@@ -64,6 +64,9 @@ export function ChallengeDetailView({
   }
 
   const active = participants.filter((p) => !p.left_at);
+  // No "goal" concept — challenges are won by most steps, so progress is
+  // shown relative to whoever's currently leading, not an arbitrary target.
+  const leaderSteps = participants[0]?.steps ?? 0;
 
   return (
     <div>
@@ -129,11 +132,7 @@ export function ChallengeDetailView({
         </Card>
       )}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="border-border p-3 shadow-none">
-          <p className="text-xs text-muted-foreground">Goal</p>
-          <p className="font-mono text-lg font-semibold text-foreground">{formatNumber(challenge.goal_steps)}</p>
-        </Card>
+      <div className="mb-4 grid grid-cols-3 gap-3">
         <Card className="border-border p-3 shadow-none">
           <p className="text-xs text-muted-foreground">Participants</p>
           <p className="font-mono text-lg font-semibold text-foreground">{active.length}</p>
@@ -163,7 +162,7 @@ export function ChallengeDetailView({
                   <TableHead className="w-10">#</TableHead>
                   <TableHead>Participant</TableHead>
                   <TableHead>Steps</TableHead>
-                  <TableHead>Progress</TableHead>
+                  <TableHead>% of leader</TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-10" />
@@ -183,11 +182,16 @@ export function ChallengeDetailView({
                     </TableCell>
                     <TableCell className="font-mono">{formatNumber(p.steps)}</TableCell>
                     <TableCell className="w-32">
-                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-primary"
-                          style={{ width: `${Math.min(100, Math.round((p.steps / challenge.goal_steps) * 100))}%` }}
-                        />
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-primary"
+                            style={{ width: `${leaderSteps > 0 ? Math.round((p.steps / leaderSteps) * 100) : 0}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {leaderSteps > 0 ? Math.round((p.steps / leaderSteps) * 100) : 0}%
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{formatDate(p.joined_at)}</TableCell>

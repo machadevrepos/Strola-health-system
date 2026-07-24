@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PencilSimple, Trophy, Star } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ export function CompletedChallengesPanel({
   challenges: Challenge[];
   leaderboardsByChallenge: Record<string, EnrichedParticipant[]>;
 }) {
+  const router = useRouter();
   const [challenges, setChallenges] = React.useState(initialChallenges);
   const [editTarget, setEditTarget] = React.useState<Challenge | null>(null);
 
@@ -62,7 +64,11 @@ export function CompletedChallengesPanel({
         const leaderboard = leaderboardsByChallenge[c.id] ?? [];
         const winner = c.winner_user_id ? leaderboard.find((p) => p.user_id === c.winner_user_id) : undefined;
         return (
-          <Card key={c.id} className="border-border shadow-none">
+          <Card
+            key={c.id}
+            className="cursor-pointer border-border shadow-none transition-colors hover:bg-muted/50"
+            onClick={() => router.push(`/challenges/${c.id}`)}
+          >
             <CardContent>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5">
@@ -77,7 +83,14 @@ export function CompletedChallengesPanel({
                     </p>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setEditTarget(c)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditTarget(c);
+                  }}
+                >
                   <PencilSimple size={14} /> Edit winner
                 </Button>
               </div>

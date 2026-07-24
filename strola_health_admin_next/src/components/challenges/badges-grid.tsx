@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { BadgeFormDialog, METRIC_LABEL, type BadgeFormValues } from "@/components/challenges/badge-form-dialog";
+import { HexBadge, hexBadgePropsForBadge } from "@/components/challenges/hex-badge";
 import { logAction } from "@/lib/audit-log-store";
 import { ApiError } from "@/lib/api-client";
 import { formatNumber } from "@/lib/format";
@@ -110,11 +111,11 @@ export function BadgesGrid({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {badges.map((b) => (
-          <Card key={b.id} className="border-border shadow-none">
-            <CardContent>
+          <Card key={b.id} className="flex h-full flex-col border-border shadow-none">
+            <CardContent className="flex flex-1 flex-col">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">{b.emoji}</span>
+                  <HexBadge {...hexBadgePropsForBadge(b)} />
                   <div>
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium text-foreground">{b.name}</p>
@@ -143,11 +144,11 @@ export function BadgesGrid({
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">{b.description}</p>
+              <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{b.description}</p>
               <p className="mt-2 font-mono text-xs text-muted-foreground">
                 {METRIC_LABEL[b.requirement_metric]} ≥ {formatNumber(b.requirement_value)}
               </p>
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+              <div className="mt-auto flex items-center justify-between border-t border-border pt-3">
                 <span className="text-xs text-muted-foreground">Enabled</span>
                 <Switch size="sm" checked={b.enabled} onCheckedChange={(v) => toggleEnabled(b, !!v)} />
               </div>

@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -22,12 +23,15 @@ import {
 import { userDisplayName } from "@/lib/data/queries";
 import type { UserProfile } from "@/lib/types";
 
+// `days: null` means lifetime — no expiry to compute.
 const PRESETS = [
-  { label: "7 days", days: 7 },
-  { label: "30 days", days: 30 },
-  { label: "90 days", days: 90 },
-  { label: "6 months (Kickstarter)", days: 182 },
-];
+  { label: "7 days", days: 7, reason: "admin_grant" },
+  { label: "30 days", days: 30, reason: "admin_grant" },
+  { label: "90 days", days: 90, reason: "admin_grant" },
+  { label: "6 months (Kickstarter)", days: 182, reason: "kickstarter_backer" },
+  { label: "1 year (beta tester)", days: 365, reason: "beta_tester" },
+  { label: "Lifetime", days: null, reason: "lifetime_grant" },
+] as const;
 
 export function GrantPremiumToUserDialog({
   open,
@@ -38,27 +42,33 @@ export function GrantPremiumToUserDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   candidates: UserProfile[];
-  onGrant: (userId: string, until: Date, reason: string) => void | Promise<void>;
+  onGrant: (userId: string, until: Date | null, reason: string) => void | Promise<void>;
 }) {
   const [userId, setUserId] = React.useState("");
-  const [days, setDays] = React.useState(30);
+  const [presetIndex, setPresetIndex] = React.useState(1);
+  const [reason, setReason] = React.useState<string>(PRESETS[1].reason);
   const [submitting, setSubmitting] = React.useState(false);
 
   React.useEffect(() => {
     if (open) {
       setUserId("");
-      setDays(30);
+      setPresetIndex(1);
+      setReason(PRESETS[1].reason);
     }
   }, [open]);
 
+  function selectPreset(index: number) {
+    setPresetIndex(index);
+    setReason(PRESETS[index].reason);
+  }
+
   async function handleGrant() {
-    if (!userId) return;
+    if (!userId || reason.trim().length === 0) return;
     setSubmitting(true);
-    const until = new Date();
-    until.setDate(until.getDate() + days);
-    const reason = days === 182 ? "kickstarter_backer" : "admin_grant";
+    const days = PRESETS[presetIndex].days;
+    const until = days === null ? null : new Date(Date.now() + days * 86_400_000);
     try {
-      await onGrant(userId, until, reason);
+      await onGrant(userId, until, reason.trim());
     } finally {
       setSubmitting(false);
     }
@@ -91,25 +101,34 @@ export function GrantPremiumToUserDialog({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="grant-period">Comp period</Label>
-            <Select value={String(days)} onValueChange={(v) => v && setDays(Number(v))}>
+            <Select value={String(presetIndex)} onValueChange={(v) => v && selectPreset(Number(v))}>
               <SelectTrigger id="grant-period">
-                <SelectValue>{PRESETS.find((p) => p.days === days)?.label}</SelectValue>
+                <SelectValue>{PRESETS[presetIndex].label}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {PRESETS.map((p) => (
-                  <SelectItem key={p.days} value={String(p.days)}>
+                {PRESETS.map((p, i) => (
+                  <SelectItem key={p.label} value={String(i)}>
                     {p.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="grant-reason">Reason (visible to other admins, and on their profile)</Label>
+            <Input
+              id="grant-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. beta_tester, kickstarter_backer, customer support goodwill..."
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button disabled={!userId || submitting} onClick={handleGrant}>
+          <Button disabled={!userId || reason.trim().length === 0 || submitting} onClick={handleGrant}>
             {submitting && <CircleNotch size={14} className="animate-spin" />}
             Grant premium
           </Button>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CircleNotch, ShieldWarning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
+import { setAuditLogActor } from "@/lib/audit-log-store";
 import type { Role } from "@/lib/types";
 
 export function RequireRole({ allow, children }: { allow: Role[]; children: React.ReactNode }) {
@@ -14,6 +15,10 @@ export function RequireRole({ allow, children }: { allow: Role[]; children: Reac
   React.useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
+
+  React.useEffect(() => {
+    if (user) setAuditLogActor(user.displayName || user.email || "Unknown");
+  }, [user]);
 
   if (loading || !user) {
     return (

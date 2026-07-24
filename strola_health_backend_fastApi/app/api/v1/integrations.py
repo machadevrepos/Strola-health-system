@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
 
 from app.api.deps import (
     get_activity_service,
@@ -25,6 +26,14 @@ router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 _ON_DEVICE_SOURCES = {DataSource.healthkit, DataSource.health_connect}
 
+# The mobile app registers this scheme natively (see android/app/src/main/
+# AndroidManifest.xml and ios/Runner/Info.plist) and opens the OAuth flow via
+# flutter_web_auth_2, which waits for a redirect to this scheme to close the
+# in-app browser and hand the result back to Dart. Redirecting here (rather
+# than returning JSON, which `flutter_web_auth_2` cannot detect) is what
+# makes that handoff possible.
+_APP_CALLBACK_SCHEME = "strolahealth"
+
 
 @router.get("", response_model=list[IntegrationConnection])
 def list_my_integrations(
@@ -46,13 +55,13 @@ def connect(
     return OAuthConnectResponse(authorization_url=adapter.get_authorization_url(current.id))
 
 
-@router.get("/{provider}/callback", response_model=IntegrationConnection)
+@router.get("/{provider}/callback")
 def callback(
     provider: DataSource,
     code: str,
     state: str,
     providers: dict = Depends(get_oauth_providers),
-) -> IntegrationConnection:
+) -> RedirectResponse:
     """No `get_current_user` dependency here on purpose: this request comes
     from the provider's own redirect (typically inside a webview), not from
     our authenticated app, so there's no Bearer token to rely on. `state`
@@ -60,11 +69,23 @@ def callback(
     URL. For production hardening, swap the raw user id for a signed/random
     state token mapped server-side, to rule out state-forgery — left as the
     raw id for now since these adapters are still stubbed pending API
-    credentials anyway."""
+    credentials anyway.
+
+    Redirects back into the app instead of returning the connection as JSON
+    — see `_APP_CALLBACK_SCHEME`."""
     adapter = providers.get(provider)
     if not adapter:
         raise HTTPException(status_code=400, detail=f"{provider.value} is not a connectable OAuth provider")
-    return adapter.handle_callback(state, code)
+    try:
+        adapter.handle_callback(state, code)
+        status_param = "success"
+    except NotImplementedError:
+        status_param = "pending_credentials"
+    except Exception:
+        status_param = "error"
+    return RedirectResponse(
+        f"{_APP_CALLBACK_SCHEME}://oauth-callback?provider={provider.value}&status={status_param}"
+    )
 
 
 @router.post("/{provider}/webhook")

@@ -1,40 +1,65 @@
 "use client";
 
 import Link from "next/link";
-import { Users, ShieldWarning, Image as ImageIcon, DeviceMobile, Crown, Trophy, ChatCircleText, Warning } from "@phosphor-icons/react";
+import {
+  Users,
+  ShieldWarning,
+  DeviceMobile,
+  Crown,
+  Trophy,
+  ChatCircleText,
+  Warning,
+  CurrencyGbp,
+  UserPlus,
+  UserMinus,
+  Headset,
+  Wrench,
+  Trash,
+} from "@phosphor-icons/react";
 import { PageHeader } from "@/components/shell/page-header";
 import { StatCard } from "@/components/shell/stat-card";
 import { PageError, PageLoading } from "@/components/shell/page-states";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DauTrendChart } from "@/components/charts/dau-trend-chart";
-import { FunnelChart } from "@/components/charts/funnel-chart";
+import { DauRangeCard } from "@/components/charts/dau-range-card";
 import { SubscriptionDonut } from "@/components/charts/subscription-donut";
 import {
+  fetchAccountDeletionRequests,
   fetchAllDevices,
   fetchAnalyticsEvents,
+  fetchAppSettings,
   fetchChallenges,
   fetchCrashReports,
+  fetchFirmwareFailures,
   fetchPosts,
   fetchReports,
+  fetchSupportTickets,
   fetchUsers,
 } from "@/lib/data/api";
-import { dailyActiveUsers, overviewTotals, subscriptionMix, workoutFunnel } from "@/lib/data/queries";
+import { NEEDS_ATTENTION_LABEL, needsAttentionItems, overviewTotals, subscriptionMix } from "@/lib/data/queries";
+import type { NeedsAttentionCategory, NeedsAttentionItem } from "@/lib/data/queries";
 import { useApiData } from "@/lib/use-api-data";
-import { formatNumber, formatRelative } from "@/lib/format";
+import { formatCurrencyGBP, formatNumber, formatRelative, formatSignedPercent } from "@/lib/format";
 import type { CrashReport } from "@/lib/types";
 
 async function loadOverview() {
-  const [users, reports, posts, challenges, devices, events, crashes] = await Promise.all([
-    fetchUsers(),
-    fetchReports(),
-    fetchPosts(),
-    fetchChallenges(),
-    fetchAllDevices(),
-    fetchAnalyticsEvents(30),
-    fetchCrashReports(5),
-  ]);
-  return { users, reports, posts, challenges, devices, events, crashes };
+  const [users, reports, posts, challenges, devices, events, crashes, tickets, firmwareFailures, deletionRequests, appSettings] =
+    await Promise.all([
+      fetchUsers(),
+      fetchReports(),
+      fetchPosts(),
+      fetchChallenges(),
+      fetchAllDevices(),
+      // A full year so the DAU chart's 30/90/365-day toggle always has real
+      // data — overviewTotals' own 7/30-day windows work the same either way.
+      fetchAnalyticsEvents(365),
+      fetchCrashReports(5),
+      fetchSupportTickets(),
+      fetchFirmwareFailures(),
+      fetchAccountDeletionRequests(),
+      fetchAppSettings(),
+    ]);
+  return { users, reports, posts, challenges, devices, events, crashes, tickets, firmwareFailures, deletionRequests, appSettings };
 }
 
 export default function OverviewPage() {
@@ -62,51 +87,67 @@ function OverviewContent({
   devices,
   events,
   crashes,
+  tickets,
+  firmwareFailures,
+  deletionRequests,
+  appSettings,
 }: Awaited<ReturnType<typeof loadOverview>>) {
-  const totals = overviewTotals({ users, reports, posts, challenges, devices, events });
-  const dau = dailyActiveUsers(events, 30);
-  const funnel = workoutFunnel(events, 30);
+  const totals = overviewTotals({ users, reports, posts, challenges, devices, events }, appSettings.premium_monthly_price_gbp);
   const mix = subscriptionMix(users);
-  const recentReports = reports.filter((r) => r.status === "open").slice(0, 4);
+  const attentionItems = needsAttentionItems({ reports, tickets, firmwareFailures, deletionRequests, devices });
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label="Total users" value={formatNumber(totals.totalUsers)} icon={<Users size={16} />} />
-        <StatCard label="Active today" value={formatNumber(totals.dauToday)} icon={<Users size={16} />} />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+        <StatCard
+          label="Total users"
+          value={formatNumber(totals.totalUsers)}
+          trendLabel={formatSignedPercent(totals.totalUsersGrowthPct)}
+          hint="vs last month"
+          icon={<Users size={16} />}
+        />
+        <StatCard label="Daily active users" value={formatNumber(totals.dauToday)} icon={<Users size={16} />} />
         <StatCard label="Active this week" value={formatNumber(totals.activeThisWeek)} icon={<Users size={16} />} />
         <StatCard label="Active this month" value={formatNumber(totals.activeThisMonth)} icon={<Users size={16} />} />
-        <StatCard label="New signups" value={formatNumber(totals.newSignups7d)} hint="last 7 days" icon={<Users size={16} />} />
+        <StatCard
+          label="New signups"
+          value={formatNumber(totals.newSignups7d)}
+          trendLabel={formatSignedPercent(totals.newSignupsGrowthPct)}
+          hint="last 7 days, vs prior week"
+          icon={<Users size={16} />}
+        />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Premium subscribers" value={formatNumber(totals.premiumSubscribers)} icon={<Crown size={16} />} />
-        <StatCard label="Active challenges" value={totals.activeChallenges} icon={<Trophy size={16} />} />
         <StatCard
-          label="Devices paired"
+          label="Active challenges"
+          value={totals.activeChallenges}
+          hint="includes private challenges"
+          icon={<Trophy size={16} />}
+        />
+        <StatCard
+          label="Trackers connected"
           value={`${totals.pairedDevices}/${totals.totalDevices}`}
           icon={<DeviceMobile size={16} />}
         />
         <StatCard label="Posts today" value={totals.postsToday} icon={<ChatCircleText size={16} />} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           label="Open reports"
           value={totals.openReports}
           tone={totals.openReports > 0 ? "danger" : "default"}
           icon={<ShieldWarning size={16} />}
         />
-        <StatCard label="Hidden posts" value={totals.hiddenPosts} icon={<ImageIcon size={16} />} />
+        <StatCard label="Monthly recurring revenue" value={formatCurrencyGBP(totals.mrr)} icon={<CurrencyGbp size={16} />} />
+        <StatCard label="New premium subs" value={formatNumber(totals.newPremiumThisMonth)} hint="this month" icon={<UserPlus size={16} />} />
+        <StatCard label="Cancelled subs" value={formatNumber(totals.cancelledPremiumThisMonth)} hint="this month" icon={<UserMinus size={16} />} />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <Card className="border-border shadow-none lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Daily active users</CardTitle>
-            <CardDescription>Last 30 days, from app_opened events.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DauTrendChart data={dau} />
-          </CardContent>
-        </Card>
+        <DauRangeCard events={events} />
 
         <Card className="border-border shadow-none">
           <CardHeader>
@@ -119,51 +160,82 @@ function OverviewContent({
         </Card>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <Card className="border-border shadow-none lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Workout funnel</CardTitle>
-            <CardDescription>Started vs. completed, last 30 days.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FunnelChart data={funnel} />
-          </CardContent>
-        </Card>
-
-        <Card className="border-border shadow-none">
-          <CardHeader className="flex-row items-center justify-between [&>div]:contents">
-            <div>
-              <CardTitle>Needs attention</CardTitle>
-              <CardDescription>Open reports, oldest first.</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {recentReports.length === 0 && (
-              <p className="text-sm text-muted-foreground">No open reports. Nice and quiet.</p>
-            )}
-            {recentReports.map((r) => (
-              <Link
-                key={r.id}
-                href="/moderation"
-                className="block rounded-md border border-border p-2.5 text-sm transition-colors hover:bg-muted"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <Badge variant="outline" className="text-[11px]">
-                    {r.target_type === "post" ? "Post" : "User"}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">{formatRelative(r.created_at)}</span>
-                </div>
-                <p className="mt-1.5 line-clamp-2 text-muted-foreground">{r.reason}</p>
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
+      <div className="mt-3">
+        <NeedsAttentionCard items={attentionItems} />
       </div>
 
       <div className="mt-3">
         <RecentCrashesCard crashes={crashes} />
       </div>
     </>
+  );
+}
+
+const NEEDS_ATTENTION_ICON: Record<NeedsAttentionCategory, typeof ShieldWarning> = {
+  report: ShieldWarning,
+  support_ticket: Headset,
+  firmware_failure: Wrench,
+  deletion_request: Trash,
+};
+
+function NeedsAttentionCard({ items }: { items: NeedsAttentionItem[] }) {
+  const counts = items.reduce(
+    (acc, item) => {
+      acc[item.category] += 1;
+      return acc;
+    },
+    { report: 0, support_ticket: 0, firmware_failure: 0, deletion_request: 0 } as Record<NeedsAttentionCategory, number>
+  );
+
+  return (
+    <Card className="border-border shadow-none">
+      <CardHeader>
+        <CardTitle>Needs attention</CardTitle>
+        <CardDescription>Open reports, support tickets, failed firmware updates, and pending deletion requests.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {(Object.keys(NEEDS_ATTENTION_LABEL) as NeedsAttentionCategory[]).map((category) => {
+            const Icon = NEEDS_ATTENTION_ICON[category];
+            return (
+              <StatCard
+                key={category}
+                label={NEEDS_ATTENTION_LABEL[category]}
+                value={counts[category]}
+                tone={counts[category] > 0 ? "danger" : "default"}
+                icon={<Icon size={16} />}
+              />
+            );
+          })}
+        </div>
+
+        <div className="space-y-3">
+          {items.length === 0 && <p className="text-sm text-muted-foreground">All clear. Nice and quiet.</p>}
+          {items.slice(0, 6).map((item) => {
+            const row = (
+              <div className="flex items-center justify-between gap-2">
+                <Badge variant="outline" className="text-[11px]">
+                  {NEEDS_ATTENTION_LABEL[item.category]}
+                </Badge>
+                <span className="text-xs text-muted-foreground">{formatRelative(item.timestamp)}</span>
+              </div>
+            );
+            const className = "block rounded-md border border-border p-2.5 text-sm transition-colors hover:bg-muted";
+            return item.href ? (
+              <Link key={item.id} href={item.href} className={className}>
+                {row}
+                <p className="mt-1.5 line-clamp-2 text-muted-foreground">{item.title}</p>
+              </Link>
+            ) : (
+              <div key={item.id} className="rounded-md border border-border p-2.5 text-sm">
+                {row}
+                <p className="mt-1.5 line-clamp-2 text-muted-foreground">{item.title}</p>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { ClockCounterClockwise } from "@phosphor-icons/react";
 import { useAuditLog } from "@/lib/audit-log-store";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, initials } from "@/lib/format";
 
 export function ActivityLogPanel() {
   const entries = useAuditLog((s) => s.entries);
@@ -20,17 +20,19 @@ export function ActivityLogPanel() {
   }
 
   return (
-    <div className="space-y-1">
-      {entries.map((entry) => (
-        <div key={entry.id} className="flex items-start gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted">
-          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
-          <div className="min-w-0 flex-1">
-            <p className="text-foreground">
-              <span className="font-medium">{entry.actor}</span> {entry.action.toLowerCase()}
-              {entry.target && <span className="text-muted-foreground"> — {entry.target}</span>}
-            </p>
+    <div>
+      {entries.map((entry, i) => (
+        <div key={entry.id} className="relative flex gap-3 pb-5 last:pb-0">
+          {i < entries.length - 1 && <span className="absolute top-8 bottom-0 left-[15px] w-px bg-border" aria-hidden />}
+          <div className="z-10 flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-foreground">
+            {initials(entry.actor)}
           </div>
-          <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(entry.timestamp)}</span>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <p className="text-sm font-semibold text-foreground">{entry.actor}</p>
+            <p className="text-sm text-foreground">{entry.action}</p>
+            {entry.target && <p className="mt-0.5 text-xs text-muted-foreground">{entry.target}</p>}
+          </div>
+          <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">{formatDateTime(entry.timestamp)}</span>
         </div>
       ))}
     </div>

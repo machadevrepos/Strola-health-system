@@ -137,25 +137,82 @@ export function PostsPanel({
         </span>
       </div>
 
-      <div className="space-y-2">
-        {filtered.length === 0 && (
-          <p className="py-10 text-center text-sm text-muted-foreground">No posts match these filters.</p>
-        )}
+      {filtered.length === 0 && (
+        <p className="py-10 text-center text-sm text-muted-foreground">No posts match these filters.</p>
+      )}
+
+      <div className="columns-1 gap-3 sm:columns-2 xl:columns-3">
         {visible.map((post) => (
           <div
             key={post.id}
-            className="flex gap-3 rounded-lg border border-border p-3"
+            className="mb-3 break-inside-avoid rounded-lg border border-border p-3"
             data-hidden={post.moderation.hidden}
           >
-            <Avatar className="size-9 shrink-0">
-              <AvatarFallback className="text-xs">{initials(userDisplayName(post.author))}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Link href={`/users/${post.author_id}`} className="text-sm font-medium text-foreground hover:underline">
-                  {userDisplayName(post.author)}
-                </Link>
-                <span className="text-xs text-muted-foreground">{formatRelative(post.timestamp)}</span>
+                <Avatar className="size-8 shrink-0">
+                  <AvatarFallback className="text-xs">{initials(userDisplayName(post.author))}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <Link href={`/users/${post.author_id}`} className="text-sm font-medium text-foreground hover:underline">
+                    {userDisplayName(post.author)}
+                  </Link>
+                  <p className="text-xs text-muted-foreground">{formatRelative(post.timestamp)}</p>
+                </div>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="h-fit shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      aria-label="Post actions"
+                    />
+                  }
+                >
+                  <DotsThree size={18} weight="bold" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setEditTarget(post)}>
+                    <PencilSimple size={14} /> Edit content
+                  </DropdownMenuItem>
+                  {post.image_url && (
+                    <DropdownMenuItem onClick={() => onRemovePhoto(post.id)}>
+                      <ImageBroken size={14} /> Remove photo
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => onTogglePin(post.id, !post.pinned)}>
+                    {post.pinned ? <PushPinSlash size={14} /> : <PushPin size={14} />}
+                    {post.pinned ? "Unpin post" : "Pin post"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onToggleCommentsLocked(post.id, !post.comments_locked)}>
+                    {post.comments_locked ? <LockSimpleOpen size={14} /> : <LockSimple size={14} />}
+                    {post.comments_locked ? "Unlock comments" : "Lock comments"}
+                  </DropdownMenuItem>
+                  {post.moderation.hidden ? (
+                    <DropdownMenuItem onClick={() => onUnhide(post.id)}>
+                      <Eye size={14} /> Unhide
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={() => setHideTarget(post)}>
+                      <EyeSlash size={14} /> Hide
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setBanTarget({ userId: post.author_id, userName: userDisplayName(post.author) })}
+                  >
+                    <ProhibitInset size={14} /> Ban author from posting
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(post)}>
+                    <Trash size={14} /> Delete permanently
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {(post.pinned || post.comments_locked || post.moderation.hidden) && (
+              <div className="mt-2 flex flex-wrap gap-1">
                 {post.pinned && (
                   <Badge variant="outline" className="gap-1">
                     <PushPin size={11} weight="fill" /> Pinned
@@ -168,75 +225,27 @@ export function PostsPanel({
                 )}
                 {post.moderation.hidden && <Badge variant="destructive">Hidden</Badge>}
               </div>
-              <p className="mt-1 text-sm text-foreground">{post.content}</p>
-              {post.image_url && (
-                <div className="relative mt-2 h-40 w-64 overflow-hidden rounded-md">
-                  <Image src={post.image_url} alt="" fill className="object-cover" sizes="256px" />
-                </div>
-              )}
-              {post.moderation.hidden && post.moderation.hidden_reason && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Hidden reason: <span className="text-foreground">{post.moderation.hidden_reason}</span>
-                </p>
-              )}
-              <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1"><Heart size={13} /> {post.likes_count}</span>
-                <span className="flex items-center gap-1"><ChatCircle size={13} /> {post.comments_count}</span>
-                {post.step_count != null && (
-                  <span className="font-mono">{post.step_count.toLocaleString("en-GB")} steps</span>
-                )}
-                {post.badge_emoji && <span>{post.badge_emoji}</span>}
+            )}
+
+            <p className="mt-2 text-sm text-foreground">{post.content}</p>
+            {post.image_url && (
+              <div className="relative mt-2 w-full overflow-hidden rounded-md">
+                <Image src={post.image_url} alt="" width={800} height={500} className="h-auto w-full object-cover" sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw" />
               </div>
+            )}
+            {post.moderation.hidden && post.moderation.hidden_reason && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Hidden reason: <span className="text-foreground">{post.moderation.hidden_reason}</span>
+              </p>
+            )}
+            <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><Heart size={13} /> {post.likes_count}</span>
+              <span className="flex items-center gap-1"><ChatCircle size={13} /> {post.comments_count}</span>
+              {post.step_count != null && (
+                <span className="font-mono">{post.step_count.toLocaleString("en-GB")} steps</span>
+              )}
+              {post.badge_emoji && <span>{post.badge_emoji}</span>}
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    className="h-fit rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    aria-label="Post actions"
-                  />
-                }
-              >
-                <DotsThree size={18} weight="bold" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setEditTarget(post)}>
-                  <PencilSimple size={14} /> Edit content
-                </DropdownMenuItem>
-                {post.image_url && (
-                  <DropdownMenuItem onClick={() => onRemovePhoto(post.id)}>
-                    <ImageBroken size={14} /> Remove photo
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => onTogglePin(post.id, !post.pinned)}>
-                  {post.pinned ? <PushPinSlash size={14} /> : <PushPin size={14} />}
-                  {post.pinned ? "Unpin post" : "Pin post"}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onToggleCommentsLocked(post.id, !post.comments_locked)}>
-                  {post.comments_locked ? <LockSimpleOpen size={14} /> : <LockSimple size={14} />}
-                  {post.comments_locked ? "Unlock comments" : "Lock comments"}
-                </DropdownMenuItem>
-                {post.moderation.hidden ? (
-                  <DropdownMenuItem onClick={() => onUnhide(post.id)}>
-                    <Eye size={14} /> Unhide
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={() => setHideTarget(post)}>
-                    <EyeSlash size={14} /> Hide
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setBanTarget({ userId: post.author_id, userName: userDisplayName(post.author) })}
-                >
-                  <ProhibitInset size={14} /> Ban author from posting
-                </DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(post)}>
-                  <Trash size={14} /> Delete permanently
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         ))}
       </div>

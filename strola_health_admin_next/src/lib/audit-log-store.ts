@@ -17,23 +17,28 @@ export interface AuditLogEntry {
   timestamp: string;
 }
 
-// Stand-in for the signed-in staff member until real Firebase Auth is wired
-// up — matches the same placeholder used in the sidebar.
-const CURRENT_OPERATOR = "Maya Whitfield";
+// Fallback only for the brief window before RequireRole's effect has synced
+// the real signed-in user in (see `setAuditLogActor`) — should never be
+// what actually shows up in a logged entry in practice.
+const UNKNOWN_OPERATOR = "Unknown";
 
 interface AuditLogState {
+  actor: string;
   entries: AuditLogEntry[];
+  setActor: (actor: string) => void;
   log: (action: string, target: string) => void;
 }
 
-export const useAuditLog = create<AuditLogState>((set) => ({
+export const useAuditLog = create<AuditLogState>((set, get) => ({
+  actor: UNKNOWN_OPERATOR,
   entries: [],
+  setActor: (actor) => set({ actor }),
   log: (action, target) =>
     set((state) => ({
       entries: [
         {
           id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          actor: CURRENT_OPERATOR,
+          actor: get().actor,
           action,
           target,
           timestamp: new Date().toISOString(),
@@ -42,6 +47,13 @@ export const useAuditLog = create<AuditLogState>((set) => ({
       ].slice(0, 200),
     })),
 }));
+
+// Called once from RequireRole with the real signed-in user's name, so every
+// entry `logAction` records after that reflects who's actually signed in —
+// not a hardcoded placeholder.
+export function setAuditLogActor(actor: string) {
+  useAuditLog.getState().setActor(actor);
+}
 
 export function logAction(action: string, target: string) {
   useAuditLog.getState().log(action, target);

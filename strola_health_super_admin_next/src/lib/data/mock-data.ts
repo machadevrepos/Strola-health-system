@@ -1,4 +1,5 @@
 import type {
+  AccountDeletionRequest,
   AnalyticsEvent,
   AnalyticsEventType,
   Announcement,
@@ -14,11 +15,15 @@ import type {
   DailyActivitySummary,
   Device,
   FeatureFlag,
+  FirmwareUpdateFailure,
   IntegrationConnection,
-  LegalDocument,
+  LegalAcceptance,
+  LegalDocumentVersion,
   PushNotification,
   Report,
+  SupportTicket,
   UserBadge,
+  UserNote,
   UserProfile,
   WorkoutSession,
 } from "@/lib/types";
@@ -46,6 +51,7 @@ interface UserSeed {
   username: string;
   name: string;
   location?: string;
+  country?: string;
   bio?: string;
   gender: UserProfile["gender"];
   height_cm: number;
@@ -59,36 +65,55 @@ interface UserSeed {
   postingBanned?: boolean;
   postingBanReason?: string;
   isAmbassador?: boolean;
+  platform?: "ios" | "android";
+  deviceModel?: string;
+  appVersion?: string;
+  tags?: string[];
   deleted?: boolean;
   reasons?: UserProfile["reasons"];
 }
 
 const userSeeds: UserSeed[] = [
-  { id: "usr_001", email: "priya.shah@gmail.com", username: "priya.walks", name: "Priya Shah", location: "Leeds, UK", bio: "Recovering from a knee injury, taking it one walk at a time.", gender: "female", height_cm: 163, weight_kg: 61, daily_goal_steps: 6000, role: "user", createdDaysAgo: 188, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-9) }, reasons: ["accurate_tracking"] },
-  { id: "usr_002", email: "tom.brennan@outlook.com", username: "tombrennan", name: "Tom Brennan", location: "Bristol, UK", gender: "male", height_cm: 179, weight_kg: 82, daily_goal_steps: 10000, role: "user", createdDaysAgo: 142, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-3), comp_reason: "signup_trial" } },
-  { id: "usr_003", email: "sarah.mwangi@yahoo.com", username: "sarah.m", name: "Sarah Mwangi", location: "Manchester, UK", bio: "Stroller walks with a 7-month-old most mornings.", gender: "female", height_cm: 168, weight_kg: 64, daily_goal_steps: 8000, role: "user", createdDaysAgo: 96, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-21) }, reasons: ["stroller_wagon"] },
-  { id: "usr_004", email: "j.kowalczyk88@gmail.com", username: "jkowalczyk", name: "James Kowalczyk", location: "Sheffield, UK", gender: "male", height_cm: 174, weight_kg: 76, daily_goal_steps: 12000, role: "user", createdDaysAgo: 211, subscription: { tier: "free", status: "expired" } },
-  { id: "usr_005", email: "mei.lin.99@gmail.com", username: "mei.lin", name: "Mei Lin", location: "Birmingham, UK", bio: "Walking pad at my desk, every single day.", gender: "female", height_cm: 159, weight_kg: 55, daily_goal_steps: 9000, role: "user", createdDaysAgo: 64, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-26), comp_reason: "signup_trial" }, reasons: ["walking_pad"] },
-  { id: "usr_006", email: "dan.holloway@hotmail.com", username: "dan.h", name: "Dan Holloway", location: "Edinburgh, UK", gender: "male", height_cm: 183, weight_kg: 88, daily_goal_steps: 10000, role: "user", createdDaysAgo: 301, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-14) } },
-  { id: "usr_007", email: "alex.reyes@gmail.com", username: "alex.r", name: "Alex Reyes", location: "Cardiff, UK", gender: "other", height_cm: 171, weight_kg: 69, daily_goal_steps: 15000, role: "user", createdDaysAgo: 47, subscription: { tier: "premium", status: "active", comp_until: daysAgo(-150), comp_reason: "kickstarter_backer" }, isAmbassador: true },
-  { id: "usr_008", email: "fatima.hussain22@gmail.com", username: "fatima.h", name: "Fatima Hussain", location: "Glasgow, UK", bio: "Night-shift A&E nurse, can't wear a watch on the ward.", gender: "female", height_cm: 165, weight_kg: 60, daily_goal_steps: 7000, role: "user", createdDaysAgo: 33, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-4), comp_reason: "signup_trial" }, reasons: ["cant_wear_wearable"] },
-  { id: "usr_009", email: "ollie.fenwick@gmail.com", username: "ollie.fenwick", name: "Ollie Fenwick", location: "Newcastle, UK", gender: "male", height_cm: 177, weight_kg: 79, daily_goal_steps: 10000, role: "user", createdDaysAgo: 19, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-26), comp_reason: "signup_trial" } },
-  { id: "usr_010", email: "ruth.adeyemi@gmail.com", username: "ruth.a", name: "Ruth Adeyemi", location: "London, UK", gender: "female", height_cm: 170, weight_kg: 67, daily_goal_steps: 8500, role: "user", createdDaysAgo: 5, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-25), comp_reason: "signup_trial" } },
-  { id: "usr_011", email: "marcus.webb@protonmail.com", username: "marcus.webb", name: "Marcus Webb", location: "Liverpool, UK", gender: "male", height_cm: 181, weight_kg: 91, daily_goal_steps: 10000, role: "user", createdDaysAgo: 220, subscription: { tier: "free", status: "expired" }, banned: true, ban_reason: "Repeated harassment in community comments after two prior warnings." },
-  { id: "usr_012", email: "lena.kovac@gmail.com", username: "lena.k", name: "Lena Kovac", location: "Nottingham, UK", gender: "female", height_cm: 162, weight_kg: 58, daily_goal_steps: 9500, role: "user", createdDaysAgo: 78, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-2) } },
+  { id: "usr_001", email: "priya.shah@gmail.com", username: "priya.walks", name: "Priya Shah", location: "Leeds, UK", country: "United Kingdom", bio: "Recovering from a knee injury, taking it one walk at a time.", gender: "female", height_cm: 163, weight_kg: 61, daily_goal_steps: 6000, role: "user", createdDaysAgo: 188, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-9) }, reasons: ["accurate_tracking"], platform: "ios", deviceModel: "iPhone 14" },
+  { id: "usr_002", email: "tom.brennan@outlook.com", username: "tombrennan", name: "Tom Brennan", location: "Bristol, UK", country: "United Kingdom", gender: "male", height_cm: 179, weight_kg: 82, daily_goal_steps: 10000, role: "user", createdDaysAgo: 142, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-3), comp_reason: "signup_trial" }, platform: "android", deviceModel: "Samsung Galaxy S23", appVersion: "2.3.1" },
+  { id: "usr_003", email: "sarah.mwangi@yahoo.com", username: "sarah.m", name: "Sarah Mwangi", location: "Manchester, UK", country: "United Kingdom", bio: "Stroller walks with a 7-month-old most mornings.", gender: "female", height_cm: 168, weight_kg: 64, daily_goal_steps: 8000, role: "user", createdDaysAgo: 96, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-21) }, reasons: ["stroller_wagon"], platform: "ios", deviceModel: "iPhone 13" },
+  { id: "usr_004", email: "j.kowalczyk88@gmail.com", username: "jkowalczyk", name: "James Kowalczyk", location: "Sheffield, UK", country: "United Kingdom", gender: "male", height_cm: 174, weight_kg: 76, daily_goal_steps: 12000, role: "user", createdDaysAgo: 211, subscription: { tier: "free", status: "expired" }, platform: "android", deviceModel: "Google Pixel 7", appVersion: "2.2.0" },
+  { id: "usr_005", email: "mei.lin.99@gmail.com", username: "mei.lin", name: "Mei Lin", location: "Birmingham, UK", country: "United Kingdom", bio: "Walking pad at my desk, every single day.", gender: "female", height_cm: 159, weight_kg: 55, daily_goal_steps: 9000, role: "user", createdDaysAgo: 64, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-26), comp_reason: "signup_trial" }, reasons: ["walking_pad"], platform: "ios", deviceModel: "iPhone 12" },
+  { id: "usr_006", email: "dan.holloway@hotmail.com", username: "dan.h", name: "Dan Holloway", location: "Edinburgh, UK", country: "United Kingdom", gender: "male", height_cm: 183, weight_kg: 88, daily_goal_steps: 10000, role: "user", createdDaysAgo: 301, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-14) }, platform: "android", deviceModel: "Samsung Galaxy S22" },
+  { id: "usr_007", email: "alex.reyes@gmail.com", username: "alex.r", name: "Alex Reyes", location: "Cardiff, UK", country: "United Kingdom", gender: "other", height_cm: 171, weight_kg: 69, daily_goal_steps: 15000, role: "user", createdDaysAgo: 47, subscription: { tier: "premium", status: "active", comp_until: daysAgo(-150), comp_reason: "kickstarter_backer" }, isAmbassador: true, platform: "ios", deviceModel: "iPhone 15 Pro", tags: ["kickstarter"] },
+  { id: "usr_008", email: "fatima.hussain22@gmail.com", username: "fatima.h", name: "Fatima Hussain", location: "Glasgow, UK", country: "United Kingdom", bio: "Night-shift A&E nurse, can't wear a watch on the ward.", gender: "female", height_cm: 165, weight_kg: 60, daily_goal_steps: 7000, role: "user", createdDaysAgo: 33, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-4), comp_reason: "signup_trial" }, reasons: ["cant_wear_wearable"], platform: "android", deviceModel: "OnePlus 11", appVersion: "2.3.1" },
+  { id: "usr_009", email: "ollie.fenwick@gmail.com", username: "ollie.fenwick", name: "Ollie Fenwick", location: "Toronto, Canada", country: "Canada", gender: "male", height_cm: 177, weight_kg: 79, daily_goal_steps: 10000, role: "user", createdDaysAgo: 19, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-26), comp_reason: "signup_trial" }, platform: "ios", deviceModel: "iPhone 13 Pro" },
+  { id: "usr_010", email: "ruth.adeyemi@gmail.com", username: "ruth.a", name: "Ruth Adeyemi", location: "London, UK", country: "United Kingdom", gender: "female", height_cm: 170, weight_kg: 67, daily_goal_steps: 8500, role: "user", createdDaysAgo: 5, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-25), comp_reason: "signup_trial" }, platform: "ios", deviceModel: "iPhone 16" },
+  { id: "usr_011", email: "marcus.webb@protonmail.com", username: "marcus.webb", name: "Marcus Webb", location: "Liverpool, UK", country: "United Kingdom", gender: "male", height_cm: 181, weight_kg: 91, daily_goal_steps: 10000, role: "user", createdDaysAgo: 220, subscription: { tier: "free", status: "expired" }, banned: true, ban_reason: "Repeated harassment in community comments after two prior warnings.", platform: "android", deviceModel: "Samsung Galaxy S21", appVersion: "2.2.0" },
+  { id: "usr_012", email: "lena.kovac@gmail.com", username: "lena.k", name: "Lena Kovac", location: "Nottingham, UK", country: "United Kingdom", gender: "female", height_cm: 162, weight_kg: 58, daily_goal_steps: 9500, role: "user", createdDaysAgo: 78, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-2) }, platform: "ios", deviceModel: "iPhone 13 mini", appVersion: "2.3.1" },
   { id: "usr_013", email: "deleted-user-9f2@strolla.health", username: "deleted_9f2a8b1c", name: "Deleted User", gender: "prefer_not_to_say", height_cm: 170, weight_kg: null, daily_goal_steps: 10000, role: "user", createdDaysAgo: 260, subscription: { tier: "free", status: "expired" }, deleted: true },
-  { id: "usr_014", email: "ben.okafor@gmail.com", username: "ben.okafor", name: "Ben Okafor", location: "Leicester, UK", gender: "male", height_cm: 175, weight_kg: 73, daily_goal_steps: 11000, role: "user", createdDaysAgo: 13, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-17), comp_reason: "signup_trial" } },
-  { id: "usr_015", email: "grace.tan@gmail.com", username: "grace.tan", name: "Grace Tan", location: "Southampton, UK", gender: "female", height_cm: 160, weight_kg: 54, daily_goal_steps: 7500, role: "user", createdDaysAgo: 156, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-30) }, isAmbassador: true },
-  { id: "usr_016", email: "support.maya@strollahealth.com", username: "maya.ops", name: "Maya Whitfield", location: "Remote", gender: "female", height_cm: 167, weight_kg: 63, daily_goal_steps: 8000, role: "admin", createdDaysAgo: 305, subscription: { tier: "free", status: "active" } },
-  { id: "usr_017", email: "founder.sarah@strollahealth.com", username: "sarah.founder", name: "Sarah Pemberton", location: "Remote", gender: "female", height_cm: 165, weight_kg: 60, daily_goal_steps: 8000, role: "super_admin", createdDaysAgo: 365, subscription: { tier: "free", status: "active" } },
-  { id: "usr_018", email: "callum.ferris@gmail.com", username: "callum.f", name: "Callum Ferris", location: "Aberdeen, UK", gender: "male", height_cm: 178, weight_kg: 84, daily_goal_steps: 10000, role: "user", createdDaysAgo: 41, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-1), comp_reason: "signup_trial" }, postingBanned: true, postingBanReason: "Repeated 'free premium code' spam links across multiple posts (see rep_001, rep_006)." },
-  { id: "usr_019", email: "isabel.cruz@gmail.com", username: "isabel.cruz", name: "Isabel Cruz", location: "Coventry, UK", gender: "female", height_cm: 158, weight_kg: 52, daily_goal_steps: 6500, role: "user", createdDaysAgo: 9, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-21), comp_reason: "signup_trial" } },
-  { id: "usr_020", email: "harvey.nash@gmail.com", username: "harvey.nash", name: "Harvey Nash", location: "Belfast, UK", gender: "male", height_cm: 172, weight_kg: 70, daily_goal_steps: 10000, role: "user", createdDaysAgo: 2, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-28), comp_reason: "signup_trial" } },
+  { id: "usr_014", email: "ben.okafor@gmail.com", username: "ben.okafor", name: "Ben Okafor", location: "Austin, USA", country: "United States", gender: "male", height_cm: 175, weight_kg: 73, daily_goal_steps: 11000, role: "user", createdDaysAgo: 13, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-17), comp_reason: "signup_trial" }, platform: "ios", deviceModel: "iPhone 15" },
+  { id: "usr_015", email: "grace.tan@gmail.com", username: "grace.tan", name: "Grace Tan", location: "Southampton, UK", country: "United Kingdom", gender: "female", height_cm: 160, weight_kg: 54, daily_goal_steps: 7500, role: "user", createdDaysAgo: 156, subscription: { tier: "premium", status: "active", renews_at: daysAgo(-30) }, isAmbassador: true, platform: "android", deviceModel: "Google Pixel 8 Pro", tags: ["beta_tester"] },
+  { id: "usr_016", email: "support.maya@strollahealth.com", username: "maya.ops", name: "Maya Whitfield", location: "Remote", country: "United Kingdom", gender: "female", height_cm: 167, weight_kg: 63, daily_goal_steps: 8000, role: "admin", createdDaysAgo: 305, subscription: { tier: "free", status: "active" }, platform: "ios", deviceModel: "iPhone 15" },
+  { id: "usr_017", email: "founder.sarah@strollahealth.com", username: "sarah.founder", name: "Sarah Pemberton", location: "Remote", country: "United Kingdom", gender: "female", height_cm: 165, weight_kg: 60, daily_goal_steps: 8000, role: "super_admin", createdDaysAgo: 365, subscription: { tier: "free", status: "active" }, platform: "android", deviceModel: "Samsung Galaxy S24" },
+  // Official brand account — authors posts made from the Community section's
+  // "Post as Strolla Health" composer. Role "admin" so it's excluded from
+  // real-user metrics (signups, DAU, subscriptions) the same way staff are.
+  { id: "usr_024", email: "hello@strollahealth.com", username: "strollahealth", name: "Strolla Health", location: "Remote", country: "United Kingdom", bio: "Official updates, tips, and challenges from the Strolla Health team.", gender: "prefer_not_to_say", height_cm: 170, weight_kg: null, daily_goal_steps: 8000, role: "admin", createdDaysAgo: 365, subscription: { tier: "free", status: "active" }, platform: "ios", deviceModel: "iPhone 15" },
+  { id: "usr_018", email: "callum.ferris@gmail.com", username: "callum.f", name: "Callum Ferris", location: "Aberdeen, UK", country: "United Kingdom", gender: "male", height_cm: 178, weight_kg: 84, daily_goal_steps: 10000, role: "user", createdDaysAgo: 41, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-1), comp_reason: "signup_trial" }, postingBanned: true, postingBanReason: "Repeated 'free premium code' spam links across multiple posts (see rep_001, rep_006).", platform: "ios", deviceModel: "iPhone 12 mini" },
+  { id: "usr_019", email: "isabel.cruz@gmail.com", username: "isabel.cruz", name: "Isabel Cruz", location: "Sydney, Australia", country: "Australia", gender: "female", height_cm: 158, weight_kg: 52, daily_goal_steps: 6500, role: "user", createdDaysAgo: 9, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-21), comp_reason: "signup_trial" }, platform: "android", deviceModel: "Samsung Galaxy S23 Ultra" },
+  { id: "usr_020", email: "harvey.nash@gmail.com", username: "harvey.nash", name: "Harvey Nash", location: "Belfast, UK", country: "United Kingdom", gender: "male", height_cm: 172, weight_kg: 70, daily_goal_steps: 10000, role: "user", createdDaysAgo: 2, subscription: { tier: "free", status: "trialing", comp_until: daysAgo(-28), comp_reason: "signup_trial" }, platform: "ios", deviceModel: "iPhone 14 Pro" },
   // Genuinely free: trial already lapsed, never subscribed, never admin-granted.
-  { id: "usr_021", email: "noah.sinclair@gmail.com", username: "noah.sinclair", name: "Noah Sinclair", location: "York, UK", gender: "male", height_cm: 180, weight_kg: 86, daily_goal_steps: 8000, role: "user", createdDaysAgo: 6, subscription: { tier: "free", status: "expired" } },
-  { id: "usr_022", email: "aisha.begum@gmail.com", username: "aisha.begum", name: "Aisha Begum", location: "Bradford, UK", gender: "female", height_cm: 161, weight_kg: 57, daily_goal_steps: 7000, role: "user", createdDaysAgo: 15, subscription: { tier: "free", status: "expired" } },
-  { id: "usr_023", email: "connor.walsh@gmail.com", username: "connor.walsh", name: "Connor Walsh", location: "Derby, UK", gender: "male", height_cm: 176, weight_kg: 80, daily_goal_steps: 9000, role: "user", createdDaysAgo: 24, subscription: { tier: "free", status: "expired" } },
+  { id: "usr_021", email: "noah.sinclair@gmail.com", username: "noah.sinclair", name: "Noah Sinclair", location: "York, UK", country: "United Kingdom", gender: "male", height_cm: 180, weight_kg: 86, daily_goal_steps: 8000, role: "user", createdDaysAgo: 6, subscription: { tier: "free", status: "expired" }, platform: "android", deviceModel: "Google Pixel 6a" },
+  { id: "usr_022", email: "aisha.begum@gmail.com", username: "aisha.begum", name: "Aisha Begum", location: "Bradford, UK", country: "United Kingdom", gender: "female", height_cm: 161, weight_kg: 57, daily_goal_steps: 7000, role: "user", createdDaysAgo: 15, subscription: { tier: "free", status: "expired" }, platform: "ios", deviceModel: "iPhone 11" },
+  { id: "usr_023", email: "connor.walsh@gmail.com", username: "connor.walsh", name: "Connor Walsh", location: "Derby, UK", country: "United Kingdom", gender: "male", height_cm: 176, weight_kg: 80, daily_goal_steps: 9000, role: "user", createdDaysAgo: 24, subscription: { tier: "free", status: "expired" }, platform: "android", deviceModel: "Samsung Galaxy A54" },
 ];
+
+// Trial subscribers "started" at signup; paying subscribers are assumed to
+// have upgraded partway through their tenure rather than on day one — both
+// synthetic but a closer approximation than defaulting everyone to signup.
+function subscriptionStartedAt(seed: UserSeed): string | null {
+  const tier = seed.subscription.tier ?? "free";
+  const status = seed.subscription.status ?? "trialing";
+  if (status === "trialing") return daysAgo(seed.createdDaysAgo);
+  if (tier === "premium" && status === "active") return daysAgo(Math.max(0, Math.round(seed.createdDaysAgo * 0.3)));
+  return null;
+}
 
 export const mockUsers: UserProfile[] = userSeeds.map((seed) => ({
   id: seed.id,
@@ -96,6 +121,7 @@ export const mockUsers: UserProfile[] = userSeeds.map((seed) => ({
   username: seed.username,
   name: seed.deleted ? "Deleted User" : seed.name,
   location: seed.deleted ? null : seed.location ?? null,
+  country: seed.deleted ? null : seed.country ?? null,
   bio: seed.deleted ? null : seed.bio ?? null,
   // Roughly half the seeded users have a profile photo, the other half
   // don't — mirrors a real user base (not everyone uploads one) and gives
@@ -123,6 +149,7 @@ export const mockUsers: UserProfile[] = userSeeds.map((seed) => ({
   subscription: {
     tier: "free",
     status: "trialing",
+    started_at: subscriptionStartedAt(seed),
     comp_until: null,
     comp_reason: null,
     revenuecat_app_user_id: seed.subscription.status === "active" ? `rc_${seed.id}` : null,
@@ -134,7 +161,12 @@ export const mockUsers: UserProfile[] = userSeeds.map((seed) => ({
   ban_reason: seed.ban_reason ?? null,
   posting_banned: !!seed.postingBanned,
   posting_ban_reason: seed.postingBanReason ?? null,
+  posting_banned_until: null,
   is_ambassador: !!seed.isAmbassador,
+  platform: seed.platform ?? "ios",
+  device_model: seed.deleted ? null : seed.deviceModel ?? null,
+  app_version: seed.appVersion ?? "2.4.0",
+  tags: seed.deleted ? [] : seed.tags ?? [],
   deleted: !!seed.deleted,
   deleted_at: seed.deleted ? daysAgo(40) : null,
   created_at: daysAgo(seed.createdDaysAgo),
@@ -148,14 +180,14 @@ export function getUser(id: string): UserProfile | undefined {
 // --- Devices ------------------------------------------------------------------
 
 export const mockDevices: Device[] = [
-  { id: "dev_001", serial_number: "STR-10042", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:11", firmware_version: "1.4.2", manufacturing_batch: "B-2025-11", owner_user_id: "usr_001", paired_at: daysAgo(180), last_seen_at: daysAgo(0, 7, 40), battery_level: 62, created_at: daysAgo(190), replaced_at: null },
-  { id: "dev_002", serial_number: "STR-10043", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:12", firmware_version: "1.4.2", manufacturing_batch: "B-2025-11", owner_user_id: "usr_003", paired_at: daysAgo(90), last_seen_at: daysAgo(0, 6, 12), battery_level: 88, created_at: daysAgo(190), replaced_at: null },
-  { id: "dev_003", serial_number: "STR-10044", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:13", firmware_version: "1.3.0", manufacturing_batch: "B-2025-11", owner_user_id: "usr_006", paired_at: daysAgo(295), last_seen_at: daysAgo(3, 18, 0), battery_level: 14, created_at: daysAgo(300), replaced_at: null },
-  { id: "dev_004", serial_number: "STR-10045", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: null, manufacturing_batch: "B-2025-12", owner_user_id: null, paired_at: null, last_seen_at: null, battery_level: null, created_at: daysAgo(60), replaced_at: null },
-  { id: "dev_005", serial_number: "STR-10046", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: null, manufacturing_batch: "B-2025-12", owner_user_id: null, paired_at: null, last_seen_at: null, battery_level: null, created_at: daysAgo(60), replaced_at: null },
-  { id: "dev_006", serial_number: "STR-10047", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:16", firmware_version: "1.4.2", manufacturing_batch: "B-2025-12", owner_user_id: "usr_012", paired_at: daysAgo(70), last_seen_at: daysAgo(0, 8, 5), battery_level: 45, created_at: daysAgo(75), replaced_at: null },
-  { id: "dev_007", serial_number: "STR-10048", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:17", firmware_version: "1.2.1", manufacturing_batch: "B-2025-09", owner_user_id: "usr_015", paired_at: daysAgo(150), last_seen_at: daysAgo(12, 9, 0), battery_level: 3, created_at: daysAgo(160), replaced_at: null },
-  { id: "dev_008", serial_number: "STR-10039", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: "1.1.0", manufacturing_batch: "B-2025-08", owner_user_id: null, paired_at: null, last_seen_at: daysAgo(80, 10, 0), battery_level: null, created_at: daysAgo(200), replaced_at: daysAgo(75) },
+  { id: "dev_001", serial_number: "STR-10042", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:11", firmware_version: "1.4.2", manufacturing_batch: "B-2025-11", owner_user_id: "usr_001", paired_at: daysAgo(180), last_seen_at: daysAgo(0, 7, 40), battery_level: 62, last_synced_at: daysAgo(0, 7, 42), created_at: daysAgo(190), replaced_at: null },
+  { id: "dev_002", serial_number: "STR-10043", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:12", firmware_version: "1.4.2", manufacturing_batch: "B-2025-11", owner_user_id: "usr_003", paired_at: daysAgo(90), last_seen_at: daysAgo(0, 6, 12), battery_level: 88, last_synced_at: daysAgo(0, 6, 15), created_at: daysAgo(190), replaced_at: null },
+  { id: "dev_003", serial_number: "STR-10044", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:13", firmware_version: "1.3.0", manufacturing_batch: "B-2025-11", owner_user_id: "usr_006", paired_at: daysAgo(295), last_seen_at: daysAgo(3, 18, 0), battery_level: 14, last_synced_at: daysAgo(6, 10, 0), created_at: daysAgo(300), replaced_at: null },
+  { id: "dev_004", serial_number: "STR-10045", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: null, manufacturing_batch: "B-2025-12", owner_user_id: null, paired_at: null, last_seen_at: null, battery_level: null, last_synced_at: null, created_at: daysAgo(60), replaced_at: null },
+  { id: "dev_005", serial_number: "STR-10046", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: null, manufacturing_batch: "B-2025-12", owner_user_id: null, paired_at: null, last_seen_at: null, battery_level: null, last_synced_at: null, created_at: daysAgo(60), replaced_at: null },
+  { id: "dev_006", serial_number: "STR-10047", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:16", firmware_version: "1.4.2", manufacturing_batch: "B-2025-12", owner_user_id: "usr_012", paired_at: daysAgo(70), last_seen_at: daysAgo(0, 8, 5), battery_level: 45, last_synced_at: daysAgo(2, 14, 0), created_at: daysAgo(75), replaced_at: null },
+  { id: "dev_007", serial_number: "STR-10048", device_type: "strolla_nrf7002", ble_mac: "F2:3A:91:0C:88:17", firmware_version: "1.2.1", manufacturing_batch: "B-2025-09", owner_user_id: "usr_015", paired_at: daysAgo(150), last_seen_at: daysAgo(12, 9, 0), battery_level: 3, last_synced_at: daysAgo(12, 9, 0), created_at: daysAgo(160), replaced_at: null },
+  { id: "dev_008", serial_number: "STR-10039", device_type: "strolla_nrf7002", ble_mac: null, firmware_version: "1.1.0", manufacturing_batch: "B-2025-08", owner_user_id: null, paired_at: null, last_seen_at: daysAgo(80, 10, 0), battery_level: null, last_synced_at: daysAgo(80, 10, 0), created_at: daysAgo(200), replaced_at: daysAgo(75) },
 ];
 
 // --- Workout sessions + daily summaries (featured users only) ---------------
@@ -309,12 +341,12 @@ export const mockComments: CommunityComment[] = commentSeeds.map((seed) => ({
 // --- Reports -------------------------------------------------------------------
 
 export const mockReports: Report[] = [
-  { id: "rep_001", reporter_id: "usr_001", target_type: "post", target_id: "post_011", reason: "This post is advertising a fake 'free premium' link, looks like a phishing attempt.", status: "resolved", resolved_by: "usr_016", resolved_at: daysAgo(4, 15, 0), resolution_note: "Post hidden, author warned via email.", created_at: daysAgo(4, 13, 30) },
-  { id: "rep_002", reporter_id: "usr_007", target_type: "user", target_id: "usr_011", reason: "Keeps leaving harassing comments on other people's step posts, this is the third time I've reported him.", status: "resolved", resolved_by: "usr_016", resolved_at: daysAgo(2, 10, 0), resolution_note: "Account banned after third confirmed incident.", created_at: daysAgo(2, 9, 0) },
-  { id: "rep_003", reporter_id: "usr_003", target_type: "post", target_id: "post_014", reason: "Unfounded accusation that's stirring up the comment section, feels like it's heading toward a pile-on.", status: "open", resolved_by: null, resolved_at: null, resolution_note: null, created_at: daysAgo(6, 11, 20) },
-  { id: "rep_004", reporter_id: "usr_012", target_type: "post", target_id: "post_005", reason: "Calling the app a scam with no basis, discouraging other users in the thread.", status: "open", resolved_by: null, resolved_at: null, resolution_note: null, created_at: daysAgo(1, 16, 40) },
-  { id: "rep_005", reporter_id: "usr_015", target_type: "user", target_id: "usr_009", reason: "Profile photo looks like it might not be theirs, possible impersonation, wanted to flag just in case.", status: "dismissed", resolved_by: "usr_016", resolved_at: daysAgo(3, 9, 0), resolution_note: "Checked, no impersonation, just a stock-style profile photo. No action needed.", created_at: daysAgo(4, 8, 0) },
-  { id: "rep_006", reporter_id: "usr_002", target_type: "post", target_id: "post_011", reason: "Same spam link as another report, posting again under a new comment.", status: "open", resolved_by: null, resolved_at: null, resolution_note: null, created_at: daysAgo(0, 9, 0) },
+  { id: "rep_001", reporter_id: "usr_001", target_type: "post", target_id: "post_011", category: "spam", reason: "This post is advertising a fake 'free premium' link, looks like a phishing attempt.", status: "resolved", action_taken: "warned", resolved_by: "usr_016", resolved_at: daysAgo(4, 15, 0), resolution_note: "Post hidden, author warned via email.", created_at: daysAgo(4, 13, 30) },
+  { id: "rep_002", reporter_id: "usr_007", target_type: "user", target_id: "usr_011", category: "harassment", reason: "Keeps leaving harassing comments on other people's step posts, this is the third time I've reported him.", status: "resolved", action_taken: "banned", resolved_by: "usr_016", resolved_at: daysAgo(2, 10, 0), resolution_note: "Account banned after third confirmed incident.", created_at: daysAgo(2, 9, 0) },
+  { id: "rep_003", reporter_id: "usr_003", target_type: "post", target_id: "post_014", category: "misinformation", reason: "Unfounded accusation that's stirring up the comment section, feels like it's heading toward a pile-on.", status: "open", action_taken: null, resolved_by: null, resolved_at: null, resolution_note: null, created_at: daysAgo(6, 11, 20) },
+  { id: "rep_004", reporter_id: "usr_012", target_type: "post", target_id: "post_005", category: "misinformation", reason: "Calling the app a scam with no basis, discouraging other users in the thread.", status: "open", action_taken: null, resolved_by: null, resolved_at: null, resolution_note: null, created_at: daysAgo(1, 16, 40) },
+  { id: "rep_005", reporter_id: "usr_015", target_type: "user", target_id: "usr_009", category: "other", reason: "Profile photo looks like it might not be theirs, possible impersonation, wanted to flag just in case.", status: "dismissed", action_taken: null, resolved_by: "usr_016", resolved_at: daysAgo(3, 9, 0), resolution_note: "Checked, no impersonation, just a stock-style profile photo. No action needed.", created_at: daysAgo(4, 8, 0) },
+  { id: "rep_006", reporter_id: "usr_002", target_type: "post", target_id: "post_011", category: "spam", reason: "Same spam link as another report, posting again under a new comment.", status: "open", action_taken: null, resolved_by: null, resolved_at: null, resolution_note: null, created_at: daysAgo(0, 9, 0) },
 ];
 
 // --- Challenges + participants -----------------------------------------------
@@ -417,6 +449,24 @@ function buildAnalyticsEvents(): AnalyticsEvent[] {
       events.push({ id: `evt_${counter++}`, event_type: "app_opened", user_id: userId, metadata: {}, created_at: daysAgo(day, 8 + (counter % 12), counter % 60) });
     }
 
+    // Weighted toward Home (every session lands there) down to Profile
+    // (rarely visited) — screens a user might look at in one sitting.
+    const SCREEN_WEIGHTS: { screen: string; weight: number }[] = [
+      { screen: "home", weight: 5 },
+      { screen: "stats", weight: 3 },
+      { screen: "challenges", weight: 2 },
+      { screen: "community", weight: 2 },
+      { screen: "profile", weight: 1 },
+    ];
+    const screenPool = SCREEN_WEIGHTS.flatMap((s) => Array(s.weight).fill(s.screen) as string[]);
+    for (const userId of openedBy) {
+      const visitCount = 1 + (counter % 3);
+      for (let v = 0; v < visitCount; v++) {
+        const screen = pick(screenPool, counter + v * 13);
+        events.push({ id: `evt_${counter++}`, event_type: "screen_viewed", user_id: userId, metadata: { screen }, created_at: daysAgo(day, 8 + (counter % 12), counter % 60) });
+      }
+    }
+
     const startedCount = Math.max(1, Math.round(openedBy.size * 0.55));
     const startedUsers = Array.from(openedBy).slice(0, startedCount);
     for (const userId of startedUsers) {
@@ -475,13 +525,78 @@ export const mockCrashReports: CrashReport[] = [
   { id: "crash_005", user_id: "usr_020", platform: "android", app_version: "1.4.2", summary: "IllegalStateException: fragment not attached to activity (session screen)", occurred_at: daysAgo(4, 7, 15) },
 ];
 
+// --- Support tickets (synthetic — no real Zendesk/Intercom pipeline yet) -----
+
+export const mockSupportTickets: SupportTicket[] = [
+  { id: "tix_001", user_id: "usr_003", subject: "Tracker won't pair after firmware update", status: "open", priority: "high", created_at: daysAgo(0, 9, 20) },
+  { id: "tix_002", user_id: "usr_014", subject: "Charged for premium but app still shows free tier", status: "open", priority: "high", created_at: daysAgo(1, 15, 5) },
+  { id: "tix_003", user_id: "usr_009", subject: "Steps not syncing from Apple Health", status: "open", priority: "medium", created_at: daysAgo(2, 11, 40) },
+  { id: "tix_004", user_id: "usr_005", subject: "How do I export my walking data?", status: "resolved", priority: "low", created_at: daysAgo(6, 10, 0) },
+];
+
+// --- Firmware update failures (synthetic — no real OTA telemetry yet) --------
+
+export const mockFirmwareFailures: FirmwareUpdateFailure[] = [
+  { id: "fw_001", device_id: "dev_003", attempted_version: "1.4.2", error: "Connection dropped mid-flash at 62%", occurred_at: daysAgo(3, 18, 5), resolved: false },
+  { id: "fw_002", device_id: "dev_002", attempted_version: "1.4.2", error: "Battery too low to start update (11%)", occurred_at: daysAgo(5, 8, 30), resolved: true },
+];
+
+// --- Pending account deletion requests (synthetic — self-service delete flow
+// isn't wired to the admin queue yet; admins currently action deletions
+// directly from the user's profile instead) --------------------------------
+
+export const mockAccountDeletionRequests: AccountDeletionRequest[] = [
+  { id: "del_001", user_id: "usr_021", reason: "No longer using the app", requested_at: daysAgo(1, 20, 0), status: "pending" },
+  { id: "del_002", user_id: "usr_022", reason: null, requested_at: daysAgo(4, 13, 15), status: "pending" },
+];
+
+// --- Internal admin notes on user accounts (never shown to the user) ---------
+
+export const mockUserNotes: UserNote[] = [
+  { id: "note_001", user_id: "usr_007", author_id: "usr_016", body: "Kickstarter backer — comp premium is a lifetime perk, don't let it lapse on renewal cleanup scripts.", created_at: daysAgo(45, 10, 0) },
+  { id: "note_002", user_id: "usr_011", author_id: "usr_016", body: "Second harassment complaint filed even before the ban — flag if they ever try to sign up again under a new email.", created_at: daysAgo(220, 9, 30) },
+  { id: "note_003", user_id: "usr_018", author_id: "usr_017", body: "Posting ban was a judgment call — spam links were borderline promotional rather than malicious. Revisit if they appeal.", created_at: daysAgo(40, 15, 0) },
+];
+
 // --- Push notification send history --------------------------------------------
 
 export const mockPushNotifications: PushNotification[] = [
-  { id: "push_001", segment: "everyone", title: "10K Daily Streak is live!", body: "Join now and compete for the top spot this week.", recipient_count: 20, sent_by: "usr_016", sent_at: daysAgo(10, 9, 0) },
-  { id: "push_002", segment: "premium", title: "New: extra stats tabs", body: "Day/week/month breakdowns are now live in your Stats tab.", recipient_count: 8, sent_by: "usr_017", sent_at: daysAgo(25, 14, 30) },
-  { id: "push_003", segment: "inactive_30d", title: "We miss you 👋", body: "Your streak is waiting — even a short walk today keeps it alive.", recipient_count: 4, sent_by: "usr_016", sent_at: daysAgo(6, 11, 0) },
-  { id: "push_004", segment: "tracker_owners", title: "Firmware update available", body: "A small battery-life improvement is ready for your Strolla tracker.", recipient_count: 7, sent_by: "usr_016", sent_at: daysAgo(45, 10, 15) },
+  {
+    id: "push_001", segment: "everyone", title: "10K Daily Streak is live!", body: "Join now and compete for the top spot this week.",
+    link_target: "challenge", link_challenge_id: "chal_001", link_custom_path: null,
+    status: "sent", scheduled_at: null, recipient_count: 20, delivered_count: 19, opened_count: 9,
+    sent_by: "usr_016", created_at: daysAgo(10, 9, 0), sent_at: daysAgo(10, 9, 0),
+  },
+  {
+    id: "push_002", segment: "premium", title: "New: extra stats tabs", body: "Day/week/month breakdowns are now live in your Stats tab.",
+    link_target: "stats", link_challenge_id: null, link_custom_path: null,
+    status: "sent", scheduled_at: null, recipient_count: 8, delivered_count: 8, opened_count: 5,
+    sent_by: "usr_017", created_at: daysAgo(25, 14, 30), sent_at: daysAgo(25, 14, 30),
+  },
+  {
+    id: "push_003", segment: "inactive_30d", title: "We miss you 👋", body: "Your streak is waiting — even a short walk today keeps it alive.",
+    link_target: "none", link_challenge_id: null, link_custom_path: null,
+    status: "sent", scheduled_at: null, recipient_count: 4, delivered_count: 4, opened_count: 1,
+    sent_by: "usr_016", created_at: daysAgo(6, 11, 0), sent_at: daysAgo(6, 11, 0),
+  },
+  {
+    id: "push_004", segment: "tracker_owners", title: "Firmware update available", body: "A small battery-life improvement is ready for your Strolla tracker.",
+    link_target: "none", link_challenge_id: null, link_custom_path: null,
+    status: "sent", scheduled_at: null, recipient_count: 7, delivered_count: 7, opened_count: 4,
+    sent_by: "usr_016", created_at: daysAgo(45, 10, 15), sent_at: daysAgo(45, 10, 15),
+  },
+  {
+    id: "push_005", segment: "everyone", title: "🎉 August Challenge is Live!", body: "Join now and compete for the top spot.",
+    link_target: "challenge", link_challenge_id: "chal_001", link_custom_path: null,
+    status: "draft", scheduled_at: null, recipient_count: 0, delivered_count: 0, opened_count: 0,
+    sent_by: null, created_at: daysAgo(1, 16, 0), sent_at: null,
+  },
+  {
+    id: "push_006", segment: "free", title: "Go premium for extra insights", body: "Unlock day/week/month breakdowns and activity insights this weekend only.",
+    link_target: "premium", link_challenge_id: null, link_custom_path: null,
+    status: "scheduled", scheduled_at: daysAgo(-2, 9, 0), recipient_count: 12, delivered_count: 0, opened_count: 0,
+    sent_by: "usr_016", created_at: daysAgo(2, 13, 0), sent_at: null,
+  },
 ];
 
 // --- Connected apps (per-user platform integrations) ---------------------------
@@ -524,55 +639,170 @@ export const mockIntegrationConnections: IntegrationConnection[] = [
 // --- App content (editable copy, no app release needed) ------------------------
 
 export const mockAppContent: AppContentEntry[] = [
-  { key: "welcome.sign_in_subtitle", category: "welcome_messages", label: "Sign-in screen subtitle", value: "Welcome back — let's keep that streak going.", updated_at: daysAgo(40) },
-  { key: "welcome.onboarding_intro", category: "welcome_messages", label: "Onboarding intro", value: "Strolla makes every step count, whichever way you move.", updated_at: daysAgo(90) },
-  { key: "welcome.first_sync_complete", category: "welcome_messages", label: "First device sync complete", value: "You're all set — your Strolla tracker is live.", updated_at: daysAgo(90) },
+  // --- Onboarding ---------------------------------------------------------
+  { key: "onboarding.intro_slide_1", category: "onboarding", label: "Welcome carousel — slide 1 headline", value: "Every step counts", updated_at: daysAgo(90) },
+  { key: "onboarding.welcome_heading", category: "onboarding", label: "Post-signup welcome heading", value: "Welcome to Strolla, {FirstName}!", updated_at: daysAgo(40) },
+  { key: "onboarding.goal_step_subtitle", category: "onboarding", label: "Daily goal step — subtitle", value: "What's your daily step goal?", updated_at: daysAgo(90) },
 
-  { key: "challenge.default_description", category: "challenge_descriptions", label: "Default challenge description template", value: "Hit the step goal before the challenge ends to earn the badge.", updated_at: daysAgo(60) },
-  { key: "challenge.of_the_month_banner", category: "challenge_descriptions", label: "Challenge of the Month banner", value: "This month's challenge is live — join now and compete for the top spot.", updated_at: daysAgo(10) },
+  // --- Home -----------------------------------------------------------------
+  { key: "home.greeting", category: "home", label: "Home screen greeting header", value: "Good morning, {FirstName}", updated_at: daysAgo(20) },
+  { key: "home.steps_remaining", category: "home", label: "Steps-remaining subtitle", value: "Only {StepsRemaining} steps left today!", updated_at: daysAgo(20) },
+  { key: "home.milestone_reached", category: "home", label: "Daily goal milestone toast", value: "Nice! You just crossed {StepGoal} steps.", updated_at: daysAgo(20) },
 
-  { key: "quote.daily_1", category: "motivational_quotes", label: "Daily quote #1", value: "Small steps every day add up to big changes.", updated_at: daysAgo(200) },
-  { key: "quote.daily_2", category: "motivational_quotes", label: "Daily quote #2", value: "You don't have to go fast, you just have to go.", updated_at: daysAgo(200) },
-  { key: "quote.goal_reached", category: "motivational_quotes", label: "Goal reached quote", value: "Look at you go — goal smashed.", updated_at: daysAgo(150) },
+  // --- Challenges -------------------------------------------------------------
+  { key: "challenges.nav_label", category: "challenges", label: "Bottom-nav tab / section title", value: "Challenges", updated_at: daysAgo(200) },
+  { key: "challenges.of_the_month_banner", category: "challenges", label: "Challenge of the Month banner", value: "This month's challenge is live — join now and compete for the top spot.", updated_at: daysAgo(10) },
+  { key: "challenges.days_left", category: "challenges", label: "Days-remaining chip on a challenge card", value: "{DaysLeft} days left to hit the goal", updated_at: daysAgo(60) },
 
-  { key: "notification.goal_reminder", category: "notification_text", label: "Goal reminder (75%+ of the way there)", value: "You're only a few steps away from today's goal.", updated_at: daysAgo(30) },
-  { key: "notification.goal_achieved", category: "notification_text", label: "Goal achieved", value: "Goal achieved! Nice work today.", updated_at: daysAgo(30) },
-  { key: "notification.streak_3day", category: "notification_text", label: "3-day streak", value: "3-day streak! Keep it going.", updated_at: daysAgo(30) },
-  { key: "notification.low_battery", category: "notification_text", label: "Low battery", value: "Your Strolla battery is running low.", updated_at: daysAgo(30) },
+  // --- Community -----------------------------------------------------------
+  { key: "community.nav_label", category: "community", label: "Bottom-nav tab / section title", value: "Community", updated_at: daysAgo(200) },
+  { key: "community.empty_feed", category: "community", label: "Empty feed message", value: "Nothing here yet — be the first to share how your walk went today.", updated_at: daysAgo(70) },
+  { key: "community.post_composer_placeholder", category: "community", label: "Post composer placeholder", value: "Share how today's walk went...", updated_at: daysAgo(70) },
 
-  { key: "empty.no_activity", category: "empty_states", label: "No activity yet", value: "No activity yet — your first walk will show up here.", updated_at: daysAgo(70) },
-  { key: "empty.no_challenges", category: "empty_states", label: "No challenges joined", value: "You're not in any challenges yet — browse what's live and jump in.", updated_at: daysAgo(70) },
-  { key: "empty.no_community_posts", category: "empty_states", label: "No community posts", value: "Nothing here yet — be the first to share how your walk went today.", updated_at: daysAgo(70) },
+  // --- Errors --------------------------------------------------------------
+  { key: "errors.generic_network", category: "errors", label: "Generic network error", value: "Something went wrong. Check your connection and try again.", updated_at: daysAgo(50) },
+  { key: "errors.session_save_failed", category: "errors", label: "Workout session failed to save", value: "We couldn't save that session. Your data is safe on this device — try again in a moment.", updated_at: daysAgo(50) },
+  { key: "errors.notifications_load_failed", category: "errors", label: "Notifications feed failed to load", value: "Could not load notifications.", updated_at: daysAgo(50) },
+
+  // --- Buttons ---------------------------------------------------------------
+  { key: "buttons.join_challenge", category: "buttons", label: "Join a challenge", value: "Join Challenge", updated_at: daysAgo(200) },
+  { key: "buttons.save", category: "buttons", label: "Generic save action", value: "Save", updated_at: daysAgo(200) },
+  { key: "buttons.upgrade_to_premium", category: "buttons", label: "Premium upsell CTA", value: "Upgrade to Premium", updated_at: daysAgo(90) },
+
+  // --- Settings --------------------------------------------------------------
+  { key: "settings.nav_label", category: "settings", label: "Bottom-nav tab / section title", value: "Settings", updated_at: daysAgo(200) },
+  { key: "settings.edit_profile_row", category: "settings", label: "\"Edit Profile\" row", value: "Edit Profile", updated_at: daysAgo(200) },
+  { key: "settings.units_row", category: "settings", label: "\"Units\" row", value: "Units", updated_at: daysAgo(200) },
+
+  // --- Premium ---------------------------------------------------------------
+  { key: "premium.paywall_headline", category: "premium", label: "Paywall headline", value: "Unlock Strolla Premium", updated_at: daysAgo(90) },
+  { key: "premium.paywall_body", category: "premium", label: "Paywall body copy", value: "Get day/week/month breakdowns, activity insights, and more.", updated_at: daysAgo(90) },
+  { key: "premium.trial_reminder", category: "premium", label: "Trial-ending reminder", value: "Your trial ends in {DaysLeft} days.", updated_at: daysAgo(30) },
+
+  // --- Notifications -----------------------------------------------------
+  { key: "notifications.goal_reminder", category: "notifications", label: "Goal reminder push (75%+ of the way there)", value: "You're only {StepsRemaining} steps away from today's goal.", updated_at: daysAgo(30) },
+  { key: "notifications.streak", category: "notifications", label: "Streak push", value: "{StreakDays}-day streak! Keep it going.", updated_at: daysAgo(30) },
+  { key: "notifications.low_battery", category: "notifications", label: "Low battery push", value: "Your Strolla tracker is at {DeviceBattery} — charge it soon.", updated_at: daysAgo(30) },
+
+  // --- Widget ------------------------------------------------------------------
+  { key: "widget.steps_label", category: "widget", label: "Widget steps-today label", value: "Steps today", updated_at: daysAgo(120) },
+  { key: "widget.goal_reached", category: "widget", label: "Widget goal-reached state", value: "Goal reached! 🎉", updated_at: daysAgo(120) },
+  { key: "widget.tap_to_open", category: "widget", label: "Widget footer prompt", value: "Tap to open Strolla", updated_at: daysAgo(120) },
+
+  // --- Device pairing --------------------------------------------------------
+  { key: "device_pairing.scanning", category: "device_pairing", label: "Scanning for a tracker", value: "Looking for your Strolla tracker...", updated_at: daysAgo(90) },
+  { key: "device_pairing.success", category: "device_pairing", label: "Pairing succeeded", value: "You're all set — your Strolla tracker is live.", updated_at: daysAgo(90) },
+  { key: "device_pairing.failed", category: "device_pairing", label: "Pairing failed", value: "Couldn't find a tracker nearby. Make sure it's charged and close by.", updated_at: daysAgo(90) },
+
+  // --- Firmware ----------------------------------------------------------------
+  { key: "firmware.update_available", category: "firmware", label: "Update-available prompt", value: "A new firmware update is available for your Strolla tracker.", updated_at: daysAgo(45) },
+  { key: "firmware.updating", category: "firmware", label: "Update in progress", value: "Updating firmware — keep your tracker nearby and don't close the app.", updated_at: daysAgo(45) },
+  { key: "firmware.update_complete", category: "firmware", label: "Update complete", value: "Firmware updated! A small battery-life improvement is ready for your Strolla tracker.", updated_at: daysAgo(45) },
 ];
 
 // --- Legal documents -------------------------------------------------------------
 
-export const mockLegalDocuments: LegalDocument[] = [
+export const mockLegalVersions: LegalDocumentVersion[] = [
+  // --- Privacy Policy ---------------------------------------------------------
   {
-    type: "privacy_policy",
-    version: 3,
-    content:
-      "Strolla Health collects step, distance, and location data you choose to share in order to power your step ring, session tracking, and challenges. We never sell your personal data. You can request a full export or deletion of your data at any time from Settings > Privacy.",
-    updated_at: daysAgo(45),
-    requires_reaccept: false,
+    id: "priv_v1", doc_type: "privacy_policy", version: 1, status: "archived",
+    content: "# Privacy Policy\n\nStrolla Health collects the step and distance data you record while using the app.\n\nWe never sell your personal data.",
+    changelog: null, effective_date: dateKey(400), requires_reaccept: true,
+    created_by: "usr_017", created_at: daysAgo(400), published_at: daysAgo(400),
   },
   {
-    type: "terms",
-    version: 2,
-    content:
-      "By using Strolla Health you agree to use the app and any paired Strolla tracker for personal, non-commercial fitness tracking. Premium subscriptions renew automatically unless cancelled at least 24 hours before the renewal date.",
-    updated_at: daysAgo(120),
-    requires_reaccept: false,
+    id: "priv_v2", doc_type: "privacy_policy", version: 2, status: "archived",
+    content: "# Privacy Policy\n\nStrolla Health collects the step, distance, and location data you choose to share in order to power your step ring and session tracking.\n\nWe never sell your personal data.\n\n## Your rights\n\n- Request a full export of your data\n- Request deletion of your data\n- Contact us at [privacy@strollahealth.com](mailto:privacy@strollahealth.com)",
+    changelog: "- Added a dedicated \"Your rights\" section\n- Clarified that location data is opt-in",
+    effective_date: dateKey(180), requires_reaccept: true,
+    created_by: "usr_017", created_at: daysAgo(182), published_at: daysAgo(180),
   },
   {
-    type: "community_guidelines",
-    version: 4,
-    content:
-      "Be kind. No harassment, spam, or scam links. Celebrate other people's progress the way you'd want your own celebrated. Posts that break these guidelines will be hidden, and repeat or serious violations may result in a posting ban or account suspension.",
-    updated_at: daysAgo(6),
-    requires_reaccept: true,
+    id: "priv_v3", doc_type: "privacy_policy", version: 3, status: "published",
+    content: "# Privacy Policy\n\nStrolla Health collects the step, distance, and location data you choose to share in order to power your step ring, session tracking, and challenges.\n\nWe never sell your personal data.\n\n## Your rights\n\nYou can request a full export or deletion of your data at any time from **Settings > Privacy**, or by contacting [privacy@strollahealth.com](mailto:privacy@strollahealth.com).\n\n## Challenges and leaderboards\n\nIf you join a challenge, your step count and display name are visible to other participants on that challenge's leaderboard.",
+    changelog: "- Added the \"Challenges and leaderboards\" section covering leaderboard visibility\n- Minor wording clarifications throughout",
+    effective_date: dateKey(45), requires_reaccept: false,
+    created_by: "usr_016", created_at: daysAgo(47), published_at: daysAgo(45),
+  },
+  {
+    id: "priv_v4_draft", doc_type: "privacy_policy", version: 4, status: "draft",
+    content: "# Privacy Policy\n\nStrolla Health collects the step, distance, and location data you choose to share in order to power your step ring, session tracking, and challenges.\n\nWe never sell your personal data.\n\n## Your rights\n\nYou can request a full export or deletion of your data at any time from **Settings > Privacy**, or by contacting [privacy@strollahealth.com](mailto:privacy@strollahealth.com).\n\n## Challenges and leaderboards\n\nIf you join a challenge, your step count and display name are visible to other participants on that challenge's leaderboard.\n\n## Connected health apps\n\nIf you connect Apple Health, Health Connect, Oura, Garmin, or Strava, we only read the activity data needed to power your dashboard. You can disconnect any app at any time from **Settings > Connected Apps**.\n\n## Data retention\n\nWe keep your activity history for as long as your account is active. If you delete your account, we anonymize your profile but retain workout and challenge history for platform integrity — see our full retention policy for details.",
+    changelog: null, effective_date: dateKey(-14), requires_reaccept: true,
+    created_by: "usr_016", created_at: daysAgo(3), published_at: null,
+  },
+
+  // --- Terms of Service ---------------------------------------------------------
+  {
+    id: "terms_v1", doc_type: "terms", version: 1, status: "archived",
+    content: "# Terms of Service\n\nBy using Strolla Health you agree to use the app for personal, non-commercial fitness tracking.",
+    changelog: null, effective_date: dateKey(500), requires_reaccept: true,
+    created_by: "usr_017", created_at: daysAgo(500), published_at: daysAgo(500),
+  },
+  {
+    id: "terms_v2", doc_type: "terms", version: 2, status: "published",
+    content: "# Terms of Service\n\nBy using Strolla Health you agree to use the app and any paired Strolla tracker for personal, non-commercial fitness tracking.\n\n## Premium subscriptions\n\n- Premium subscriptions **renew automatically** unless cancelled at least 24 hours before the renewal date\n- Refunds are handled by the app store you subscribed through (Apple App Store or Google Play)\n- Comp/trial access granted by Strolla Health can be revoked at any time and doesn't affect a real paid subscription\n\nQuestions? Contact [support@strollahealth.com](mailto:support@strollahealth.com).",
+    changelog: "- Added the \"Premium subscriptions\" section covering auto-renewal and refunds\n- Clarified that comp access doesn't affect real paid subscriptions",
+    effective_date: dateKey(120), requires_reaccept: false,
+    created_by: "usr_016", created_at: daysAgo(122), published_at: daysAgo(120),
+  },
+
+  // --- Community Guidelines ----------------------------------------------------
+  {
+    id: "cg_v1", doc_type: "community_guidelines", version: 1, status: "archived",
+    content: "# Community Guidelines\n\nBe kind. No harassment or spam.",
+    changelog: null, effective_date: dateKey(300), requires_reaccept: true,
+    created_by: "usr_017", created_at: daysAgo(300), published_at: daysAgo(300),
+  },
+  {
+    id: "cg_v2", doc_type: "community_guidelines", version: 2, status: "archived",
+    content: "# Community Guidelines\n\nBe kind. No harassment, spam, or scam links.\n\nCelebrate other people's progress the way you'd want your own celebrated.",
+    changelog: "- Explicitly called out scam/spam links",
+    effective_date: dateKey(200), requires_reaccept: false,
+    created_by: "usr_016", created_at: daysAgo(202), published_at: daysAgo(200),
+  },
+  {
+    id: "cg_v3", doc_type: "community_guidelines", version: 3, status: "archived",
+    content: "# Community Guidelines\n\nBe kind. No harassment, spam, or scam links.\n\nCelebrate other people's progress the way you'd want your own celebrated.\n\n## What happens if you break these\n\n1. First violation: post removed, warning issued\n2. Second violation: 7-day posting ban\n3. Serious or repeat violations: permanent account suspension",
+    changelog: "- Added the enforcement ladder (\"What happens if you break these\")",
+    effective_date: dateKey(60), requires_reaccept: true,
+    created_by: "usr_016", created_at: daysAgo(62), published_at: daysAgo(60),
+  },
+  {
+    id: "cg_v4", doc_type: "community_guidelines", version: 4, status: "published",
+    content: "# Community Guidelines\n\nBe kind. No harassment, spam, or scam links. Celebrate other people's progress the way you'd want your own celebrated.\n\n## What happens if you break these\n\n1. First violation: post removed, warning issued\n2. Second violation: 7-day posting ban\n3. Serious or repeat violations: permanent account suspension\n\n## Reporting\n\nIf you see something that breaks these guidelines, report it directly from the post or profile — our moderation team reviews every report.",
+    changelog: "- Added the \"Reporting\" section explaining how to flag content\n- Clarified support email",
+    effective_date: dateKey(6), requires_reaccept: true,
+    created_by: "usr_016", created_at: daysAgo(8), published_at: daysAgo(6),
   },
 ];
+
+// Seeded only for versions that required re-accept — a version nobody was
+// ever asked to accept has no acceptance rows at all (see
+// `legalAcceptanceStats`, which reads an empty result as "not applicable"
+// rather than 0%). One row per real user at the time that version
+// published.
+function buildLegalAcceptances(): LegalAcceptance[] {
+  const realUsers = mockUsers.filter((u) => u.role === "user" && !u.deleted);
+  const rows: LegalAcceptance[] = [];
+  let n = 0;
+  for (const u of realUsers) {
+    // Deterministic per-user spread rather than random — stable across reloads.
+    const bucket = n % 20;
+    const status: LegalAcceptance["status"] = bucket < 17 ? "accepted" : bucket < 19 ? "pending" : "declined";
+    rows.push({
+      id: `la_cg4_${n}`,
+      user_id: u.id,
+      doc_type: "community_guidelines",
+      version: 4,
+      status,
+      responded_at: status === "pending" ? null : daysAgo((n % 5) + 1),
+    });
+    n++;
+  }
+  return rows;
+}
+
+export const mockLegalAcceptances: LegalAcceptance[] = buildLegalAcceptances();
 
 // --- App settings (global defaults) ----------------------------------------------
 
@@ -592,6 +822,9 @@ export const mockAnnouncements: Announcement[] = [
     emoji: "🎉",
     message: "July Challenge is Live! Join now and compete for the top spot.",
     link_target: "challenge_of_the_month",
+    audience: "everyone",
+    audience_app_version: null,
+    audience_app_version_mode: null,
     active: true,
     starts_at: daysAgo(10),
     ends_at: daysAgo(-20),
@@ -601,25 +834,54 @@ export const mockAnnouncements: Announcement[] = [
   {
     id: "ann_002",
     emoji: "🚀",
-    message: "New Feature: Share your steps to Instagram!",
+    message: "New Feature: Share your steps to Instagram! You're seeing this early as a beta tester — let us know what you think.",
     link_target: "share_steps",
+    audience: "beta_testers",
+    audience_app_version: null,
+    audience_app_version_mode: null,
     active: false,
     starts_at: daysAgo(35),
     ends_at: daysAgo(21),
     created_by: "usr_017",
     created_at: daysAgo(36),
   },
+  {
+    id: "ann_003",
+    emoji: "⬆️",
+    message: "A new version of Strolla is available with battery-life improvements and bug fixes. Please update from your app store.",
+    link_target: null,
+    audience: "app_version",
+    audience_app_version: "2.2.0",
+    audience_app_version_mode: "at_or_below",
+    active: true,
+    starts_at: daysAgo(4),
+    ends_at: null,
+    created_by: "usr_016",
+    created_at: daysAgo(4),
+  },
 ];
 
 export const mockAppSettings: AppSettings = {
   default_daily_goal_steps: 10000,
   challenge_default_duration_days: 7,
-  challenge_default_goal_steps: 50000,
   notify_goal_reminder_default: true,
   notify_streak_default: true,
   notify_challenge_updates_default: true,
   max_image_size_mb: 10,
   max_post_length: 500,
   max_bio_length: 160,
+  trial_period_days: 14,
+  premium_monthly_price_gbp: 4.99,
+  premium_annual_price_gbp: 39.99,
+  default_privacy: {
+    public_profile: true,
+    share_activity: true,
+    show_in_leaderboards: true,
+    allow_friend_requests: true,
+    hide_activity_data: false,
+    hide_achievements: false,
+    hide_recent_activity: false,
+  },
+  minimum_required_app_version: null,
   updated_at: daysAgo(30),
 };

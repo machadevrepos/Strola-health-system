@@ -13,22 +13,22 @@ import { GrantPremiumToUserDialog } from "@/components/premium/grant-premium-to-
 import { grantPremium, revokePremium } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
 import { logAction } from "@/lib/audit-log-store";
-import { premiumRevenueEstimate, premiumSubscribers, userDisplayName } from "@/lib/data/queries";
+import { LIFETIME_ISO, premiumRevenueEstimate, premiumSubscribers, userDisplayName } from "@/lib/data/queries";
 import { formatDate, formatNumber, initials, titleCase } from "@/lib/format";
-import type { UserProfile } from "@/lib/types";
+import type { AppSettings, UserProfile } from "@/lib/types";
 
 function apiErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
-export function PremiumView({ users: initialUsers }: { users: UserProfile[] }) {
+export function PremiumView({ users: initialUsers, appSettings }: { users: UserProfile[]; appSettings: AppSettings }) {
   const [users, setUsers] = React.useState(initialUsers);
   const [grantOpen, setGrantOpen] = React.useState(false);
 
   React.useEffect(() => setUsers(initialUsers), [initialUsers]);
 
   const subscribers = premiumSubscribers(users);
-  const revenue = premiumRevenueEstimate(users);
+  const revenue = premiumRevenueEstimate(users, appSettings.premium_monthly_price_gbp);
   const compCount = subscribers.filter((s) => s.isComp).length;
   const expiringSoon = subscribers.filter(
     (s) => s.expiresAt && +new Date(s.expiresAt) - Date.now() < 7 * 86_400_000 && +new Date(s.expiresAt) - Date.now() > 0
@@ -37,17 +37,17 @@ export function PremiumView({ users: initialUsers }: { users: UserProfile[] }) {
     (u) => u.role === "user" && !u.deleted && !(u.subscription.tier === "premium" && u.subscription.status === "active")
   );
 
-  async function grantToUser(userId: string, until: Date, reason: string) {
+  async function grantToUser(userId: string, until: Date | null, reason: string) {
+    const untilIso = until ? until.toISOString() : LIFETIME_ISO;
+    const untilLabel = until ? formatDate(untilIso) : "forever (lifetime)";
     try {
-      await grantPremium(userId, until.toISOString(), reason);
+      await grantPremium(userId, untilIso, reason);
       setUsers((prev) =>
-        prev.map((u) =>
-          u.id === userId ? { ...u, subscription: { ...u.subscription, comp_until: until.toISOString(), comp_reason: reason } } : u
-        )
+        prev.map((u) => (u.id === userId ? { ...u, subscription: { ...u.subscription, comp_until: untilIso, comp_reason: reason } } : u))
       );
       const target = users.find((u) => u.id === userId);
-      toast.success(`Premium granted${target ? ` to ${userDisplayName(target)}` : ""} until ${formatDate(until.toISOString())}`);
-      logAction("Granted premium", `${target ? userDisplayName(target) : userId} until ${formatDate(until.toISOString())}`);
+      toast.success(`Premium granted${target ? ` to ${userDisplayName(target)}` : ""} until ${untilLabel}`);
+      logAction("Granted premium", `${target ? userDisplayName(target) : userId} until ${untilLabel} — ${reason}`);
       setGrantOpen(false);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Couldn't grant premium"));

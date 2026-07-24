@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -20,47 +22,6 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
-	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
-	<!-- Portrait-only — every screen in this app is designed for it; see
-	     the matching lock in lib/main.dart and AndroidManifest.xml. -->
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-	<!-- BLE usage descriptions — required by App Store / iOS runtime -->
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Strolla Health connects to your NRF7002 step counter over Bluetooth to receive live step data.</string>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Strolla Health connects to your NRF7002 step counter over Bluetooth to receive live step data.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Strolla Health uses your location to track your outdoor walks and runs on a map, and to scan for nearby Bluetooth devices.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Strolla Health uses your location to track your outdoor walks and runs on a map, even when the app is in the background during an active session.</string>
-	<key>NSMotionUsageDescription</key>
-	<string>Strolla Health uses motion sensors to detect your walking and running pace.</string>
-	<!-- Photo library / camera — attaching photos to community posts -->
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Strolla Health needs access to your photos so you can attach an image to your community posts.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Strolla Health needs camera access so you can take a photo to attach to your community posts.</string>
-	<!-- Apple Health (health package) — required or HealthKit authorization crashes at runtime -->
-	<key>NSHealthShareUsageDescription</key>
-	<string>Strolla Health reads your steps, distance, and active energy from Apple Health to keep your activity in sync.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>Strolla Health writes your steps, distance, and active energy to Apple Health so other apps can prefer Strolla's numbers.</string>
-	<!-- OAuth callback (flutter_web_auth_2) — Strava/Oura/Garmin redirect here
-	     after consent; see integrations_screen.dart -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -70,9 +31,62 @@
 			</array>
 		</dict>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Strolla Health connects to your NRF7002 step counter over Bluetooth to receive live step data.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Strolla Health connects to your NRF7002 step counter over Bluetooth to receive live step data.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Strolla Health needs camera access so you can take a photo to attach to your community posts.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Strolla Health reads your steps, distance, and active energy from Apple Health to keep your activity in sync.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Strolla Health writes your steps, distance, and active energy to Apple Health so other apps can prefer Strolla's numbers.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Strolla Health uses your location to track your outdoor walks and runs on a map, even when the app is in the background during an active session.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Strolla Health uses your location to track your outdoor walks and runs on a map, and to scan for nearby Bluetooth devices.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Strolla Health uses motion sensors to detect your walking and running pace.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Strolla Health needs access to your photos so you can attach an image to your community posts.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
 </dict>
 </plist>

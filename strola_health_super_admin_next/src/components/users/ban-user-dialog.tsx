@@ -45,16 +45,16 @@ export function BanUserDialog({
     <Dialog open={!!user} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Ban {user ? userDisplayName(user) : "this user"}</DialogTitle>
+          <DialogTitle>Suspend {user ? userDisplayName(user) : "this user"}</DialogTitle>
           <DialogDescription>
             They&apos;ll be signed out immediately and blocked from signing back in. This is reversible from the
             user&apos;s profile.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-2">
-          <Label htmlFor="ban-reason">Reason (visible to other admins)</Label>
+          <Label htmlFor="suspend-reason">Reason (visible to other admins)</Label>
           <Textarea
-            id="ban-reason"
+            id="suspend-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Repeated harassment in community comments after two prior warnings."
@@ -72,7 +72,7 @@ export function BanUserDialog({
             onClick={handleConfirm}
           >
             {submitting && <CircleNotch size={14} className="animate-spin" />}
-            Ban user
+            Suspend user
           </Button>
         </DialogFooter>
       </DialogContent>

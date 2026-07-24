@@ -29,9 +29,34 @@ export const METRIC_LABEL: Record<BadgeRequirementMetric, string> = {
   session_steps: "Steps in a single session",
   streak_days: "Daily-goal streak (days)",
   challenges_completed: "Challenges completed",
-  early_morning_sessions: "Sessions before 7am",
-  community_posts: "Community posts",
+  // Retired — kept only so legacy badges created before categories were
+  // locked down still render a real label instead of "undefined".
+  early_morning_sessions: "Sessions before 7am (retired)",
+  community_posts: "Community posts (retired)",
 };
+
+// The app's Achievements screen groups every badge into exactly one of
+// these three sections — new badges must fit one of them.
+const CATEGORY_METRIC: Record<"steps" | "streaks" | "challenges", BadgeRequirementMetric> = {
+  steps: "total_steps",
+  streaks: "streak_days",
+  challenges: "challenges_completed",
+};
+const CATEGORY_LABEL: Record<keyof typeof CATEGORY_METRIC, string> = {
+  steps: "Steps",
+  streaks: "Streaks",
+  challenges: "Challenges",
+};
+
+// Legacy badges created before categories were locked down (retired metrics
+// like "early morning sessions") fall back to Steps — picking any category
+// in the form corrects it on save.
+function metricToCategory(metric: BadgeRequirementMetric): keyof typeof CATEGORY_METRIC {
+  const entry = (Object.entries(CATEGORY_METRIC) as [keyof typeof CATEGORY_METRIC, BadgeRequirementMetric][]).find(
+    ([, m]) => m === metric
+  );
+  return entry?.[0] ?? "steps";
+}
 
 export interface BadgeFormValues {
   name: string;
@@ -122,16 +147,16 @@ export function BadgeFormDialog({
           </div>
           <div className="grid grid-cols-[1fr_8rem] gap-3">
             <div className="grid gap-2">
-              <Label htmlFor="badge-metric">Requirement</Label>
+              <Label htmlFor="badge-category">Category</Label>
               <Select
-                value={values.requirement_metric}
-                onValueChange={(v) => v && setValues({ ...values, requirement_metric: v as BadgeFormValues["requirement_metric"] })}
+                value={metricToCategory(values.requirement_metric)}
+                onValueChange={(v) => v && setValues({ ...values, requirement_metric: CATEGORY_METRIC[v as keyof typeof CATEGORY_METRIC] })}
               >
-                <SelectTrigger id="badge-metric"><SelectValue>{METRIC_LABEL[values.requirement_metric]}</SelectValue></SelectTrigger>
+                <SelectTrigger id="badge-category"><SelectValue>{CATEGORY_LABEL[metricToCategory(values.requirement_metric)]}</SelectValue></SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(METRIC_LABEL) as BadgeFormValues["requirement_metric"][]).map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {METRIC_LABEL[m]}
+                  {(Object.keys(CATEGORY_LABEL) as (keyof typeof CATEGORY_LABEL)[]).map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {CATEGORY_LABEL[cat]}
                     </SelectItem>
                   ))}
                 </SelectContent>

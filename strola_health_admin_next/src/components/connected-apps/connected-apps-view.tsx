@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { LinkSimple, LinkBreak, Warning, CircleNotch } from "@phosphor-icons/react";
+import { LinkSimple, LinkBreak, ArrowsClockwise, Warning, CircleNotch } from "@phosphor-icons/react";
 import { StatCard } from "@/components/shell/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FunnelChart } from "@/components/charts/funnel-chart";
 import { CONNECTED_APP_LABEL, type ConnectedAppProvider, connectedAppsBreakdown, findUserById, userDisplayName } from "@/lib/data/queries";
-import { disconnectIntegration } from "@/lib/data/api";
+import { disconnectIntegration, resyncIntegration } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
 import { logAction } from "@/lib/audit-log-store";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
@@ -48,8 +48,23 @@ export function ConnectedAppsView({
   const [connections, setConnections] = React.useState(initialConnections);
   const [disconnectTarget, setDisconnectTarget] = React.useState<IntegrationConnection | null>(null);
   const [disconnecting, setDisconnecting] = React.useState(false);
+  const [resyncingId, setResyncingId] = React.useState<string | null>(null);
 
   React.useEffect(() => setConnections(initialConnections), [initialConnections]);
+
+  async function resync(connection: IntegrationConnection) {
+    setResyncingId(connection.id);
+    try {
+      const updated = await resyncIntegration(connection.id);
+      setConnections((prev) => prev.map((c) => (c.id === connection.id ? updated : c)));
+      toast.success(`Resynced ${providerLabel(connection.provider)} for ${userDisplayName(findUserById(users, connection.user_id))}`);
+      logAction("Resynced integration", `${userDisplayName(findUserById(users, connection.user_id))} — ${providerLabel(connection.provider)}`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't resync this connection"));
+    } finally {
+      setResyncingId(null);
+    }
+  }
 
   const breakdown = connectedAppsBreakdown(connections);
   const connectedUserCount = new Set(connections.filter((c) => c.status === "connected").map((c) => c.user_id)).size;
@@ -114,7 +129,11 @@ export function ConnectedAppsView({
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{c.error_message}</p>
                 <p className="mt-1 text-xs text-muted-foreground">Last synced {c.last_synced_at ? formatDateTime(c.last_synced_at) : "never"}</p>
-                <div className="mt-2 flex justify-end">
+                <div className="mt-2 flex justify-end gap-1.5">
+                  <Button variant="outline" size="sm" onClick={() => resync(c)} disabled={resyncingId === c.id}>
+                    {resyncingId === c.id ? <CircleNotch size={13} className="animate-spin" /> : <ArrowsClockwise size={13} />}
+                    Resync
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setDisconnectTarget(c)}>
                     <LinkBreak size={13} /> Disconnect
                   </Button>
@@ -169,9 +188,20 @@ export function ConnectedAppsView({
                   <TableCell className="text-muted-foreground">{c.last_synced_at ? formatDateTime(c.last_synced_at) : "—"}</TableCell>
                   <TableCell>
                     {c.status !== "disconnected" && (
-                      <Button variant="ghost" size="icon-sm" aria-label="Disconnect" onClick={() => setDisconnectTarget(c)}>
-                        <LinkBreak size={14} />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Resync"
+                          onClick={() => resync(c)}
+                          disabled={resyncingId === c.id}
+                        >
+                          {resyncingId === c.id ? <CircleNotch size={14} className="animate-spin" /> : <ArrowsClockwise size={14} />}
+                        </Button>
+                        <Button variant="ghost" size="icon-sm" aria-label="Disconnect" onClick={() => setDisconnectTarget(c)}>
+                          <LinkBreak size={14} />
+                        </Button>
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>

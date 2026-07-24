@@ -66,7 +66,7 @@ export function ResolveReportDialog({
             disabled={note.trim().length === 0 || submitting !== null}
           >
             {submitting === "dismissed" && <CircleNotch size={14} className="animate-spin" />}
-            Ignore, no action needed
+            Dismiss report, no action needed
           </Button>
           <Button onClick={() => handleResolve("resolved")} disabled={note.trim().length === 0 || submitting !== null}>
             {submitting === "resolved" && <CircleNotch size={14} className="animate-spin" />}

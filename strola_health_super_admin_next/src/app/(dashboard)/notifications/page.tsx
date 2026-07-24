@@ -23,7 +23,7 @@ async function loadNotifications() {
   ]);
   const leaderboards = await Promise.all(challenges.map((c) => fetchLeaderboard(c.id)));
   const participants = leaderboards.flat();
-  return { users, events, devices, participants, history };
+  return { users, events, devices, participants, challenges, history };
 }
 
 export default function NotificationsPage() {
@@ -37,7 +37,7 @@ export default function NotificationsPage() {
       />
       {loading && <PageLoading />}
       {error && <PageError message={error} onRetry={reload} />}
-      {data && <NotificationsView {...data} onSent={reload} />}
+      {data && <NotificationsView {...data} onChanged={reload} />}
     </div>
   );
 }

@@ -33,7 +33,7 @@ export function SettingsView({
         <BetaTestingPanel overrides={betaOverrides} flags={flags} users={users} />
       </TabsContent>
       <TabsContent value="app" className="mt-4">
-        <AppSettingsPanel settings={appSettings} />
+        <AppSettingsPanel settings={appSettings} users={users} />
       </TabsContent>
       <TabsContent value="log" className="mt-4">
         <ActivityLogPanel />

@@ -187,8 +187,13 @@ def get_deletion_service(
     return DeletionService(user_repo, device_service, integration_repo)
 
 
-def get_oauth_providers(settings: Settings = Depends(get_settings)) -> dict:
-    return build_oauth_providers(settings)
+def get_oauth_providers(
+    settings: Settings = Depends(get_settings),
+    connection_repo: IntegrationConnectionRepository = Depends(get_integration_repository),
+    activity_service: ActivityService = Depends(get_activity_service),
+    user_repo: UserRepository = Depends(get_user_repository),
+) -> dict:
+    return build_oauth_providers(settings, connection_repo, activity_service, user_repo)
 
 
 # --- Auth / current user ------------------------------------------------------

@@ -11,6 +11,23 @@ export function formatCompact(n: number): string {
   return compactFormatter.format(n);
 }
 
+export function formatCurrencyGBP(n: number): string {
+  return `£${numberFormatter.format(Math.round(n))}`;
+}
+
+/** "42.0%" — unsigned, one decimal place, for level metrics like a click-through rate. Null renders as an em dash. */
+export function formatPercent(pct: number | null): string {
+  if (pct === null) return "—";
+  return `${pct.toFixed(1)}%`;
+}
+
+/** "+12.4%" / "-3.1%" — signed, for growth/change metrics. Null renders as an em dash. */
+export function formatSignedPercent(pct: number | null): string {
+  if (pct === null) return "—";
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct.toFixed(1)}%`;
+}
+
 export function formatDate(iso: string): string {
   return dateFormatter.format(new Date(iso));
 }
@@ -21,6 +38,16 @@ export function formatDateTime(iso: string): string {
 
 export function formatDistance(meters: number): string {
   return meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${Math.round(meters)} m`;
+}
+
+/** "3m 42s" / "1h 05m" — for durations under an hour, seconds are shown; at an hour or more, minutes are zero-padded and seconds are dropped. */
+export function formatDuration(seconds: number): string {
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  return `${m}m ${s}s`;
 }
 
 export function formatRelative(iso: string): string {

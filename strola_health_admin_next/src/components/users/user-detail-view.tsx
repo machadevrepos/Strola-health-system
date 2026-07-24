@@ -18,6 +18,17 @@ import {
   EnvelopeSimple,
   ProhibitInset,
   X,
+  NotePencil,
+  ClockCounterClockwise,
+  Tag,
+  Fire,
+  Plug,
+  WifiHigh,
+  WifiSlash,
+  Flag,
+  Sparkle,
+  Crown,
+  CircleNotch,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -26,6 +37,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Select,
@@ -47,9 +59,25 @@ import { DeleteAccountDialog } from "@/components/users/delete-account-dialog";
 import { RoleChangeDialog, type PendingRoleChange } from "@/components/users/role-change-dialog";
 import { SendEmailDialog } from "@/components/users/send-email-dialog";
 import { BanFromPostingDialog } from "@/components/moderation/ban-from-posting-dialog";
+import { HexBadge, hexBadgePropsForBadge } from "@/components/challenges/hex-badge";
 import { logAction } from "@/lib/audit-log-store";
-import { hasAdminGrantedPremium, userDisplayName } from "@/lib/data/queries";
+import { useAuth } from "@/lib/auth-context";
 import {
+  CONNECTED_APP_LABEL,
+  LIFETIME_ISO,
+  accountTimeline,
+  findUserById,
+  hasAdminGrantedPremium,
+  lifetimeStats,
+  reportsAboutUser,
+  subscriptionHistoryForUser,
+  trackerStatusForUser,
+  TRACKER_STATUS_LABEL,
+  userDisplayName,
+  type ConnectedAppProvider,
+} from "@/lib/data/queries";
+import {
+  addUserNote,
   adminUnpairDevice,
   awardBadge as apiAwardBadge,
   banUser,
@@ -68,14 +96,19 @@ import {
   updateUserPrivacy,
 } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
-import { ROLE_LABEL, formatDate, formatDateTime, formatDistance, formatNumber, initials, titleCase } from "@/lib/format";
+import { ROLE_LABEL, formatDate, formatDateTime, formatDistance, formatNumber, formatRelative, initials, titleCase } from "@/lib/format";
 import type {
+  AnalyticsEvent,
   Badge,
   Challenge,
   DailyActivitySummary,
   Device,
+  IntegrationConnection,
   PrivacySettings as PrivacySettingsT,
+  Report,
+  SupportTicket,
   UserBadge as UserBadgeT,
+  UserNote,
   UserProfile,
   WorkoutSession,
 } from "@/lib/types";
@@ -94,6 +127,12 @@ export function UserDetailView({
   allBadges,
   participations,
   challenges,
+  events,
+  connections,
+  reports,
+  tickets,
+  notes: initialNotes,
+  staff,
 }: {
   user: UserProfile;
   sessions: WorkoutSession[];
@@ -103,9 +142,19 @@ export function UserDetailView({
   allBadges: Badge[];
   participations: EnrichedParticipant[];
   challenges: Challenge[];
+  events: AnalyticsEvent[];
+  connections: IntegrationConnection[];
+  reports: Report[];
+  tickets: SupportTicket[];
+  notes: UserNote[];
+  staff: UserProfile[];
 }) {
+  const { user: authUser } = useAuth();
   const [user, setUser] = React.useState(initialUser);
   const [devices, setDevices] = React.useState(initialDevices);
+  const [notes, setNotes] = React.useState(initialNotes);
+  const [noteBody, setNoteBody] = React.useState("");
+  const [savingNote, setSavingNote] = React.useState(false);
   const [badges, setBadges] = React.useState(initialBadges);
   const [editOpen, setEditOpen] = React.useState(false);
   const [banOpen, setBanOpen] = React.useState(false);
@@ -185,10 +234,10 @@ export function UserDetailView({
     try {
       await banUser(user.id, reason);
       setUser((u) => ({ ...u, banned: true, ban_reason: reason }));
-      toast.success(`${name} banned`);
-      logAction("Banned user", `${name} — ${reason}`);
+      toast.success(`${name} suspended`);
+      logAction("Suspended user", `${name} — ${reason}`);
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Couldn't ban this user"));
+      toast.error(apiErrorMessage(err, "Couldn't suspend this user"));
     } finally {
       setBanOpen(false);
     }
@@ -198,10 +247,10 @@ export function UserDetailView({
     try {
       await unbanUser(user.id);
       setUser((u) => ({ ...u, banned: false, ban_reason: null }));
-      toast.success(`${name} unbanned`);
-      logAction("Unbanned user", name);
+      toast.success(`${name} unsuspended`);
+      logAction("Unsuspended user", name);
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Couldn't unban this user"));
+      toast.error(apiErrorMessage(err, "Couldn't unsuspend this user"));
     }
   }
 
@@ -219,12 +268,14 @@ export function UserDetailView({
     }
   }
 
-  async function grantPremium(until: Date, reason: string) {
+  async function grantPremium(until: Date | null, reason: string) {
+    const untilIso = until ? until.toISOString() : LIFETIME_ISO;
+    const untilLabel = until ? formatDate(untilIso) : "forever (lifetime)";
     try {
-      await apiGrantPremium(user.id, until.toISOString(), reason);
-      setUser((u) => ({ ...u, subscription: { ...u.subscription, comp_until: until.toISOString(), comp_reason: reason } }));
-      toast.success(`Premium granted to ${name} until ${formatDate(until.toISOString())}`);
-      logAction("Granted premium", `${name} until ${formatDate(until.toISOString())}`);
+      await apiGrantPremium(user.id, untilIso, reason);
+      setUser((u) => ({ ...u, subscription: { ...u.subscription, comp_until: untilIso, comp_reason: reason } }));
+      toast.success(`Premium granted to ${name} until ${untilLabel}`);
+      logAction("Granted premium", `${name} until ${untilLabel} — ${reason}`);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Couldn't grant premium"));
     }
@@ -319,13 +370,53 @@ export function UserDetailView({
       const created = await apiAwardBadge(badgeId, user.id);
       setBadges((prev) => [...prev, { ...created, user, badge }]);
       toast.success(`Awarded "${badge.name}"`);
-      logAction(`Awarded badge "${badge.name}"`, name);
+      logAction(`Awarded achievement "${badge.name}"`, name);
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Couldn't award badge"));
+      toast.error(apiErrorMessage(err, "Couldn't award achievement"));
+    }
+  }
+
+  async function saveNote() {
+    const body = noteBody.trim();
+    if (!body) return;
+    setSavingNote(true);
+    try {
+      const created = await addUserNote(user.id, authUser?.uid ?? "unknown", body);
+      setNotes((prev) => [created, ...prev]);
+      setNoteBody("");
+      logAction("Added internal note", name);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't save this note"));
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function toggleTag(tag: string) {
+    const nextTags = user.tags.includes(tag) ? user.tags.filter((t) => t !== tag) : [...user.tags, tag];
+    try {
+      const updated = await updateUser(user.id, { tags: nextTags });
+      setUser(updated);
+      logAction(nextTags.includes(tag) ? `Added tag "${tag}"` : `Removed tag "${tag}"`, name);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't update tags"));
     }
   }
 
   const hasComp = hasAdminGrantedPremium(user);
+  const lastActiveEvent = events.filter((e) => e.event_type === "app_opened").sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))[0];
+  const tracker = trackerStatusForUser(user.id, devices);
+  const primaryDevice = devices.find((d) => d.owner_user_id === user.id) ?? devices[0];
+  const stats = lifetimeStats({
+    dailySummaries: dailySummary,
+    dailyGoalSteps: user.daily_goal_steps,
+    participations,
+    challenges,
+    achievementsEarned: badges.length,
+  });
+  const userReports = reportsAboutUser(user.id, reports);
+  const timeline = accountTimeline({ user, devices, participations, challenges, badges, tickets });
+  const subscriptionHistory = subscriptionHistoryForUser(user, events);
 
   return (
     <div>
@@ -348,10 +439,11 @@ export function UserDetailView({
               {user.posting_banned && <UiBadge className="bg-destructive/12 text-destructive">Posting banned</UiBadge>}
             </div>
             <p className="text-sm text-muted-foreground">
-              {user.email ?? `@${user.username}`} {"·"} joined {formatDate(user.created_at)}
+              {user.email ?? `@${user.username}`} {"·"} joined {formatDate(user.created_at)} {"·"} last active{" "}
+              {lastActiveEvent ? formatRelative(lastActiveEvent.created_at) : "never"}
             </p>
             {user.banned && user.ban_reason && (
-              <p className="mt-1 text-sm text-destructive">Ban reason: {user.ban_reason}</p>
+              <p className="mt-1 text-sm text-destructive">Suspension reason: {user.ban_reason}</p>
             )}
             {user.posting_banned && user.posting_ban_reason && (
               <p className="mt-1 text-sm text-destructive">Posting ban reason: {user.posting_ban_reason}</p>
@@ -403,11 +495,11 @@ export function UserDetailView({
             )}
             {user.banned ? (
               <Button variant="outline" size="sm" onClick={unban}>
-                <CheckCircle size={14} /> Unban
+                <CheckCircle size={14} /> Unsuspend user
               </Button>
             ) : (
               <Button variant="destructive" size="sm" onClick={() => setBanOpen(true)}>
-                <Prohibit size={14} /> Ban
+                <Prohibit size={14} /> Suspend user
               </Button>
             )}
             <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
@@ -418,13 +510,29 @@ export function UserDetailView({
       </div>
 
       <Tabs defaultValue="profile">
-        <TabsList>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="devices">Devices ({devices.length})</TabsTrigger>
-          <TabsTrigger value="badges">Badges ({badges.length})</TabsTrigger>
-          <TabsTrigger value="challenges">Challenges ({participations.length})</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+            <TabsTrigger value="devices">Devices ({devices.length})</TabsTrigger>
+            <TabsTrigger value="badges">Achievements ({badges.length})</TabsTrigger>
+            <TabsTrigger value="challenges">Challenges ({participations.length})</TabsTrigger>
+            <TabsTrigger value="reports">Reports ({userReports.length})</TabsTrigger>
+            <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
+            <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          </TabsList>
+          <div className="flex items-center gap-1.5">
+            {["kickstarter", "beta_tester"].map((tag) => {
+              const active = user.tags.includes(tag);
+              return (
+                <Button key={tag} variant={active ? "default" : "outline"} size="sm" onClick={() => toggleTag(tag)}>
+                  <Tag size={13} /> {tag === "kickstarter" ? "Kickstarter" : "Beta tester"}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
 
         <TabsContent value="profile" className="mt-4 grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
           <Card className="border-border shadow-none">
@@ -434,6 +542,11 @@ export function UserDetailView({
             <CardContent className="space-y-3">
               <DetailRow label="Bio" value={user.bio ?? "—"} />
               <DetailRow label="Location" value={user.location ?? "—"} />
+              <DetailRow label="Country" value={user.country ?? "—"} />
+              <DetailRow
+                label="Device"
+                value={`${user.device_model ?? (user.platform === "ios" ? "iPhone" : "Android device")} (${user.platform === "ios" ? "iOS" : "Android"})`}
+              />
               <DetailRow label="Height" value={`${user.height_cm} cm`} />
               <DetailRow label="Weight" value={user.weight_kg ? `${user.weight_kg} kg` : "—"} />
               <DetailRow label="Gender" value={titleCase(user.gender)} />
@@ -451,33 +564,107 @@ export function UserDetailView({
               </div>
             </CardContent>
           </Card>
+
+          <div className="space-y-3">
+            <Card className="border-border shadow-none">
+              <CardHeader>
+                <CardTitle>Privacy settings</CardTitle>
+                <CardDescription>Controls what other members can see on their profile.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {(
+                  [
+                    ["public_profile", "Public profile"],
+                    ["share_activity", "Share activity"],
+                    ["show_in_leaderboards", "Show in leaderboards"],
+                    ["allow_friend_requests", "Allow friend requests"],
+                    ["hide_activity_data", "Hide activity data"],
+                    ["hide_achievements", "Hide achievements"],
+                    ["hide_recent_activity", "Hide recent activity"],
+                  ] as [keyof PrivacySettingsT, string][]
+                ).map(([key, label]) => (
+                  <div key={key} className="flex items-center justify-between py-1.5">
+                    <span className="text-sm text-muted-foreground">{label}</span>
+                    <Switch checked={user.privacy[key]} onCheckedChange={() => togglePrivacy(key)} />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="border-border shadow-none">
+              <CardHeader>
+                <CardTitle>Premium details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <DetailRow label="Tier" value={titleCase(user.subscription.tier)} />
+                <DetailRow label="Status" value={titleCase(user.subscription.status)} />
+                {hasComp ? (
+                  // Comp access is an independent grant, not layered on top of
+                  // tier/status (see `classifySubscription` in queries.ts) —
+                  // checked first so a comp'd user shows their comp expiry
+                  // even if their underlying tier/status still says "free"/
+                  // "trialing" (comp deliberately never overwrites those).
+                  <>
+                    <DetailRow label="Premium started" value={user.subscription.started_at ? formatDate(user.subscription.started_at) : "—"} />
+                    <DetailRow label="Comp expires" value={formatExpiry(user.subscription.comp_until)} />
+                    <DetailRow label="Comp reason" value={user.subscription.comp_reason ?? "—"} />
+                  </>
+                ) : user.subscription.status === "trialing" ? (
+                  <>
+                    <DetailRow label="Trial started" value={user.subscription.started_at ? formatDate(user.subscription.started_at) : "—"} />
+                    <DetailRow label="Trial expires" value={formatExpiry(user.subscription.comp_until)} />
+                  </>
+                ) : (
+                  <>
+                    <DetailRow label="Premium started" value={user.subscription.started_at ? formatDate(user.subscription.started_at) : "—"} />
+                    <DetailRow label="Renews" value={user.subscription.renews_at ? formatDate(user.subscription.renews_at) : "—"} />
+                  </>
+                )}
+                {user.subscription.cancelled_at && <DetailRow label="Cancelled" value={formatDate(user.subscription.cancelled_at)} />}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="billing" className="mt-4">
           <Card className="border-border shadow-none">
             <CardHeader>
-              <CardTitle>Privacy settings</CardTitle>
-              <CardDescription>Controls what other members can see on their profile.</CardDescription>
+              <CardTitle>Subscription history</CardTitle>
+              <CardDescription>
+                Reconstructed from RevenueCat events and the current subscription state — there&apos;s no persisted
+                log of past admin grants, so an earlier grant is overwritten rather than archived.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-1">
-              {(
-                [
-                  ["public_profile", "Public profile"],
-                  ["share_activity", "Share activity"],
-                  ["show_in_leaderboards", "Show in leaderboards"],
-                  ["allow_friend_requests", "Allow friend requests"],
-                  ["hide_activity_data", "Hide activity data"],
-                  ["hide_achievements", "Hide achievements"],
-                  ["hide_recent_activity", "Hide recent activity"],
-                ] as [keyof PrivacySettingsT, string][]
-              ).map(([key, label]) => (
-                <div key={key} className="flex items-center justify-between py-1.5">
-                  <span className="text-sm text-muted-foreground">{label}</span>
-                  <Switch checked={user.privacy[key]} onCheckedChange={() => togglePrivacy(key)} />
+            <CardContent>
+              {subscriptionHistory.length === 0 ? (
+                <EmptyState icon={<Crown size={20} />} text="No subscription activity recorded." />
+              ) : (
+                <div className="space-y-2">
+                  {subscriptionHistory.map((h) => (
+                    <div key={h.id} className="flex items-center justify-between rounded-md border border-border p-2.5">
+                      <p className="text-sm text-foreground">{h.label}</p>
+                      <span className="text-xs text-muted-foreground">{formatDateTime(h.date)}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="activity" className="mt-4 space-y-3">
+          <Card className="border-border shadow-none">
+            <CardHeader>
+              <CardTitle>Lifetime stats</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+              <LifetimeStat icon={<Footprints size={16} />} label="Lifetime steps" value={formatNumber(stats.lifetimeSteps)} />
+              <LifetimeStat icon={<Fire size={16} />} label="Current streak" value={`${stats.currentStreak}d`} />
+              <LifetimeStat icon={<Fire size={16} />} label="Longest streak" value={`${stats.longestStreak}d`} />
+              <LifetimeStat icon={<Trophy size={16} />} label="Challenges completed" value={String(stats.challengesCompleted)} />
+              <LifetimeStat icon={<Medal size={16} />} label="Achievements earned" value={String(stats.achievementsEarned)} />
+            </CardContent>
+          </Card>
           <Card className="border-border shadow-none">
             <CardHeader>
               <CardTitle>Daily steps</CardTitle>
@@ -526,7 +713,30 @@ export function UserDetailView({
           </Card>
         </TabsContent>
 
-        <TabsContent value="devices" className="mt-4">
+        <TabsContent value="devices" className="mt-4 space-y-3">
+          <Card className="border-border shadow-none">
+            <CardHeader>
+              <CardTitle>Tracker status</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <LifetimeStat
+                icon={tracker === "connected" ? <WifiHigh size={16} /> : <WifiSlash size={16} />}
+                label="Tracker"
+                value={TRACKER_STATUS_LABEL[tracker]}
+              />
+              <LifetimeStat
+                icon={<BatteryMedium size={16} />}
+                label="Battery"
+                value={primaryDevice?.battery_level != null ? `${primaryDevice.battery_level}%` : "—"}
+              />
+              <LifetimeStat icon={<DeviceMobile size={16} />} label="Firmware" value={primaryDevice?.firmware_version ?? "—"} />
+              <LifetimeStat
+                icon={<ClockCounterClockwise size={16} />}
+                label="Last sync"
+                value={primaryDevice?.last_seen_at ? formatRelative(primaryDevice.last_seen_at) : "—"}
+              />
+            </CardContent>
+          </Card>
           <Card className="border-border shadow-none">
             <CardHeader>
               <CardTitle>Paired devices</CardTitle>
@@ -569,12 +779,57 @@ export function UserDetailView({
               )}
             </CardContent>
           </Card>
+          <Card className="border-border shadow-none">
+            <CardHeader>
+              <CardTitle>Connected apps</CardTitle>
+              <CardDescription>Third-party health apps this account has linked.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {connections.length === 0 ? (
+                <EmptyState icon={<Plug size={20} />} text="No connected apps." />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>App</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Last synced</TableHead>
+                      <TableHead>Connected</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {connections.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell>{CONNECTED_APP_LABEL[c.provider as ConnectedAppProvider] ?? c.provider}</TableCell>
+                        <TableCell>
+                          <UiBadge
+                            className={
+                              c.status === "connected"
+                                ? "bg-success/15 text-success"
+                                : c.status === "error"
+                                  ? "bg-destructive/12 text-destructive"
+                                  : ""
+                            }
+                            variant={c.status === "disconnected" ? "outline" : undefined}
+                          >
+                            {titleCase(c.status)}
+                          </UiBadge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{c.last_synced_at ? formatDateTime(c.last_synced_at) : "—"}</TableCell>
+                        <TableCell className="text-muted-foreground">{c.connected_at ? formatDate(c.connected_at) : "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="badges" className="mt-4 space-y-3">
           <Card className="border-border shadow-none">
             <CardHeader>
-              <CardTitle>Awarded badges</CardTitle>
+              <CardTitle>Awarded achievements</CardTitle>
               {awardable.length > 0 && (
                 <CardAction>
                   <Select
@@ -585,11 +840,11 @@ export function UserDetailView({
                       setPickedBadgeId("");
                     }}
                   >
-                    <SelectTrigger size="sm" className="w-44"><SelectValue placeholder="Award a badge..." /></SelectTrigger>
+                    <SelectTrigger size="sm" className="w-44"><SelectValue placeholder="Award an achievement..." /></SelectTrigger>
                     <SelectContent>
                       {awardable.map((b) => (
                         <SelectItem key={b.id} value={b.id}>
-                          {b.emoji} {b.name}
+                          {b.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -599,19 +854,19 @@ export function UserDetailView({
             </CardHeader>
             <CardContent>
               {badges.length === 0 ? (
-                <EmptyState icon={<Medal size={20} />} text="No badges awarded yet." />
+                <EmptyState icon={<Medal size={20} />} text="No achievements awarded yet." />
               ) : (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {badges.map((a: EnrichedAward & UserBadgeT) => (
                     <div key={a.id} className="flex items-center justify-between rounded-md border border-border p-2.5">
                       <div className="flex items-center gap-2.5">
-                        <span className="text-xl">{a.badge?.emoji}</span>
+                        {a.badge && <HexBadge {...hexBadgePropsForBadge(a.badge)} size={40} />}
                         <div>
                           <p className="text-sm font-medium text-foreground">{a.badge?.name}</p>
                           <p className="text-xs text-muted-foreground">{formatDate(a.awarded_at)}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon-sm" onClick={() => revokeBadge(a)} aria-label="Revoke badge">
+                      <Button variant="ghost" size="icon-sm" onClick={() => revokeBadge(a)} aria-label="Revoke achievement">
                         <X size={14} />
                       </Button>
                     </div>
@@ -661,6 +916,121 @@ export function UserDetailView({
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="reports" className="mt-4">
+          <Card className="border-border shadow-none">
+            <CardHeader>
+              <CardTitle>Community reports</CardTitle>
+              <CardDescription>Reports filed by other members against this account.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {userReports.length === 0 ? (
+                <EmptyState icon={<Flag size={20} />} text="No reports filed against this user." />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Filed</TableHead>
+                      <TableHead className="w-10" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {userReports.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="max-w-md">{r.reason}</TableCell>
+                        <TableCell>
+                          <UiBadge className={r.status === "open" ? "bg-destructive/12 text-destructive" : "bg-success/15 text-success"}>
+                            {titleCase(r.status)}
+                          </UiBadge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{formatDate(r.created_at)}</TableCell>
+                        <TableCell>
+                          <Link href="/moderation" className="text-xs font-medium text-foreground hover:underline">
+                            View in moderation
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notes" className="mt-4">
+          <Card className="border-border shadow-none">
+            <CardHeader>
+              <CardTitle>Internal notes</CardTitle>
+              <CardDescription>Visible to admins only — never shown to the user.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-start gap-2">
+                <Textarea
+                  value={noteBody}
+                  onChange={(e) => setNoteBody(e.target.value)}
+                  placeholder="Add a note for other admins..."
+                  rows={2}
+                  className="flex-1"
+                />
+                <Button size="sm" onClick={saveNote} disabled={savingNote || noteBody.trim().length === 0}>
+                  {savingNote && <CircleNotch size={14} className="animate-spin" />}
+                  <NotePencil size={14} /> Add note
+                </Button>
+              </div>
+              {notes.length === 0 ? (
+                <EmptyState icon={<NotePencil size={20} />} text="No internal notes yet." />
+              ) : (
+                <div className="space-y-2.5">
+                  {notes.map((n) => {
+                    const author = findUserById(staff, n.author_id);
+                    return (
+                      <div key={n.id} className="rounded-md border border-border p-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium text-foreground">{author ? userDisplayName(author) : n.author_id}</span>
+                          <span className="text-xs text-muted-foreground">{formatDateTime(n.created_at)}</span>
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">{n.body}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="timeline" className="mt-4">
+          <Card className="border-border shadow-none">
+            <CardHeader>
+              <CardTitle>Account timeline</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {timeline.length === 0 ? (
+                <EmptyState icon={<ClockCounterClockwise size={20} />} text="Nothing recorded yet." />
+              ) : (
+                <div>
+                  {timeline.map((t, i) => (
+                    <div key={t.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary">
+                          <Sparkle size={12} weight="fill" />
+                        </span>
+                        {i < timeline.length - 1 && <span className="w-px flex-1 bg-border" />}
+                      </div>
+                      <div className="pb-5">
+                        <p className="text-xs text-muted-foreground">{formatDate(t.date)}</p>
+                        <p className="text-sm font-medium text-foreground">{t.label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       <EditProfileSheet user={user} open={editOpen} onOpenChange={setEditOpen} onSave={saveProfile} />
@@ -673,6 +1043,24 @@ export function UserDetailView({
         onOpenChange={setPostingBanOpen}
         onConfirm={banFromPosting}
       />
+    </div>
+  );
+}
+
+function formatExpiry(iso: string | null): string {
+  if (!iso) return "—";
+  if (iso === LIFETIME_ISO) return "Lifetime";
+  return formatDate(iso);
+}
+
+function LifetimeStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border p-3">
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        {icon}
+        <span className="text-xs font-medium">{label}</span>
+      </div>
+      <p className="mt-1 font-mono text-lg font-semibold text-foreground">{value}</p>
     </div>
   );
 }

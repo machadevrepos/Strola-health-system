@@ -3,22 +3,15 @@
 import { PageHeader } from "@/components/shell/page-header";
 import { PageError, PageLoading } from "@/components/shell/page-states";
 import { ModerationView } from "@/components/moderation/moderation-view";
-import { fetchComments, fetchPosts, fetchReports, fetchUsers } from "@/lib/data/api";
-import { enrichComments, enrichPosts, enrichReports } from "@/lib/data/queries";
+import { fetchPosts, fetchReports, fetchUsers } from "@/lib/data/api";
+import { enrichPosts, enrichReports } from "@/lib/data/queries";
 import { useApiData } from "@/lib/use-api-data";
 
 async function loadModeration() {
-  const [users, rawPosts, rawReports, rawComments] = await Promise.all([
-    fetchUsers(),
-    fetchPosts(true),
-    fetchReports(),
-    fetchComments(),
-  ]);
+  const [users, rawPosts, rawReports] = await Promise.all([fetchUsers(), fetchPosts(true), fetchReports()]);
   return {
     posts: enrichPosts(rawPosts, users),
     reports: enrichReports(rawReports, users, rawPosts),
-    comments: enrichComments(rawComments, users, rawPosts),
-    users,
   };
 }
 
@@ -27,10 +20,10 @@ export default function ModerationPage() {
 
   return (
     <div>
-      <PageHeader title="Moderation" description="Review community posts and resolve user reports." />
+      <PageHeader title="Moderation" description="Resolve user reports on posts and accounts." />
       {loading && <PageLoading />}
       {error && <PageError message={error} onRetry={reload} />}
-      {data && <ModerationView posts={data.posts} reports={data.reports} comments={data.comments} users={data.users} />}
+      {data && <ModerationView posts={data.posts} reports={data.reports} />}
     </div>
   );
 }

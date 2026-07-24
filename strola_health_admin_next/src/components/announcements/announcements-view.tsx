@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Plus, DotsThree, PencilSimple, Trash, CircleNotch } from "@phosphor-icons/react";
+import { Plus, DotsThree, PencilSimple, Copy, Trash, CircleNotch, Eye, EyeSlash, CursorClick } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +24,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AnnouncementFormDialog, type AnnouncementFormValues } from "@/components/announcements/announcement-form-dialog";
-import { createAnnouncement, deleteAnnouncement, updateAnnouncement } from "@/lib/data/api";
+import { createAnnouncement, deleteAnnouncement, duplicateAnnouncement, updateAnnouncement } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { logAction } from "@/lib/audit-log-store";
-import { findUserById, userDisplayName } from "@/lib/data/queries";
-import { formatDate } from "@/lib/format";
+import { announcementAudienceLabel, announcementStats, findUserById, userDisplayName } from "@/lib/data/queries";
+import { formatDate, formatNumber, formatPercent } from "@/lib/format";
 import type { Announcement, UserProfile } from "@/lib/types";
 
 function apiErrorMessage(err: unknown, fallback: string): string {
@@ -55,6 +55,9 @@ export function AnnouncementsView({
       emoji: values.emoji,
       message: values.message.trim(),
       link_target: values.link_target.trim() || null,
+      audience: values.audience,
+      audience_app_version: values.audience === "app_version" ? values.audience_app_version.trim() || null : null,
+      audience_app_version_mode: values.audience === "app_version" ? values.audience_app_version_mode : null,
       starts_at: new Date(values.starts_at).toISOString(),
       ends_at: values.ends_at ? new Date(values.ends_at).toISOString() : null,
     };
@@ -96,6 +99,17 @@ export function AnnouncementsView({
     }
   }
 
+  async function duplicate(announcement: Announcement) {
+    try {
+      const copy = await duplicateAnnouncement(announcement.id);
+      setAnnouncements((prev) => [copy, ...prev]);
+      toast.success("Announcement duplicated — inactive until you set new dates");
+      logAction("Duplicated announcement", announcement.message);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't duplicate this announcement"));
+    }
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -124,55 +138,73 @@ export function AnnouncementsView({
         {announcements.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">No announcements yet.</p>
         )}
-        {announcements.map((a) => (
-          <Card key={a.id} className="border-border shadow-none">
-            <CardContent className="flex items-start gap-3">
-              <span className="text-2xl">{a.emoji}</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-foreground">{a.message}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <Badge className={a.active ? "bg-success/15 text-success" : "bg-secondary text-foreground"}>
-                    {a.active ? "Active" : "Inactive"}
-                  </Badge>
-                  {a.link_target && (
-                    <Badge variant="outline" className="font-mono text-[11px]">
-                      → {a.link_target}
+        {announcements.map((a) => {
+          const stats = announcementStats(a, users);
+          return (
+            <Card key={a.id} className="border-border shadow-none">
+              <CardContent className="flex items-start gap-3">
+                <span className="text-2xl">{a.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-foreground">{a.message}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge className={a.active ? "bg-success/15 text-success" : "bg-secondary text-foreground"}>
+                      {a.active ? "Active" : "Inactive"}
                     </Badge>
-                  )}
-                  <span>
-                    {formatDate(a.starts_at)} {a.ends_at ? `– ${formatDate(a.ends_at)}` : "– indefinite"}
-                  </span>
-                  {a.created_by && <span>· created by {userDisplayName(findUserById(users, a.created_by))}</span>}
+                    <Badge variant="outline" className="text-[11px]">{announcementAudienceLabel(a)}</Badge>
+                    {a.link_target && (
+                      <Badge variant="outline" className="font-mono text-[11px]">
+                        → {a.link_target}
+                      </Badge>
+                    )}
+                    <span>
+                      {formatDate(a.starts_at)} {a.ends_at ? `– ${formatDate(a.ends_at)}` : "– indefinite"}
+                    </span>
+                    {a.created_by && <span>· created by {userDisplayName(findUserById(users, a.created_by))}</span>}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1"><Eye size={13} /> {formatNumber(stats.seen)} seen</span>
+                    <span className="inline-flex items-center gap-1"><EyeSlash size={13} /> {formatNumber(stats.dismissed)} dismissed</span>
+                    {a.link_target && (
+                      <span className="inline-flex items-center gap-1">
+                        <CursorClick size={13} /> {formatNumber(stats.clicked)} clicked ({formatPercent(stats.ctr)} CTR)
+                      </span>
+                    )}
+                    <span>~{formatNumber(stats.audience)} in audience</span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Switch checked={a.active} onCheckedChange={(v) => toggleActive(a, !!v)} />
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={<button type="button" className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Announcement actions" />}
-                  >
-                    <DotsThree size={18} weight="bold" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setEditTarget(a)}>
-                      <PencilSimple size={14} /> Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(a)}>
-                      <Trash size={14} /> Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                <div className="flex shrink-0 items-center gap-2">
+                  <Switch checked={a.active} onCheckedChange={(v) => toggleActive(a, !!v)} />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={<button type="button" className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Announcement actions" />}
+                    >
+                      <DotsThree size={18} weight="bold" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setEditTarget(a)}>
+                        <PencilSimple size={14} /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => duplicate(a)}>
+                        <Copy size={14} /> Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(a)}>
+                        <Trash size={14} /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
-      <AnnouncementFormDialog open={formOpen} onOpenChange={setFormOpen} onSave={async (v) => { await create(v); setFormOpen(false); }} />
+      <AnnouncementFormDialog open={formOpen} onOpenChange={setFormOpen} users={users} onSave={async (v) => { await create(v); setFormOpen(false); }} />
       <AnnouncementFormDialog
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
         announcement={editTarget}
+        users={users}
         onSave={save}
       />
 

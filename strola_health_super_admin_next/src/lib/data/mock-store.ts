@@ -3,6 +3,7 @@
 // scope), so mutations within a session persist across navigations but
 // reset on refresh, same as the pre-wiring local-state demo behaved.
 import {
+  mockAccountDeletionRequests as seedAccountDeletionRequests,
   mockAnalyticsEvents as seedAnalyticsEvents,
   mockAnnouncements as seedAnnouncements,
   mockAppContent as seedAppContent,
@@ -15,14 +16,18 @@ import {
   mockDailySummaries as seedDailySummaries,
   mockDevices as seedDevices,
   mockFeatureFlags as seedFeatureFlags,
+  mockFirmwareFailures as seedFirmwareFailures,
   mockIntegrationConnections as seedIntegrationConnections,
-  mockLegalDocuments as seedLegalDocuments,
+  mockLegalAcceptances as seedLegalAcceptances,
+  mockLegalVersions as seedLegalVersions,
   mockParticipants as seedParticipants,
   mockPosts as seedPosts,
   mockPushNotifications as seedPushNotifications,
   mockReports as seedReports,
   mockSessions as seedSessions,
+  mockSupportTickets as seedSupportTickets,
   mockUserBadges as seedUserBadges,
+  mockUserNotes as seedUserNotes,
   mockUsers as seedUsers,
 } from "@/lib/data/mock-data";
 
@@ -44,10 +49,15 @@ export const mockUserBadges = clone(seedUserBadges);
 export const mockFeatureFlags = clone(seedFeatureFlags);
 export const mockAnalyticsEvents = clone(seedAnalyticsEvents);
 export const mockCrashReports = clone(seedCrashReports);
+export const mockSupportTickets = clone(seedSupportTickets);
+export const mockUserNotes = clone(seedUserNotes);
+export const mockFirmwareFailures = clone(seedFirmwareFailures);
+export const mockAccountDeletionRequests = clone(seedAccountDeletionRequests);
 export const mockPushNotifications = clone(seedPushNotifications);
 export const mockIntegrationConnections = clone(seedIntegrationConnections);
 export const mockAppContent = clone(seedAppContent);
-export const mockLegalDocuments = clone(seedLegalDocuments);
+export const mockLegalVersions = clone(seedLegalVersions);
+export const mockLegalAcceptances = clone(seedLegalAcceptances);
 export const mockAppSettings = clone(seedAppSettings);
 export const mockBetaOverrides = clone(seedBetaOverrides);
 export const mockAnnouncements = clone(seedAnnouncements);

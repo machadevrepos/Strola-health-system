@@ -19,8 +19,13 @@ export function SubscriptionBadge({ subscription }: { subscription: UserProfile[
   // badges (success green / destructive red): Premium is a commercial tier,
   // not a health signal, so it carries the brand color instead of reusing
   // "green = good" — keeps it visually distinct from an adjacent Active pill.
-  const { tier, status } = subscription;
-  if (tier === "premium" && status === "active") {
+  const { tier, status, comp_until, comp_reason } = subscription;
+  // Comp access is an independent grant, not layered on top of tier/status
+  // (see `hasAdminGrantedPremium` in lib/data/queries.ts) — checked first so
+  // a comp'd user still reads as "Premium" even though comp deliberately
+  // never overwrites their underlying tier/status.
+  const hasComp = !!comp_until && new Date(comp_until) > new Date() && comp_reason !== "signup_trial";
+  if (hasComp || (tier === "premium" && status === "active")) {
     return <Badge className="bg-primary/12 text-primary">Premium</Badge>;
   }
   if (status === "trialing") {
@@ -34,7 +39,7 @@ export function SubscriptionBadge({ subscription }: { subscription: UserProfile[
 
 export function AccountStatusBadge({ user }: { user: UserProfile }) {
   if (user.deleted) return <Badge variant="outline">Deleted</Badge>;
-  if (user.banned) return <Badge className="bg-destructive/12 text-destructive">Banned</Badge>;
+  if (user.banned) return <Badge className="bg-destructive/12 text-destructive">Suspended</Badge>;
   return <Badge className="bg-success/15 text-success">Active</Badge>;
 }
 
