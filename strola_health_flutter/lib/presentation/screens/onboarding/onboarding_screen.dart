@@ -133,27 +133,58 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       onboardingComplete: true,
     );
 
-    await ref.read(userProfileProvider.notifier).save(profile);
-    await ref.read(userWeightKgProvider.notifier).setWeight(_weightKg);
-    await ref.read(dailyGoalProvider.notifier).setGoal(_stepGoal);
+    // Read everything from `ref` up front, before any `await` — saving the
+    // profile below flips `onboardingComplete`, which the root gate reacts
+    // to by swapping this screen straight out of the tree. Any `ref.read`
+    // after that point throws ("used after disposed"), even though the
+    // notifiers/services themselves are plain objects that stay perfectly
+    // usable once captured.
+    final profileNotifier = ref.read(userProfileProvider.notifier);
+    final weightNotifier = ref.read(userWeightKgProvider.notifier);
+    final goalNotifier = ref.read(dailyGoalProvider.notifier);
+    final shouldSyncBackend =
+        ref.read(firebaseAvailableProvider) &&
+        ref.read(authStateProvider).value != null;
+    final backendApi = ref.read(backendApiProvider);
+    final isEditing = widget.isEditing;
+
+    await profileNotifier.save(profile);
+    await weightNotifier.setWeight(_weightKg);
+    await goalNotifier.setGoal(_stepGoal);
     HapticsHelper.goalReached();
 
     // Best-effort — the local save above is the source of truth regardless;
-    // this just keeps the backend account in step once auth exists.
-    if (ref.read(firebaseAvailableProvider) &&
-        ref.read(authStateProvider).value != null) {
-      try {
-        await ref.read(backendApiProvider).updateProfile(
-              profile,
-              dailyGoalSteps: _stepGoal,
-              weightKg: _weightKg,
+    // this just keeps the backend account in step once auth exists. Retried
+    // a few times rather than a single silent attempt: right after sign-up,
+    // the Firestore user doc this call updates is still being created by a
+    // non-blocking auth trigger (see onUserCreate.ts) — a fast onboarding
+    // flow can genuinely win that race and hit a transient "not found" on
+    // the first try. A single failed attempt here used to mean the backend
+    // profile simply never existed, silently, forever.
+    if (shouldSyncBackend) {
+      const maxAttempts = 3;
+      for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await backendApi.updateProfile(
+            profile,
+            dailyGoalSteps: _stepGoal,
+            weightKg: _weightKg,
+          );
+          break;
+        } catch (e) {
+          if (attempt == maxAttempts) {
+            debugPrint(
+              '[OnboardingScreen] backend profile sync failed after '
+              '$attempt attempts, local save still stands: $e',
             );
-      } catch (_) {
-        // Network/backend issues shouldn't block finishing onboarding.
+          } else {
+            await Future.delayed(Duration(milliseconds: 500 * attempt));
+          }
+        }
       }
     }
 
-    if (widget.isEditing && mounted) Navigator.pop(context);
+    if (isEditing && mounted) Navigator.pop(context);
   }
 
   @override
@@ -180,15 +211,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         onTap: widget.isEditing && _page == 0
                             ? () => Navigator.pop(context)
                             : _back,
-                        child: const Icon(AppIcons.back,
-                            color: AppColors.textPrimary,
-                            size: AppTheme.iconM),
+                        child: const Icon(
+                          AppIcons.back,
+                          color: AppColors.textPrimary,
+                          size: AppTheme.iconM,
+                        ),
                       )
                     else
                       const SizedBox(width: AppTheme.iconM),
                     Expanded(
-                      child: _StepProgress(
-                          current: _page, total: _stepCount),
+                      child: _StepProgress(current: _page, total: _stepCount),
                     ),
                     const SizedBox(width: AppTheme.iconM),
                   ],
@@ -235,19 +267,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           onPressed: _back,
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(
-                              color: AppColors.accentSecondary
-                                  .withValues(alpha: 0.45),
+                              color: AppColors.accentSecondary.withValues(
+                                alpha: 0.45,
+                              ),
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(AppTheme.radiusM),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusM,
+                              ),
                             ),
                             padding: const EdgeInsets.symmetric(
-                                vertical: AppTheme.spaceL),
+                              vertical: AppTheme.spaceL,
+                            ),
                           ),
-                          child: Text('Back',
-                              style: AppTypography.titleS.copyWith(
-                                  color: AppColors.textSecondary)),
+                          child: Text(
+                            'Back',
+                            style: AppTypography.titleS.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: AppTheme.spaceM),
@@ -258,24 +296,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         onPressed: _canAdvance ? _next : null,
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.accent,
-                          disabledBackgroundColor:
-                              AppColors.accentSecondary.withValues(alpha: 0.5),
+                          disabledBackgroundColor: AppColors.accentSecondary
+                              .withValues(alpha: 0.5),
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusM),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusM,
+                            ),
                           ),
                           padding: const EdgeInsets.symmetric(
-                              vertical: AppTheme.spaceL),
+                            vertical: AppTheme.spaceL,
+                          ),
                           elevation: 0,
                         ),
                         child: Text(
                           _page == _stepCount - 1
                               ? (widget.isEditing
-                                  ? 'Save Changes'
-                                  : 'Complete Setup')
+                                    ? 'Save Changes'
+                                    : 'Complete Setup')
                               : 'Continue',
-                          style: AppTypography.titleS
-                              .copyWith(color: Colors.white),
+                          style: AppTypography.titleS.copyWith(
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -294,7 +335,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return _StepScaffold(
       title: 'Preferences',
       subtitle:
-          "Choose how you'd like to see your stats — you can change this "
+          "Choose how you'd like to see your stats. You can change this "
           'later in Settings.',
       children: [
         FlatCard(
@@ -303,8 +344,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             children: [
               Row(
                 children: [
-                  Icon(AppIcons.units,
-                      color: AppColors.accent, size: AppTheme.iconM),
+                  Icon(
+                    AppIcons.units,
+                    color: AppColors.accent,
+                    size: AppTheme.iconM,
+                  ),
                   const SizedBox(width: AppTheme.spaceM),
                   Text('Units', style: AppTypography.bodyL),
                 ],
@@ -382,13 +426,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: AppTheme.spaceM),
-          Text('Your daily goal', style: AppTypography.titleL)
-              .animate()
-              .fadeIn(duration: AppTheme.animFast)
-              .slideY(begin: 0.1),
+          Text(
+            'Your daily goal',
+            style: AppTypography.titleL,
+          ).animate().fadeIn(duration: AppTheme.animFast).slideY(begin: 0.1),
           const SizedBox(height: AppTheme.spaceXS),
-          Text('How many steps are you aiming for each day?',
-              style: AppTypography.bodyM),
+          Text(
+            'How many steps are you aiming for each day?',
+            style: AppTypography.bodyM,
+          ),
           const SizedBox(height: AppTheme.spaceXL),
           Expanded(
             child: FlatCard(
@@ -396,11 +442,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(AppIcons.target,
-                      color: AppColors.accent, size: AppTheme.iconXXL),
+                  Icon(
+                    AppIcons.target,
+                    color: AppColors.accent,
+                    size: AppTheme.iconXXL,
+                  ),
                   const SizedBox(height: AppTheme.spaceM),
-                  Text(Formatters.stepCount(_stepGoal),
-                      style: AppTypography.displayXL),
+                  Text(
+                    Formatters.stepCount(_stepGoal),
+                    style: AppTypography.displayXL,
+                  ),
                   const SizedBox(height: AppTheme.spaceXS),
                   Text('steps per day', style: AppTypography.labelM),
                   const SizedBox(height: AppTheme.spaceXXL),
@@ -425,13 +476,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             color: active
                                 ? AppColors.accent.withValues(alpha: 0.10)
                                 : AppColors.bgSurface,
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusFull),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusFull,
+                            ),
                             border: Border.all(
                               color: active
                                   ? AppColors.accent.withValues(alpha: 0.45)
-                                  : AppColors.accentSecondary
-                                      .withValues(alpha: 0.30),
+                                  : AppColors.accentSecondary.withValues(
+                                      alpha: 0.30,
+                                    ),
                             ),
                           ),
                           child: Text(
@@ -440,8 +493,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                               color: active
                                   ? AppColors.accent
                                   : AppColors.textSecondary,
-                              fontWeight:
-                                  active ? FontWeight.w700 : FontWeight.w400,
+                              fontWeight: active
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
                             ),
                           ),
                         ),
@@ -451,10 +505,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   const SizedBox(height: AppTheme.spaceL),
                   TextButton(
                     onPressed: _pickGoal,
-                    child: Text('Set a custom goal',
-                        style: AppTypography.labelM.copyWith(
-                            color: AppColors.accent,
-                            fontWeight: FontWeight.w600)),
+                    child: Text(
+                      'Set a custom goal',
+                      style: AppTypography.labelM.copyWith(
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -511,19 +568,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             children: [
               Row(
                 children: [
-                  Icon(AppIcons.goalReached,
-                      color: AppColors.success, size: AppTheme.iconM),
+                  Icon(
+                    AppIcons.goalReached,
+                    color: AppColors.success,
+                    size: AppTheme.iconM,
+                  ),
                   const SizedBox(width: AppTheme.spaceS),
                   Text("You're all set!", style: AppTypography.titleS),
                 ],
               ),
               const SizedBox(height: AppTheme.spaceM),
-              _recapRow('Daily goal',
-                  '${Formatters.stepCount(_stepGoal)} steps'),
+              _recapRow(
+                'Daily goal',
+                '${Formatters.stepCount(_stepGoal)} steps',
+              ),
               _recapRow('Height', _heightLabel()),
               _recapRow('Weight', _weightLabel()),
-              _recapRow('Units',
-                  _units == UnitSystem.metric ? 'Metric' : 'Imperial'),
+              _recapRow(
+                'Units',
+                _units == UnitSystem.metric ? 'Metric' : 'Imperial',
+              ),
             ],
           ),
         ),
@@ -538,9 +602,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         children: [
           Text(label, style: AppTypography.bodyM),
           const Spacer(),
-          Text(value,
-              style: AppTypography.bodyL
-                  .copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: AppTypography.bodyL.copyWith(fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );
@@ -564,8 +629,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   String _formatDob(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
@@ -607,9 +682,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         suffix: 'lb',
       );
       if (result != null) {
-        setState(
-          () => _weightKg = FitnessCalculator.lbToKg(result.toDouble()),
-        );
+        setState(() => _weightKg = FitnessCalculator.lbToKg(result.toDouble()));
       }
       return;
     }
@@ -674,17 +747,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           children: order.map((g) {
             final selected = g == _gender;
             return ListTile(
-              title: Text(g.label,
-                  style: AppTypography.bodyL.copyWith(
-                    color: selected
-                        ? AppColors.accent
-                        : AppColors.textPrimary,
-                    fontWeight:
-                        selected ? FontWeight.w600 : FontWeight.w400,
-                  )),
+              title: Text(
+                g.label,
+                style: AppTypography.bodyL.copyWith(
+                  color: selected ? AppColors.accent : AppColors.textPrimary,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
               trailing: selected
-                  ? const Icon(AppIcons.check,
-                      color: AppColors.accent, size: AppTheme.iconM)
+                  ? const Icon(
+                      AppIcons.check,
+                      color: AppColors.accent,
+                      size: AppTheme.iconM,
+                    )
                   : null,
               onTap: () => Navigator.pop(context, g),
             );
@@ -724,14 +799,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 axis: Axis.vertical,
                 onChanged: (v) => setSheet(() => value = v),
                 textStyle: AppTypography.titleM.copyWith(
-                    color: AppColors.textMuted),
-                selectedTextStyle:
-                    AppTypography.displayM.copyWith(fontSize: 26),
+                  color: AppColors.textMuted,
+                ),
+                selectedTextStyle: AppTypography.displayM.copyWith(
+                  fontSize: 26,
+                ),
                 decoration: BoxDecoration(
                   border: Border.symmetric(
                     horizontal: BorderSide(
-                      color: AppColors.accentSecondary
-                          .withValues(alpha: 0.35),
+                      color: AppColors.accentSecondary.withValues(alpha: 0.35),
                     ),
                   ),
                 ),
@@ -748,13 +824,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTheme.radiusM),
                     ),
-                    padding:
-                        const EdgeInsets.symmetric(vertical: AppTheme.spaceL),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppTheme.spaceL,
+                    ),
                     elevation: 0,
                   ),
-                  child: Text('Confirm',
-                      style: AppTypography.titleS
-                          .copyWith(color: Colors.white)),
+                  child: Text(
+                    'Confirm',
+                    style: AppTypography.titleS.copyWith(color: Colors.white),
+                  ),
                 ),
               ),
             ],
@@ -790,22 +868,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     itemWidth: 64,
                     axis: Axis.vertical,
                     onChanged: (v) => setSheet(() => feet = v),
-                    textStyle: AppTypography.titleM
-                        .copyWith(color: AppColors.textMuted),
-                    selectedTextStyle:
-                        AppTypography.displayM.copyWith(fontSize: 26),
+                    textStyle: AppTypography.titleM.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                    selectedTextStyle: AppTypography.displayM.copyWith(
+                      fontSize: 26,
+                    ),
                     decoration: BoxDecoration(
                       border: Border.symmetric(
                         horizontal: BorderSide(
-                          color: AppColors.accentSecondary
-                              .withValues(alpha: 0.35),
+                          color: AppColors.accentSecondary.withValues(
+                            alpha: 0.35,
+                          ),
                         ),
                       ),
                     ),
                   ),
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppTheme.spaceS),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceS,
+                    ),
                     child: Text('ft', style: AppTypography.labelM),
                   ),
                   NumberPicker(
@@ -816,15 +898,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     itemWidth: 64,
                     axis: Axis.vertical,
                     onChanged: (v) => setSheet(() => inches = v),
-                    textStyle: AppTypography.titleM
-                        .copyWith(color: AppColors.textMuted),
-                    selectedTextStyle:
-                        AppTypography.displayM.copyWith(fontSize: 26),
+                    textStyle: AppTypography.titleM.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                    selectedTextStyle: AppTypography.displayM.copyWith(
+                      fontSize: 26,
+                    ),
                     decoration: BoxDecoration(
                       border: Border.symmetric(
                         horizontal: BorderSide(
-                          color: AppColors.accentSecondary
-                              .withValues(alpha: 0.35),
+                          color: AppColors.accentSecondary.withValues(
+                            alpha: 0.35,
+                          ),
                         ),
                       ),
                     ),
@@ -845,13 +930,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTheme.radiusM),
                     ),
-                    padding:
-                        const EdgeInsets.symmetric(vertical: AppTheme.spaceL),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppTheme.spaceL,
+                    ),
                     elevation: 0,
                   ),
-                  child: Text('Confirm',
-                      style: AppTypography.titleS
-                          .copyWith(color: Colors.white)),
+                  child: Text(
+                    'Confirm',
+                    style: AppTypography.titleS.copyWith(color: Colors.white),
+                  ),
                 ),
               ),
             ],
@@ -952,10 +1039,10 @@ class _StepScaffold extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: AppTheme.spaceM),
-          Text(title, style: AppTypography.titleL)
-              .animate()
-              .fadeIn(duration: AppTheme.animFast)
-              .slideY(begin: 0.1),
+          Text(
+            title,
+            style: AppTypography.titleL,
+          ).animate().fadeIn(duration: AppTheme.animFast).slideY(begin: 0.1),
           if (subtitle != null) ...[
             const SizedBox(height: AppTheme.spaceXS),
             Text(subtitle!, style: AppTypography.bodyM),
@@ -1047,12 +1134,18 @@ class _PickerRow extends StatelessWidget {
               Text('(Optional)', style: AppTypography.labelS),
             ],
             const Spacer(),
-            Text(value,
-                style: AppTypography.bodyM
-                    .copyWith(color: AppColors.textSecondary)),
+            Text(
+              value,
+              style: AppTypography.bodyM.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(width: AppTheme.spaceXS),
-            const Icon(AppIcons.chevronRight,
-                color: AppColors.textMuted, size: AppTheme.iconM),
+            const Icon(
+              AppIcons.chevronRight,
+              color: AppColors.textMuted,
+              size: AppTheme.iconM,
+            ),
           ],
         ),
       ),
@@ -1064,11 +1157,11 @@ class _RowDivider extends StatelessWidget {
   const _RowDivider();
   @override
   Widget build(BuildContext context) => Divider(
-        height: 1,
-        indent: AppTheme.spaceL,
-        endIndent: AppTheme.spaceL,
-        color: AppColors.accentSecondary.withValues(alpha: 0.18),
-      );
+    height: 1,
+    indent: AppTheme.spaceL,
+    endIndent: AppTheme.spaceL,
+    color: AppColors.accentSecondary.withValues(alpha: 0.18),
+  );
 }
 
 class _ReasonTile extends StatelessWidget {
@@ -1083,12 +1176,12 @@ class _ReasonTile extends StatelessWidget {
   final VoidCallback onTap;
 
   IconData get _icon => switch (reason) {
-        StrollaReason.strollerWagon => AppIcons.stroller,
-        StrollaReason.walkingPad => AppIcons.walk,
-        StrollaReason.cantWearWearable => AppIcons.work,
-        StrollaReason.accurateTracking => AppIcons.steps,
-        StrollaReason.other => AppIcons.more,
-      };
+    StrollaReason.strollerWagon => AppIcons.stroller,
+    StrollaReason.walkingPad => AppIcons.walk,
+    StrollaReason.cantWearWearable => AppIcons.work,
+    StrollaReason.accurateTracking => AppIcons.steps,
+    StrollaReason.other => AppIcons.more,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -1128,8 +1221,11 @@ class _ReasonTile extends StatelessWidget {
                 ),
               ),
               child: selected
-                  ? const Icon(AppIcons.check,
-                      color: Colors.white, size: AppTheme.iconXS)
+                  ? const Icon(
+                      AppIcons.check,
+                      color: Colors.white,
+                      size: AppTheme.iconXS,
+                    )
                   : null,
             ),
             const SizedBox(width: AppTheme.spaceM),
@@ -1213,8 +1309,11 @@ class _InfoNote extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(AppIcons.info,
-            color: AppColors.textMuted, size: AppTheme.iconXS + 2),
+        Icon(
+          AppIcons.info,
+          color: AppColors.textMuted,
+          size: AppTheme.iconXS + 2,
+        ),
         const SizedBox(width: AppTheme.spaceS),
         Expanded(child: Text(text, style: AppTypography.labelS)),
       ],

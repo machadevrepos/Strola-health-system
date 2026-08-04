@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { CheckCircle, PencilSimple, CircleNotch, Eye, WarningCircle } from "@phosphor-icons/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -19,12 +18,14 @@ import { logAction } from "@/lib/audit-log-store";
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AppContentPreview, CATEGORY_LOCATION } from "@/components/app-content/app-content-preview";
+import { AppContentRichTextEditor } from "@/components/app-content/app-content-rich-text-editor";
 import {
   APP_CONTENT_VARIABLES,
   insertVariableAt,
   renderAppContentPreview,
   unknownVariablesIn,
 } from "@/components/app-content/app-content-variables";
+import { renderInlineMarkdown } from "@/lib/inline-markdown";
 import type { AppContentCategory, AppContentEntry } from "@/lib/types";
 
 function apiErrorMessage(err: unknown, fallback: string): string {
@@ -164,7 +165,7 @@ function ContentRow({ entry, onSave }: { entry: AppContentEntry; onSave: (key: s
 
         {editing ? (
           <div className="mt-2 space-y-2">
-            <Textarea ref={textareaRef} value={value} onChange={(e) => setValue(e.target.value)} rows={2} autoFocus />
+            <AppContentRichTextEditor value={value} onChange={setValue} textareaRef={textareaRef} />
 
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-muted-foreground">Insert:</span>
@@ -189,7 +190,8 @@ function ContentRow({ entry, onSave }: { entry: AppContentEntry; onSave: (key: s
             )}
 
             <p className="text-xs text-muted-foreground">
-              <span className="font-medium">Preview:</span> {renderAppContentPreview(value) || "—"}
+              <span className="font-medium">Preview:</span>{" "}
+              {value.trim() ? renderInlineMarkdown(renderAppContentPreview(value), "row-preview") : "—"}
             </p>
 
             <div className="flex justify-end gap-2">
@@ -211,7 +213,7 @@ function ContentRow({ entry, onSave }: { entry: AppContentEntry; onSave: (key: s
             </div>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-muted-foreground">{entry.value}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{renderInlineMarkdown(entry.value, "row-value")}</p>
         )}
 
         <p className="mt-2 text-xs text-muted-foreground">Updated {formatRelative(entry.updated_at)}</p>

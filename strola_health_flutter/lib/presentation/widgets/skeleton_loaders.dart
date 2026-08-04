@@ -54,18 +54,34 @@ class _SessionCardSkeleton extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(height: 14, width: 120, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+                Container(
+                  height: 14,
+                  width: 120,
+                  color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                ),
                 const SizedBox(height: 6),
-                Container(height: 11, width: 80, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+                Container(
+                  height: 11,
+                  width: 80,
+                  color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                ),
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Container(height: 16, width: 70, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+              Container(
+                height: 16,
+                width: 70,
+                color: AppColors.accentSecondary.withValues(alpha: 0.2),
+              ),
               const SizedBox(height: 6),
-              Container(height: 11, width: 90, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+              Container(
+                height: 11,
+                width: 90,
+                color: AppColors.accentSecondary.withValues(alpha: 0.2),
+              ),
             ],
           ),
         ],
@@ -128,7 +144,11 @@ class _PostCardSkeleton extends StatelessWidget {
                     color: AppColors.accentSecondary.withValues(alpha: 0.2),
                   ),
                   const SizedBox(height: 5),
-                  Container(height: 10, width: 60, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+                  Container(
+                    height: 10,
+                    width: 60,
+                    color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                  ),
                 ],
               ),
             ],
@@ -140,13 +160,25 @@ class _PostCardSkeleton extends StatelessWidget {
             color: AppColors.accentSecondary.withValues(alpha: 0.2),
           ),
           const SizedBox(height: 6),
-          Container(height: 13, width: 200, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+          Container(
+            height: 13,
+            width: 200,
+            color: AppColors.accentSecondary.withValues(alpha: 0.2),
+          ),
           const SizedBox(height: 14),
           Row(
             children: [
-              Container(height: 11, width: 50, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+              Container(
+                height: 11,
+                width: 50,
+                color: AppColors.accentSecondary.withValues(alpha: 0.2),
+              ),
               const SizedBox(width: 16),
-              Container(height: 11, width: 60, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+              Container(
+                height: 11,
+                width: 60,
+                color: AppColors.accentSecondary.withValues(alpha: 0.2),
+              ),
             ],
           ),
         ],
@@ -192,11 +224,23 @@ class NotificationListSkeleton extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(height: 13, width: 160, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+                    Container(
+                      height: 13,
+                      width: 160,
+                      color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                    ),
                     const SizedBox(height: 6),
-                    Container(height: 11, width: 200, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+                    Container(
+                      height: 11,
+                      width: 200,
+                      color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                    ),
                     const SizedBox(height: 6),
-                    Container(height: 10, width: 60, color: AppColors.accentSecondary.withValues(alpha: 0.2)),
+                    Container(
+                      height: 10,
+                      width: 60,
+                      color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                    ),
                   ],
                 ),
               ),
@@ -249,13 +293,17 @@ class ChallengeSkeleton extends StatelessWidget {
                         Container(
                           height: 15,
                           width: 160,
-                          color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                          color: AppColors.accentSecondary.withValues(
+                            alpha: 0.2,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Container(
                           height: 11,
                           width: 100,
-                          color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                          color: AppColors.accentSecondary.withValues(
+                            alpha: 0.2,
+                          ),
                         ),
                       ],
                     ),

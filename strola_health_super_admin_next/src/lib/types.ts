@@ -76,12 +76,16 @@ export interface UserProfile {
   // one at a time.
   is_ambassador: boolean;
   // Phone OS — used for platform-targeted announcements ("iPhone"/"Android").
-  platform: "ios" | "android";
+  // Null until the mobile app actually reports in at least once (every
+  // account starts this way — onUserCreate has no platform info available
+  // at signup time, since account creation happens before any app-side call).
+  platform: "ios" | "android" | null;
   // e.g. "iPhone 16 Pro" — the specific handset, not just the OS.
   device_model: string | null;
   // Last-known installed app version — used for update-nudge announcement
-  // targeting ("2.2.0 or older"), not tied to any single session.
-  app_version: string;
+  // targeting ("2.2.0 or older"), not tied to any single session. Null for
+  // the same reason `platform` is — nothing sets it until the app reports in.
+  app_version: string | null;
   // Freeform admin cohort labels (e.g. "kickstarter", "beta_tester") — used
   // for filtering and for bulk actions like granting premium to a cohort.
   tags: string[];
@@ -169,6 +173,7 @@ export type DataSource =
   | "oura"
   | "garmin"
   | "strava"
+  | "myfitnesspal"
   | "manual";
 
 export interface RoutePoint {

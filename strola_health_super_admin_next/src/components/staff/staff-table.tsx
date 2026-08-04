@@ -19,6 +19,7 @@ import { PromoteStaffDialog } from "@/components/staff/promote-staff-dialog";
 import { userDisplayName } from "@/lib/data/queries";
 import { changeUserRole } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { formatDate, initials, ROLE_LABEL } from "@/lib/format";
 import { logAction } from "@/lib/audit-log-store";
 import type { Role, UserProfile } from "@/lib/types";
@@ -34,6 +35,12 @@ export function StaffTable({
   staff: UserProfile[];
   promotable: UserProfile[];
 }) {
+  const { role: viewerRole } = useAuth();
+  // Backend-enforced too (setUserRole requires super_admin for any change
+  // that touches the admin/super_admin tier) — gating it here as well so a
+  // plain admin sees a disabled control instead of a permission error after
+  // picking a target and confirming.
+  const isSuperAdmin = viewerRole === "super_admin";
   const [staff, setStaff] = React.useState(initialStaff);
   const [promoteOpen, setPromoteOpen] = React.useState(false);
   const [pendingTarget, setPendingTarget] = React.useState<UserProfile | null>(null);
@@ -85,8 +92,14 @@ export function StaffTable({
 
   return (
     <div className="space-y-3">
+      {!isSuperAdmin && (
+        <p className="rounded-md border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+          Only super admins can change staff access — you can review who has it, but promoting, demoting, and removing
+          are disabled for your role.
+        </p>
+      )}
       <div className="flex justify-end">
-        <Button size="sm" onClick={() => setPromoteOpen(true)}>
+        <Button size="sm" onClick={() => setPromoteOpen(true)} disabled={!isSuperAdmin}>
           Promote a user
         </Button>
       </div>
@@ -115,7 +128,7 @@ export function StaffTable({
                 </Link>
               </TableCell>
               <TableCell>
-                <Select value={member.role} onValueChange={(v) => v && requestRoleChange(member, v as Role)}>
+                <Select value={member.role} onValueChange={(v) => v && requestRoleChange(member, v as Role)} disabled={!isSuperAdmin}>
                   <SelectTrigger size="sm" className="w-36">
                     <SelectValue>{ROLE_LABEL[member.role]}</SelectValue>
                   </SelectTrigger>
@@ -127,7 +140,7 @@ export function StaffTable({
               </TableCell>
               <TableCell className="text-muted-foreground">{formatDate(member.created_at)}</TableCell>
               <TableCell>
-                <Button variant="ghost" size="sm" onClick={() => requestRoleChange(member, "user")}>
+                <Button variant="ghost" size="sm" onClick={() => requestRoleChange(member, "user")} disabled={!isSuperAdmin}>
                   <UserMinus size={14} /> Remove
                 </Button>
               </TableCell>

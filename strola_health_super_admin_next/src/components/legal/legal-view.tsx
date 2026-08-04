@@ -8,8 +8,10 @@ import {
   CaretRight,
   CheckCircle,
   CircleNotch,
+  Copy,
   Eye,
   FilePdf,
+  LinkSimple,
   Plus,
   Trash,
   WarningCircle,
@@ -49,6 +51,18 @@ const DOC_LABEL: Record<LegalDocumentType, string> = {
   community_guidelines: "Community Guidelines",
 };
 const DOC_TYPES = Object.keys(DOC_LABEL) as LegalDocumentType[];
+
+// Publicly hosted by functions/src/legal/legalPage.ts via a Firebase Hosting
+// rewrite (firebase.json) — single project, no dev/staging split, so this is
+// hardcoded same as this app's own Firebase config. This is what goes in
+// App Store Connect's Privacy Policy URL field and the app's own Settings
+// screen links, once a version is actually published.
+const LEGAL_PUBLIC_BASE_URL = "https://strolla-health-4c93b.web.app/legal";
+const DOC_SLUG: Record<LegalDocumentType, string> = {
+  privacy_policy: "privacy-policy",
+  terms: "terms",
+  community_guidelines: "community-guidelines",
+};
 
 const STATUS_BADGE: Record<LegalDocumentVersion["status"], React.ReactNode> = {
   published: <Badge className="bg-success/15 text-success">Published</Badge>,
@@ -329,6 +343,35 @@ function LegalDocumentDetail({
             )}
           </CardDescription>
         </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <LinkSimple size={14} className="shrink-0 text-muted-foreground" />
+          {current ? (
+            <a
+              href={`${LEGAL_PUBLIC_BASE_URL}/${DOC_SLUG[docType]}`}
+              target="_blank"
+              rel="noreferrer"
+              className="truncate font-mono text-xs text-primary underline-offset-2 hover:underline"
+            >
+              {LEGAL_PUBLIC_BASE_URL}/{DOC_SLUG[docType]}
+            </a>
+          ) : (
+            <span className="truncate font-mono text-xs text-muted-foreground">
+              {LEGAL_PUBLIC_BASE_URL}/{DOC_SLUG[docType]} <span className="italic">(live once published)</span>
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Copy link"
+            className="shrink-0"
+            onClick={() => {
+              navigator.clipboard.writeText(`${LEGAL_PUBLIC_BASE_URL}/${DOC_SLUG[docType]}`);
+              toast.success("Link copied");
+            }}
+          >
+            <Copy size={14} />
+          </Button>
+        </CardContent>
       </Card>
 
       <Tabs defaultValue="draft">

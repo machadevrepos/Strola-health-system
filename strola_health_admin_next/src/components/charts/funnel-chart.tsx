@@ -2,11 +2,16 @@
 
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { ChartEmptyState } from "@/components/shell/page-states";
 import { formatNumber } from "@/lib/format";
 
 const COLORS = ["var(--color-primary)", "var(--color-primary)", "var(--color-success)"];
 
 export function FunnelChart({ data }: { data: { stage: string; count: number }[] }) {
+  if (data.every((d) => d.count === 0)) {
+    return <ChartEmptyState height={180} message="No users in the funnel yet." />;
+  }
+
   return (
     <div className="space-y-3">
       <ResponsiveContainer width="100%" height={180}>

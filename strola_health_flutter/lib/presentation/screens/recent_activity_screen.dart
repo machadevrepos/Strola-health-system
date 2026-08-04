@@ -11,8 +11,8 @@ import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 
 /// Full history behind the Profile screen's "Recent Activity" preview — the
-/// same shared, padded-out-to-~16 list (`recentActivityProvider`), so this
-/// page and the preview's first 4 entries always agree.
+/// same shared, real list (`recentActivityProvider`), so this page and the
+/// preview's first 4 entries always agree.
 class RecentActivityScreen extends ConsumerWidget {
   const RecentActivityScreen({super.key});
 
@@ -412,7 +412,7 @@ class _ActivityRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      goalMet ? "$pct% of goal — nailed it" : '$pct% of goal',
+                      goalMet ? "$pct% of goal, nailed it" : '$pct% of goal',
                       style: AppTypography.labelS.copyWith(
                         color: goalMet ? AppColors.accent : AppColors.textMuted,
                         fontWeight: goalMet ? FontWeight.w600 : FontWeight.w400,

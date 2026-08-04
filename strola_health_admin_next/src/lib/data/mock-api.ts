@@ -123,6 +123,15 @@ export async function deleteUser(id: string) {
   user.location = null;
   return ok(undefined);
 }
+export async function purgeUser(id: string) {
+  const index = mockUsers.findIndex((u) => u.id === id);
+  if (index === -1) notFound("User");
+  if (!mockUsers[index].deleted) {
+    throw new ApiError(400, "This account hasn't been deleted yet — soft-delete it first.");
+  }
+  mockUsers.splice(index, 1);
+  return ok(undefined);
+}
 export async function changeUserRole(id: string, role: string) {
   const user = mockUsers.find((u) => u.id === id);
   if (!user) notFound("User");

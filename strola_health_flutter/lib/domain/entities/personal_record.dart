@@ -9,9 +9,9 @@ enum PersonalRecordCategory {
 
 extension PersonalRecordCategoryX on PersonalRecordCategory {
   String get label => switch (this) {
-        PersonalRecordCategory.longestDuration => 'Longest Session',
-        PersonalRecordCategory.farthestDistance => 'Farthest Distance',
-        PersonalRecordCategory.mostStepsInSession => 'Most Steps in a Session',
-        PersonalRecordCategory.bestPace => 'Best Pace',
-      };
+    PersonalRecordCategory.longestDuration => 'Longest Session',
+    PersonalRecordCategory.farthestDistance => 'Farthest Distance',
+    PersonalRecordCategory.mostStepsInSession => 'Most Steps in a Session',
+    PersonalRecordCategory.bestPace => 'Best Pace',
+  };
 }

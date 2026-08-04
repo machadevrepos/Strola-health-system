@@ -11,6 +11,7 @@ enum BleServiceStatus {
   idle,
   requestingPermissions,
   permissionDenied,
+  bluetoothOff,
   scanning,
   connecting,
   connected,
@@ -29,8 +30,15 @@ enum BleServiceStatus {
 ///     receive a platform re-emit.
 ///   • _active is checked at every async boundary (after permission await, inside
 ///     every callback) so stop() mid-flight leaves no dangling work.
-///   • subscribeToCharacteristic is wrapped in try/catch for the synchronous
-///     throw that occurs on app-restart when the OS holds a phantom connection.
+///   • subscribeToCharacteristic AND scanForDevices are wrapped in try/catch for
+///     the synchronous throw that can occur on app-restart when the OS holds a
+///     phantom connection, or when the adapter is mid-transition.
+///   • The adapter's own status (_ble.statusStream — powered off, unauthorized,
+///     location services off) is watched separately from per-device connection
+///     state. Losing the adapter mid-scan/connect stops retry timers instead of
+///     letting them spin uselessly against a radio that isn't there; it's not
+///     treated as a device-level "disconnected" that should back off and retry,
+///     since retrying can't succeed until the radio itself comes back.
 class BleStepService {
   BleStepService(this._ble);
 
@@ -47,6 +55,7 @@ class BleStepService {
   String? _deviceId;
   int _reconnectCount = 0;
   bool _active = false;
+  BleStatus _adapterStatus = BleStatus.unknown;
 
   // Bumped on every _connect() and stop(). Callbacks that snapshot a stale
   // generation are dropped, preventing the reconnect storm.
@@ -55,6 +64,7 @@ class BleStepService {
   StreamSubscription<DiscoveredDevice>? _scanSub;
   StreamSubscription<ConnectionStateUpdate>? _connectSub;
   StreamSubscription<List<int>>? _charSub;
+  StreamSubscription<BleStatus>? _adapterSub;
   Timer? _reconnectTimer;
   Timer? _scanTimer;
 
@@ -64,6 +74,7 @@ class BleStepService {
     if (_active) return;
     _active = true;
     _reconnectCount = 0;
+    _adapterSub ??= _ble.statusStream.listen(_onAdapterStatus);
     await _requestPermissionsThenScan();
   }
 
@@ -82,6 +93,8 @@ class BleStepService {
     _connectSub = null;
     await _charSub?.cancel();
     _charSub = null;
+    await _adapterSub?.cancel();
+    _adapterSub = null;
 
     _setStatus(BleServiceStatus.idle);
   }
@@ -90,6 +103,43 @@ class BleStepService {
     stop(); // async, but guards in _setStatus / _stepController protect against races
     _stepController.close();
     _statusController.close();
+  }
+
+  // ── Adapter (radio) status — distinct from per-device connection state ──
+
+  void _onAdapterStatus(BleStatus adapterStatus) {
+    final wasReady = _adapterStatus == BleStatus.ready;
+    _adapterStatus = adapterStatus;
+    if (!_active) return;
+
+    if (adapterStatus == BleStatus.ready) {
+      // Radio just came back (user flipped Bluetooth back on, or granted
+      // location services) — resume where we left off instead of waiting
+      // for whatever reconnect backoff was in flight.
+      if (!wasReady &&
+          (_status == BleServiceStatus.bluetoothOff ||
+              _status == BleServiceStatus.disconnected)) {
+        _reconnectCount = 0;
+        if (_deviceId != null) {
+          _connect(_deviceId!);
+        } else {
+          _startScan();
+        }
+      }
+      return;
+    }
+
+    // Radio unavailable for any reason (off, unauthorized, unsupported, or
+    // — Android — location services disabled, which blocks scanning even
+    // with runtime permissions granted). Nothing can succeed until it's
+    // ready again, so stop spinning retry timers against it.
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _scanTimer?.cancel();
+    _scanTimer = null;
+    _scanSub?.cancel();
+    _scanSub = null;
+    _setStatus(BleServiceStatus.bluetoothOff);
   }
 
   // ── Permissions ─────────────────────────────────────────────────────────
@@ -125,33 +175,49 @@ class BleStepService {
 
   void _startScan() {
     if (!_active) return;
+
+    // Nothing to scan with — _onAdapterStatus already owns this state and
+    // will kick a fresh scan off itself the moment the radio is ready.
+    if (_adapterStatus != BleStatus.ready &&
+        _adapterStatus != BleStatus.unknown) {
+      _setStatus(BleServiceStatus.bluetoothOff);
+      return;
+    }
+
     _setStatus(BleServiceStatus.scanning);
 
     _scanSub?.cancel();
     _scanSub = null;
 
-    _scanSub = _ble
-        .scanForDevices(
-          withServices: [Uuid.parse(BleConstants.serviceUuid)],
-          scanMode: ScanMode.lowLatency,
-        )
-        .listen(
-          (device) {
-            if (!_active) return;
-            if (device.name == BleConstants.deviceName ||
-                device.id == _deviceId) {
-              _scanSub?.cancel();
-              _scanSub = null;
-              _scanTimer?.cancel();
-              _scanTimer = null;
-              _deviceId = device.id;
-              _connect(device.id);
-            }
-          },
-          onError: (_) {
-            if (_active) _scheduleReconnect();
-          },
-        );
+    try {
+      // scanForDevices can throw synchronously if the adapter drops out
+      // from under it right as scanning starts (race with _onAdapterStatus).
+      _scanSub = _ble
+          .scanForDevices(
+            withServices: [Uuid.parse(BleConstants.serviceUuid)],
+            scanMode: ScanMode.lowLatency,
+          )
+          .listen(
+            (device) {
+              if (!_active) return;
+              if (device.name == BleConstants.deviceName ||
+                  device.id == _deviceId) {
+                _scanSub?.cancel();
+                _scanSub = null;
+                _scanTimer?.cancel();
+                _scanTimer = null;
+                _deviceId = device.id;
+                _connect(device.id);
+              }
+            },
+            onError: (_) {
+              if (_active) _scheduleReconnect();
+            },
+          );
+    } catch (_) {
+      if (_active) _scheduleReconnect();
+      return;
+    }
 
     // Time-box scan — avoid draining battery forever
     _scanTimer = Timer(
@@ -181,38 +247,48 @@ class BleStepService {
     final gen = ++_connectionGen;
     _setStatus(BleServiceStatus.connecting);
 
-    _connectSub = _ble
-        .connectToDevice(
-          id: deviceId,
-          connectionTimeout: const Duration(seconds: 10),
-        )
-        .listen(
-          (update) {
-            // Drop stale events from a superseded connection attempt
-            if (gen != _connectionGen || !_active) return;
+    try {
+      // connectToDevice can throw synchronously in the same phantom-connection
+      // / adapter-race circumstances scanForDevices and subscribeToCharacteristic
+      // can — same treatment as those: swallow, then fall back to reconnect.
+      _connectSub = _ble
+          .connectToDevice(
+            id: deviceId,
+            connectionTimeout: const Duration(seconds: 10),
+          )
+          .listen(
+            (update) {
+              // Drop stale events from a superseded connection attempt
+              if (gen != _connectionGen || !_active) return;
 
-            switch (update.connectionState) {
-              case DeviceConnectionState.connected:
-                _reconnectCount = 0;
-                _setStatus(BleServiceStatus.connected);
-                _subscribeToStepData(deviceId, gen);
+              switch (update.connectionState) {
+                case DeviceConnectionState.connected:
+                  _reconnectCount = 0;
+                  _setStatus(BleServiceStatus.connected);
+                  _subscribeToStepData(deviceId, gen);
 
-              case DeviceConnectionState.disconnected:
-                _charSub?.cancel();
-                _charSub = null;
-                _setStatus(BleServiceStatus.disconnected);
-                _scheduleReconnect(); // _active already checked at top of handler
+                case DeviceConnectionState.disconnected:
+                  _charSub?.cancel();
+                  _charSub = null;
+                  _setStatus(BleServiceStatus.disconnected);
+                  _scheduleReconnect(); // _active already checked at top of handler
 
-              default:
-                break;
-            }
-          },
-          onError: (_) {
-            if (gen != _connectionGen || !_active) return;
-            _setStatus(BleServiceStatus.error);
-            _scheduleReconnect();
-          },
-        );
+                default:
+                  break;
+              }
+            },
+            onError: (_) {
+              if (gen != _connectionGen || !_active) return;
+              _setStatus(BleServiceStatus.error);
+              _scheduleReconnect();
+            },
+          );
+    } catch (_) {
+      if (gen == _connectionGen && _active) {
+        _setStatus(BleServiceStatus.error);
+        _scheduleReconnect();
+      }
+    }
   }
 
   // ── NUS TX characteristic subscription ──────────────────────────────────
@@ -281,6 +357,12 @@ class BleStepService {
 
   void _scheduleReconnect() {
     if (!_active) return;
+    // _onAdapterStatus already owns retrying once the radio is ready again.
+    if (_adapterStatus != BleStatus.ready &&
+        _adapterStatus != BleStatus.unknown) {
+      _setStatus(BleServiceStatus.bluetoothOff);
+      return;
+    }
 
     _reconnectTimer?.cancel();
     // 1 s → 2 s → 4 s → 8 s → 16 s → 30 s (capped)

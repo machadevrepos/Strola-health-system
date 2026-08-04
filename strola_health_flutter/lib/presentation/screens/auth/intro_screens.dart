@@ -7,7 +7,11 @@ import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/presentation/providers/auth_providers.dart';
 
 class _IntroSlide {
-  const _IntroSlide({required this.image, required this.title, required this.body});
+  const _IntroSlide({
+    required this.image,
+    required this.title,
+    required this.body,
+  });
   final String image;
   final String title;
   final String body;
@@ -17,19 +21,22 @@ const _slides = [
   _IntroSlide(
     image: 'assets/images/onboarding/onboard_1.png',
     title: 'Track Every Step',
-    body: 'Never miss steps because your hands are busy. Pair your '
+    body:
+        'Never miss steps because your hands are busy. Pair your '
         'Strolla device for accurate tracking wherever life takes you.',
   ),
   _IntroSlide(
     image: 'assets/images/onboarding/onboard_2.png',
     title: 'Move Together',
-    body: 'Join a supportive community celebrating wins, sharing '
+    body:
+        'Join a supportive community celebrating wins, sharing '
         'encouragement, and taking on challenges together.',
   ),
   _IntroSlide(
     image: 'assets/images/onboarding/onboard_3.png',
     title: 'Reach Your Goals',
-    body: 'Set a daily step goal, build streaks, earn achievements, and '
+    body:
+        'Set a daily step goal, build streaks, earn achievements, and '
         'celebrate every milestone along the way.',
   ),
 ];
@@ -122,13 +129,17 @@ class _IntroScreensState extends ConsumerState<IntroScreens> {
                                 // otherwise size it to, on top of the
                                 // entrance animation below.
                                 scale: 1.1,
-                                child: Image.asset(slide.image, fit: BoxFit.contain)
-                                    .animate()
-                                    .fadeIn(duration: AppTheme.animSlow)
-                                    .scale(
-                                      begin: const Offset(0.92, 0.92),
-                                      curve: Curves.easeOutCubic,
-                                    ),
+                                child:
+                                    Image.asset(
+                                          slide.image,
+                                          fit: BoxFit.contain,
+                                        )
+                                        .animate()
+                                        .fadeIn(duration: AppTheme.animSlow)
+                                        .scale(
+                                          begin: const Offset(0.92, 0.92),
+                                          curve: Curves.easeOutCubic,
+                                        ),
                               ),
                             ),
                           ),
@@ -136,7 +147,10 @@ class _IntroScreensState extends ConsumerState<IntroScreens> {
                             slide.title,
                             textAlign: TextAlign.center,
                             style: AppTypography.titleL.copyWith(fontSize: 24),
-                          ).animate().fadeIn(delay: 80.ms, duration: AppTheme.animSlow),
+                          ).animate().fadeIn(
+                            delay: 80.ms,
+                            duration: AppTheme.animSlow,
+                          ),
                           const SizedBox(height: AppTheme.spaceM),
                           Text(
                             slide.body,
@@ -145,7 +159,10 @@ class _IntroScreensState extends ConsumerState<IntroScreens> {
                               color: AppColors.textSecondary,
                               height: 1.5,
                             ),
-                          ).animate().fadeIn(delay: 140.ms, duration: AppTheme.animSlow),
+                          ).animate().fadeIn(
+                            delay: 140.ms,
+                            duration: AppTheme.animSlow,
+                          ),
                           const SizedBox(height: AppTheme.spaceL),
                         ],
                       ),
@@ -166,7 +183,9 @@ class _IntroScreensState extends ConsumerState<IntroScreens> {
                         color: i == _page
                             ? AppColors.accent
                             : AppColors.accentSecondary.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusFull,
+                        ),
                       ),
                     ),
                 ],
@@ -187,7 +206,9 @@ class _IntroScreensState extends ConsumerState<IntroScreens> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppTheme.radiusM),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceL),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppTheme.spaceL,
+                      ),
                     ),
                     child: Text(
                       _page == _slides.length - 1 ? 'Get Started' : 'Next',

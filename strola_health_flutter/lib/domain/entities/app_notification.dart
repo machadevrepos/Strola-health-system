@@ -56,40 +56,42 @@ class AppNotification {
   final DateTime timestamp;
   final bool isRead;
 
-  /// Opaque hint for where tapping this notification should navigate
-  /// (e.g. 'community', 'challenges', 'home'). Optional — null means no-op.
+  /// Opaque hint for where tapping this notification should navigate — one
+  /// of the keys in push_routing.dart's `pushLinkTargetTabIndex`
+  /// ('home', 'stats', 'community', 'challenge'). Optional — null means
+  /// no-op.
   final String? routeTarget;
 
   AppNotification copyWith({bool? isRead}) => AppNotification(
-        id: id,
-        category: category,
-        title: title,
-        body: body,
-        timestamp: timestamp,
-        isRead: isRead ?? this.isRead,
-        routeTarget: routeTarget,
-      );
+    id: id,
+    category: category,
+    title: title,
+    body: body,
+    timestamp: timestamp,
+    isRead: isRead ?? this.isRead,
+    routeTarget: routeTarget,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'category': category.name,
-        'title': title,
-        'body': body,
-        'timestamp': timestamp.toIso8601String(),
-        'isRead': isRead,
-        'routeTarget': routeTarget,
-      };
+    'id': id,
+    'category': category.name,
+    'title': title,
+    'body': body,
+    'timestamp': timestamp.toIso8601String(),
+    'isRead': isRead,
+    'routeTarget': routeTarget,
+  };
 
   factory AppNotification.fromJson(Map<String, dynamic> j) => AppNotification(
-        id: j['id'] as String,
-        category: NotificationCategory.values.firstWhere(
-          (c) => c.name == j['category'],
-          orElse: () => NotificationCategory.community,
-        ),
-        title: j['title'] as String,
-        body: j['body'] as String,
-        timestamp: DateTime.parse(j['timestamp'] as String),
-        isRead: j['isRead'] as bool? ?? false,
-        routeTarget: j['routeTarget'] as String?,
-      );
+    id: j['id'] as String,
+    category: NotificationCategory.values.firstWhere(
+      (c) => c.name == j['category'],
+      orElse: () => NotificationCategory.community,
+    ),
+    title: j['title'] as String,
+    body: j['body'] as String,
+    timestamp: DateTime.parse(j['timestamp'] as String),
+    isRead: j['isRead'] as bool? ?? false,
+    routeTarget: j['routeTarget'] as String?,
+  );
 }

@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "strolla-health-4c93b"
+  },
+  "targets": {},
+  "etags": {
+    "strolla-health-4c93b": {
+      "extensionInstances": {
+        "firestore-send-email": "e695c576d87701aac163752e5b9f2e457d16b5be44b9a8e45cc5c96bdd5d2fd6"
+      }
+    }
+  }
+}

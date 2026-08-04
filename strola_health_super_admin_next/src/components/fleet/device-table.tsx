@@ -52,6 +52,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { findUserById, listPromotableUsers, userDisplayName } from "@/lib/data/queries";
 import { adminUnpairDevice, deleteDevice, markDeviceReplaced, provisionDevice, pushFirmwareUpdate, reassignDevice } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { logAction } from "@/lib/audit-log-store";
 import type { Device, UserProfile } from "@/lib/types";
@@ -61,6 +62,12 @@ function apiErrorMessage(err: unknown, fallback: string): string {
 }
 
 export function DeviceTable({ devices: initialDevices, users }: { devices: Device[]; users: UserProfile[] }) {
+  const { role } = useAuth();
+  // Backend-enforced too (provisionDevice/deleteDevice both require
+  // super_admin — Part 4, decision #7, fleet provisioning/delete are
+  // elevated actions) — gating it here as well so a plain admin sees a
+  // disabled control instead of a permission error after filling out the form.
+  const isSuperAdmin = role === "super_admin";
   const [devices, setDevices] = React.useState(initialDevices);
   const [provisionOpen, setProvisionOpen] = React.useState(false);
   const [serial, setSerial] = React.useState("");
@@ -193,8 +200,14 @@ export function DeviceTable({ devices: initialDevices, users }: { devices: Devic
 
   return (
     <div className="space-y-3">
+      {!isSuperAdmin && (
+        <p className="rounded-md border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+          Only super admins can provision or delete devices — reassigning, pushing firmware, unpairing, and marking
+          replaced are still available to your role.
+        </p>
+      )}
       <div className="flex justify-end">
-        <Button size="sm" onClick={() => setProvisionOpen(true)}>
+        <Button size="sm" onClick={() => setProvisionOpen(true)} disabled={!isSuperAdmin}>
           <Plus size={14} /> Provision device
         </Button>
       </div>
@@ -272,7 +285,7 @@ export function DeviceTable({ devices: initialDevices, users }: { devices: Devic
                           </DropdownMenuItem>
                         )}
                         {!d.owner_user_id && !d.paired_at ? (
-                          <DropdownMenuItem variant="destructive" onClick={() => setDeleteDeviceTarget(d)}>
+                          <DropdownMenuItem variant="destructive" onClick={() => setDeleteDeviceTarget(d)} disabled={!isSuperAdmin}>
                             <Trash size={14} /> Delete (never paired)
                           </DropdownMenuItem>
                         ) : (

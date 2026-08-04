@@ -9,10 +9,13 @@ import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/services/firebase_client.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
 import 'package:strola_health/domain/entities/community_post.dart';
+import 'package:strola_health/domain/entities/friend.dart';
 import 'package:strola_health/presentation/providers/community_providers.dart';
+import 'package:strola_health/presentation/providers/friend_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/screens/find_friends_screen.dart';
 import 'package:strola_health/presentation/screens/invite_friends_screen.dart';
@@ -157,28 +160,81 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen>
 
 // ── Feed tab ──────────────────────────────────────────────────────────────────
 
-class _FeedTab extends ConsumerWidget {
+class _FeedTab extends ConsumerStatefulWidget {
   const _FeedTab({required this.sortMode, required this.onSortChanged});
 
   final String sortMode;
   final ValueChanged<String> onSortChanged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final postsAsync = ref.watch(postsProvider);
-    final blocked = ref.watch(blockedUsersProvider);
+  ConsumerState<_FeedTab> createState() => _FeedTabState();
+}
 
-    return postsAsync.when(
-      loading: () =>
-          const Padding(padding: EdgeInsets.all(20), child: PostFeedSkeleton()),
-      error: (_, __) => const Center(
-        child: Text('Could not load posts.', style: AppTypography.bodyM),
-      ),
-      data: (allPosts) {
-        final posts = allPosts
-            .where((p) => !blocked.contains(p.authorName))
-            .toList();
-        return CustomScrollView(
+class _FeedTabState extends ConsumerState<_FeedTab> {
+  final _scrollController = ScrollController();
+
+  // How far from the bottom to trigger the next page — comfortably before
+  // the user actually reaches the end, so the next page is (usually)
+  // already loaded by the time they'd notice, rather than a visible pause.
+  static const _loadMoreThreshold = 600.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - _loadMoreThreshold) {
+      ref.read(postsProvider.notifier).loadMore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final postsAsync = ref.watch(postsProvider);
+    final blocked = ref.watch(blockedUsersProvider).value ?? const <String>{};
+    final loadingMore = ref.watch(feedLoadingMoreProvider);
+
+    // Stale-while-revalidate: once we've ever had a feed, keep showing it
+    // (RefreshIndicator already has its own spinner for "fetching now") —
+    // only fall back to a full skeleton/error state before the first load.
+    final allPosts = postsAsync.value;
+    if (allPosts == null) {
+      return postsAsync.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.all(20),
+          child: PostFeedSkeleton(),
+        ),
+        error: (_, __) => const Center(
+          child: Text('Could not load posts.', style: AppTypography.bodyM),
+        ),
+        data: (_) => const SizedBox.shrink(),
+      );
+    }
+    {
+      final posts = allPosts
+          .where((p) => !blocked.contains(p.authorId))
+          .toList();
+      // Same RefreshIndicator + notifier.refresh() pattern as _FriendsTab —
+      // this tab was missing it entirely, so a feed stuck showing stale/
+      // empty results after a transient network hiccup (e.g. right after
+      // posting) had no way to be manually retried short of leaving and
+      // re-entering the screen.
+      return RefreshIndicator(
+        color: AppColors.accent,
+        onRefresh: () => ref.read(postsProvider.notifier).refresh(),
+        child: CustomScrollView(
+          controller: _scrollController,
           physics: const BouncingScrollPhysics(),
           slivers: [
             // Motivational banner + Invite Friends
@@ -256,7 +312,7 @@ class _FeedTab extends ConsumerWidget {
                         child: Row(
                           children: [
                             Text(
-                              sortMode,
+                              widget.sortMode,
                               style: AppTypography.labelM.copyWith(
                                 color: AppColors.textSecondary,
                               ),
@@ -277,14 +333,37 @@ class _FeedTab extends ConsumerWidget {
             ),
 
             // Post list
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-              sliver: SliverList.separated(
-                itemCount: posts.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (_, i) => _PostCard(post: posts[i], index: i),
+            if (posts.isEmpty)
+              const SliverToBoxAdapter(child: _EmptyFeedState())
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                sliver: SliverList.separated(
+                  itemCount: posts.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) => _PostCard(post: posts[i], index: i),
+                ),
               ),
-            ),
+
+            // Next-page spinner — only while a background loadMore() is
+            // actually in flight (triggered by scrolling near the bottom,
+            // see _onScroll); nothing rendered once the feed is exhausted.
+            if (posts.isNotEmpty && loadingMore)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppTheme.spaceL),
+                  child: Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        color: AppColors.accent,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
 
             // Comfortable breathing room at the end of the scroll —
             // MainShell's Scaffold already reserves space for the nav bar
@@ -293,8 +372,97 @@ class _FeedTab extends ConsumerWidget {
               child: SizedBox(height: AppTheme.sectionGap),
             ),
           ],
-        );
-      },
+        ),
+      );
+    }
+  }
+}
+
+class _EmptyFeedState extends ConsumerWidget {
+  const _EmptyFeedState();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceXXXL),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              AppIcons.community,
+              color: AppColors.accent,
+              size: 36,
+            ),
+          ).animate().fadeIn().scale(
+            begin: const Offset(0.7, 0.7),
+            curve: Curves.easeOutBack,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No posts yet',
+            style: AppTypography.titleM.copyWith(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ).animate().fadeIn(delay: 100.ms),
+          const SizedBox(height: 6),
+          Text(
+            'Be the first to share your progress\nwith the community.',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyM.copyWith(letterSpacing: 0),
+          ).animate().fadeIn(delay: 150.ms),
+          const SizedBox(height: 20),
+          PressableScale(
+            onTap: () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => _NewPostSheet(
+                onSubmit: (content, steps, imageUrl) {
+                  ref
+                      .read(postsProvider.notifier)
+                      .createPost(
+                        content,
+                        stepCount: steps,
+                        imageUrl: imageUrl,
+                      );
+                },
+                currentSteps: ref.read(stepCountProvider),
+              ),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.accent,
+                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(AppIcons.edit, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Create a post',
+                    style: AppTypography.bodyM.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ).animate().fadeIn(delay: 200.ms),
+        ],
+      ),
     );
   }
 }
@@ -508,10 +676,10 @@ class _PostComposerTeaser extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _NewPostSheet(
-        onSubmit: (content, steps, imagePath) {
+        onSubmit: (content, steps, imageUrl) {
           ref
               .read(postsProvider.notifier)
-              .createPost(content, stepCount: steps, imagePath: imagePath);
+              .createPost(content, stepCount: steps, imageUrl: imageUrl);
         },
         currentSteps: ref.read(stepCountProvider),
       ),
@@ -529,9 +697,7 @@ class _PostCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final color = post.avatarColor != null
-        ? Color(post.avatarColor!)
-        : AppColors.accent;
+    const color = AppColors.accent;
 
     return FlatCard(
           child: Column(
@@ -667,11 +833,23 @@ class _PostCard extends ConsumerWidget {
                 const SizedBox(height: 10),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                  child: Image.file(
-                    File(post.imageUrl!),
+                  child: Image.network(
+                    post.imageUrl!,
                     width: double.infinity,
                     height: 180,
                     fit: BoxFit.cover,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return Container(
+                        width: double.infinity,
+                        height: 180,
+                        color: AppColors.accentSecondary.withValues(
+                          alpha: 0.15,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
                   ),
                 ),
               ],
@@ -680,7 +858,7 @@ class _PostCard extends ConsumerWidget {
                 children: [
                   _ActionBtn(
                     icon: AppIcons.like,
-                    label: '${post.likes}',
+                    label: '${post.likesCount}',
                     color: post.isLiked ? AppColors.error : AppColors.textMuted,
                     onTap: () {
                       HapticsHelper.lightImpact();
@@ -690,9 +868,9 @@ class _PostCard extends ConsumerWidget {
                   const SizedBox(width: AppTheme.spaceL),
                   _ActionBtn(
                     icon: AppIcons.comment,
-                    label: '${post.comments}',
+                    label: '${post.commentsCount}',
                     color: AppColors.textMuted,
-                    onTap: () {},
+                    onTap: () => _showComments(context),
                   ),
                 ],
               ),
@@ -705,17 +883,19 @@ class _PostCard extends ConsumerWidget {
   }
 
   void _openProfile(BuildContext context) {
-    final handle = post.authorName.toLowerCase().replaceAll(' ', '.');
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PublicProfileScreen(
-          name: post.authorName,
-          username: handle,
-          stepsToday: post.stepCount ?? 8240,
-          distanceKm: (post.stepCount ?? 8240) * 0.000762,
-          streak: 12,
-        ),
+        builder: (_) => PublicProfileScreen(userId: post.authorId),
       ),
+    );
+  }
+
+  void _showComments(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CommentsSheet(postId: post.id),
     );
   }
 
@@ -782,7 +962,12 @@ class _PostCard extends ConsumerWidget {
                 ),
                 onTap: () {
                   Navigator.pop(sheetCtx);
-                  showReportSheet(context, subject: 'this post');
+                  showReportSheet(
+                    context,
+                    subject: 'this post',
+                    targetType: 'post',
+                    targetId: post.id,
+                  );
                 },
               ),
               const SizedBox(height: AppTheme.spaceM),
@@ -830,237 +1015,545 @@ class _ActionBtn extends StatelessWidget {
   }
 }
 
-// ── Friends tab ───────────────────────────────────────────────────────────────
+// ── Comments sheet ────────────────────────────────────────────────────────────
 
-class _FriendsTab extends StatelessWidget {
-  const _FriendsTab();
+class _CommentsSheet extends ConsumerStatefulWidget {
+  const _CommentsSheet({required this.postId});
 
-  static const _friends = [
-    _Friend('Sarah J.', 'Active now', true, 12842, '9.4 km', 24),
-    _Friend('Alex M.', 'Active now', true, 10128, '7.8 km', 18),
-    _Friend('Priya K.', '2h ago', false, 8732, '6.2 km', 15),
-    _Friend('James L.', '5h ago', false, 7345, '5.6 km', 12),
-    _Friend('Emily R.', '1d ago', false, 6214, '4.3 km', 10),
-  ];
+  final String postId;
 
-  static const _activity = [
-    (
-      'Alex M.',
-      'achieved a new personal best',
-      '15,892 steps in a day',
-      AppIcons.steps,
-      '2h ago',
-    ),
-    (
-      'Sarah J.',
-      'is on a 24 day streak!',
-      'Keep it up!',
-      AppIcons.streak,
-      '3h ago',
-    ),
-  ];
+  @override
+  ConsumerState<_CommentsSheet> createState() => _CommentsSheetState();
+}
+
+class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
+  final _controller = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final content = _controller.text.trim();
+    if (content.isEmpty || _submitting) return;
+    setState(() => _submitting = true);
+    try {
+      await ref
+          .read(commentsProvider(widget.postId).notifier)
+          .addComment(content);
+      _controller.clear();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not post comment. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(
-        AppTheme.screenPaddingH,
-        AppTheme.spaceXS,
-        AppTheme.screenPaddingH,
-        120,
-      ),
-      children: [
-        _FriendsBanner()
-            .animate()
-            .fadeIn(delay: 80.ms, duration: AppTheme.animSlow)
-            .slideY(begin: 0.12),
-        const SizedBox(height: AppTheme.spaceM),
+    final commentsAsync = ref.watch(commentsProvider(widget.postId));
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-        // Search
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppTheme.radiusM),
-            border: Border.all(
-              color: AppColors.accentSecondary.withValues(alpha: 0.25),
-            ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        decoration: const BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppTheme.radiusSheet),
           ),
-          child: Row(
-            children: [
-              const Icon(AppIcons.search, color: AppColors.textMuted, size: 18),
-              const SizedBox(width: AppTheme.spaceS),
-              Expanded(
-                child: Text(
-                  'Search friends',
-                  style: AppTypography.bodyM.copyWith(
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: AppTheme.spaceM),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.accentSecondary.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceM),
+            Text('Comments', style: AppTypography.titleM),
+            const SizedBox(height: AppTheme.spaceM),
+            Expanded(
+              child: commentsAsync.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: AppColors.accent),
+                ),
+                error: (_, __) => const Center(
+                  child: Text(
+                    'Could not load comments.',
+                    style: AppTypography.bodyM,
+                  ),
+                ),
+                data: (comments) {
+                  if (comments.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No comments yet. Be the first to reply.',
+                        style: AppTypography.bodyS.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.screenPaddingH,
+                    ),
+                    itemCount: comments.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppTheme.spaceM),
+                    itemBuilder: (_, i) {
+                      final c = comments[i];
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.accentSecondary.withValues(
+                                alpha: 0.25,
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                c.initials,
+                                style: AppTypography.labelM.copyWith(
+                                  color: AppColors.accent,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppTheme.spaceS),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  c.authorName,
+                                  style: AppTypography.bodyS.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(c.content, style: AppTypography.bodyM),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppTheme.screenPaddingH,
+                  AppTheme.spaceS,
+                  AppTheme.screenPaddingH,
+                  AppTheme.spaceM,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        style: AppTypography.bodyM,
+                        decoration: InputDecoration(
+                          hintText: 'Add a comment…',
+                          hintStyle: AppTypography.bodyM.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.bgDeep,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: AppTheme.spaceM,
+                            vertical: AppTheme.spaceS,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusFull,
+                            ),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.spaceS),
+                    PressableScale(
+                      onTap: _submitting ? null : _submit,
+                      child: Container(
+                        padding: const EdgeInsets.all(AppTheme.spaceM),
+                        decoration: const BoxDecoration(
+                          color: AppColors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          AppIcons.edit,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Friends tab ───────────────────────────────────────────────────────────────
+
+class _FriendsTab extends ConsumerWidget {
+  const _FriendsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final friendshipsAsync = ref.watch(friendshipsProvider);
+
+    return RefreshIndicator(
+      color: AppColors.accent,
+      onRefresh: () => ref.read(friendshipsProvider.notifier).refresh(),
+      child: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(
+          AppTheme.screenPaddingH,
+          AppTheme.spaceXS,
+          AppTheme.screenPaddingH,
+          120,
+        ),
+        children: [
+          _FriendsBanner()
+              .animate()
+              .fadeIn(delay: 80.ms, duration: AppTheme.animSlow)
+              .slideY(begin: 0.12),
+          const SizedBox(height: AppTheme.spaceM),
+
+          // Search
+          PressableScale(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const FindFriendsScreen()),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                border: Border.all(
+                  color: AppColors.accentSecondary.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    AppIcons.search,
                     color: AppColors.textMuted,
+                    size: 18,
+                  ),
+                  const SizedBox(width: AppTheme.spaceS),
+                  Expanded(
+                    child: Text(
+                      'Search friends',
+                      style: AppTypography.bodyM.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    AppIcons.addFriend,
+                    color: AppColors.textMuted,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ).animate().fadeIn(delay: 120.ms, duration: AppTheme.animSlow),
+          const SizedBox(height: AppTheme.spaceL),
+
+          // Stale-while-revalidate: once we've ever loaded the list, keep
+          // showing it during a refresh instead of a blank spinner.
+          if (friendshipsAsync.value != null)
+            _FriendsContent(friendships: friendshipsAsync.value!)
+          else
+            friendshipsAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppTheme.spaceXXL),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.accent),
+                ),
+              ),
+              error: (_, __) => Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppTheme.spaceXXL,
+                ),
+                child: Center(
+                  child: Text(
+                    'Could not load friends.',
+                    style: AppTypography.bodyM.copyWith(
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ),
               ),
-              const Icon(
-                AppIcons.addFriend,
-                color: AppColors.textMuted,
-                size: 18,
-              ),
-            ],
+              data: (_) => const SizedBox.shrink(),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FriendsContent extends StatelessWidget {
+  const _FriendsContent({required this.friendships});
+
+  final List<FriendSummary> friendships;
+
+  @override
+  Widget build(BuildContext context) {
+    final requests = friendships.where((f) => f.isIncomingRequest).toList();
+    final accepted = friendships
+        .where((f) => f.status == FriendshipStatus.accepted)
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (requests.isNotEmpty) ...[
+          Text(
+            'Friend Requests',
+            style: AppTypography.bodyL.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+            ),
           ),
-        ).animate().fadeIn(delay: 120.ms, duration: AppTheme.animSlow),
-        const SizedBox(height: AppTheme.spaceL),
+          const SizedBox(height: 10),
+          ...requests.asMap().entries.map(
+            (e) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _FriendRequestCard(request: e.value)
+                  .animate(delay: Duration(milliseconds: 60 * e.key))
+                  .fadeIn(duration: AppTheme.animSlow)
+                  .slideY(begin: 0.12),
+            ),
+          ),
+          const SizedBox(height: AppTheme.spaceL),
+        ],
 
-        // Your Friends header
-        Row(
-          children: [
-            Text(
-              'Your Friends',
-              style: AppTypography.bodyL.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              'Sort by: Most Active',
-              style: AppTypography.labelS.copyWith(
-                fontWeight: FontWeight.w400,
-                letterSpacing: 0,
-              ),
-            ),
-            const Icon(
-              AppIcons.expandMore,
-              color: AppColors.textMuted,
-              size: AppTheme.iconXS,
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        ..._friends.asMap().entries.map(
-          (e) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _FriendCard(friend: e.value)
-                .animate(delay: Duration(milliseconds: 60 * e.key))
-                .fadeIn(duration: AppTheme.animSlow)
-                .slideY(begin: 0.12),
+        Text(
+          'Your Friends',
+          style: AppTypography.bodyL.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
           ),
         ),
-
-        const SizedBox(height: AppTheme.spaceS),
-
-        // Friend Challenges
-        Row(
-          children: [
-            Text(
-              'Friend Challenges',
-              style: AppTypography.bodyL.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const Spacer(),
-            _viewAll(),
-          ],
-        ),
         const SizedBox(height: 10),
-        const _FriendChallengeCard()
-            .animate()
-            .fadeIn(delay: 100.ms, duration: AppTheme.animSlow)
-            .slideY(begin: 0.12),
 
-        const SizedBox(height: AppTheme.spaceXL),
-
-        // Friend Activity
-        Row(
-          children: [
-            Text(
-              'Friend Activity',
-              style: AppTypography.bodyL.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const Spacer(),
-            _viewAll(),
-          ],
-        ),
-        const SizedBox(height: 10),
-        FlatCard(
+        if (accepted.isEmpty)
+          SizedBox(
+            width: double.infinity,
+            child: FlatCard(
               child: Column(
                 children: [
-                  for (var i = 0; i < _activity.length; i++) ...[
-                    if (i != 0)
-                      Divider(
-                        color: AppColors.accent.withValues(alpha: 0.10),
-                        height: AppTheme.spaceXL,
-                      ),
-                    _FriendActivityRow(
-                      name: _activity[i].$1,
-                      action: _activity[i].$2,
-                      detail: _activity[i].$3,
-                      icon: _activity[i].$4,
-                      time: _activity[i].$5,
+                  const Icon(
+                    AppIcons.people,
+                    color: AppColors.textMuted,
+                    size: AppTheme.iconXL,
+                  ),
+                  const SizedBox(height: AppTheme.spaceS),
+                  Text(
+                    "You haven't added any friends yet.",
+                    style: AppTypography.bodyS.copyWith(
+                      color: AppColors.textMuted,
                     ),
-                  ],
+                  ),
                 ],
               ),
-            )
-            .animate()
-            .fadeIn(delay: 150.ms, duration: AppTheme.animSlow)
-            .slideY(begin: 0.12),
+            ),
+          )
+        else
+          ...accepted.asMap().entries.map(
+            (e) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _FriendCard(friend: e.value)
+                  .animate(delay: Duration(milliseconds: 60 * e.key))
+                  .fadeIn(duration: AppTheme.animSlow)
+                  .slideY(begin: 0.12),
+            ),
+          ),
       ],
     );
   }
-
-  static Widget _viewAll() => Text(
-    'View All',
-    style: AppTypography.labelM.copyWith(
-      color: AppColors.accent,
-      fontWeight: FontWeight.w600,
-      letterSpacing: 0,
-    ),
-  );
 }
 
-class _Friend {
-  const _Friend(
-    this.name,
-    this.status,
-    this.online,
-    this.steps,
-    this.distance,
-    this.streak,
-  );
+class _FriendRequestCard extends ConsumerStatefulWidget {
+  const _FriendRequestCard({required this.request});
 
-  final String name;
-  final String status;
-  final bool online;
-  final int steps;
-  final String distance;
-  final int streak;
+  final FriendSummary request;
+
+  @override
+  ConsumerState<_FriendRequestCard> createState() => _FriendRequestCardState();
+}
+
+class _FriendRequestCardState extends ConsumerState<_FriendRequestCard> {
+  bool _busy = false;
+
+  Future<void> _respond(bool accept) async {
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(friendshipsProvider.notifier)
+          .respondRequest(widget.request.profile.id, accept);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Something went wrong. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = widget.request.profile;
+    return FlatCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spaceM,
+        vertical: 10,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.accentSecondary.withValues(alpha: 0.25),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.accentSecondary.withValues(alpha: 0.4),
+                width: 1.5,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                profile.initials,
+                style: AppTypography.bodyL.copyWith(
+                  color: AppColors.accent,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              profile.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.bodyS.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          if (_busy)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.accent,
+              ),
+            )
+          else ...[
+            PressableScale(
+              onTap: () => _respond(false),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.accentSecondary.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                ),
+                child: Text(
+                  'Decline',
+                  style: AppTypography.labelM.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            PressableScale(
+              onTap: () => _respond(true),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                ),
+                child: Text(
+                  'Accept',
+                  style: AppTypography.labelM.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _FriendCard extends StatelessWidget {
   const _FriendCard({required this.friend});
 
-  final _Friend friend;
+  final FriendSummary friend;
 
   @override
   Widget build(BuildContext context) {
+    final profile = friend.profile;
     return PressableScale(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => PublicProfileScreen(
-            name: friend.name,
-            username: friend.name.toLowerCase().replaceAll(
-              RegExp(r'[^a-z]'),
-              '',
-            ),
-            stepsToday: friend.steps,
-            distanceKm: double.tryParse(friend.distance.split(' ').first) ?? 0,
-            streak: friend.streak,
-            isConnected: true,
-          ),
+          builder: (_) => PublicProfileScreen(userId: profile.id),
         ),
       ),
       behavior: HitTestBehavior.opaque,
@@ -1071,133 +1564,53 @@ class _FriendCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Avatar + status dot
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.accentSecondary.withValues(alpha: 0.25),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.accentSecondary.withValues(alpha: 0.4),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      friend.name[0],
-                      style: AppTypography.bodyL.copyWith(
-                        color: AppColors.accent,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppColors.accentSecondary.withValues(alpha: 0.25),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.accentSecondary.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  profile.initials,
+                  style: AppTypography.bodyL.copyWith(
+                    color: AppColors.accent,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (friend.online)
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: AppColors.success,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
             const SizedBox(width: 10),
-            // Name + status
             Expanded(
-              flex: 30,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    friend.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.bodyS.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    friend.status,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.labelS.copyWith(
-                      color: friend.online
-                          ? AppColors.success
-                          : AppColors.textMuted,
-                      fontSize: 10,
-                      fontWeight: friend.online
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              flex: 26,
-              child: _FriendStat(
-                label: 'Steps (Today)',
-                icon: AppIcons.steps,
-                value: Formatters.stepCount(friend.steps),
-              ),
-            ),
-            Expanded(
-              flex: 24,
-              child: _FriendStat(
-                label: 'Distance (Today)',
-                icon: AppIcons.location,
-                value: friend.distance,
-              ),
-            ),
-            // Streak
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      AppIcons.streak,
-                      color: AppColors.accent,
-                      size: 13,
-                    ),
-                    const SizedBox(width: 1),
-                    Text(
-                      '${friend.streak}',
-                      style: AppTypography.labelM.copyWith(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
+              child: Text(
+                profile.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.bodyS.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
                 ),
-                Text(
-                  'day streak',
-                  style: AppTypography.labelS.copyWith(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(width: 2),
+            if (profile.showStats && (profile.streakCurrent ?? 0) > 0) ...[
+              const Icon(AppIcons.streak, color: AppColors.accent, size: 13),
+              const SizedBox(width: 1),
+              Text(
+                '${profile.streakCurrent}',
+                style: AppTypography.labelM.copyWith(
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
             const Icon(
               AppIcons.chevronRight,
               color: AppColors.textMuted,
@@ -1206,243 +1619,6 @@ class _FriendCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _FriendStat extends StatelessWidget {
-  const _FriendStat({
-    required this.label,
-    required this.icon,
-    required this.value,
-  });
-
-  final String label;
-  final IconData icon;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.labelS.copyWith(
-            fontSize: 8,
-            fontWeight: FontWeight.w400,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Row(
-          children: [
-            Icon(icon, color: AppColors.accent, size: 12),
-            const SizedBox(width: 2),
-            Flexible(
-              child: Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.labelS.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _FriendChallengeCard extends StatelessWidget {
-  const _FriendChallengeCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return FlatCard(
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  AppIcons.challenge,
-                  color: AppColors.accent,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: AppTheme.spaceM),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Step Squad',
-                      style: AppTypography.bodyM.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      '7-day step challenge',
-                      style: AppTypography.labelS.copyWith(
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '3 days left',
-                      style: AppTypography.labelS.copyWith(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const _ChallengeMetric(label: 'Your Rank', value: '2 of 6'),
-              const SizedBox(width: 14),
-              const _ChallengeMetric(label: 'Total Steps', value: '68,432'),
-              const SizedBox(width: 6),
-              const Icon(
-                AppIcons.chevronRight,
-                color: AppColors.textMuted,
-                size: 18,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppTheme.spaceM),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppTheme.radiusXS),
-            child: LinearProgressIndicator(
-              value: 0.62,
-              minHeight: 6,
-              backgroundColor: AppColors.accentSecondary.withValues(alpha: 0.2),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChallengeMetric extends StatelessWidget {
-  const _ChallengeMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          label,
-          style: AppTypography.labelS.copyWith(
-            fontSize: 9,
-            fontWeight: FontWeight.w400,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(height: 1),
-        Text(
-          value,
-          style: AppTypography.bodyS.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.3,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FriendActivityRow extends StatelessWidget {
-  const _FriendActivityRow({
-    required this.name,
-    required this.action,
-    required this.detail,
-    required this.icon,
-    required this.time,
-  });
-
-  final String name;
-  final String action;
-  final String detail;
-  final IconData icon;
-  final String time;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: AppColors.accent.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: AppColors.accent, size: AppTheme.iconS),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              RichText(
-                text: TextSpan(
-                  style: AppTypography.bodyS,
-                  children: [
-                    TextSpan(
-                      text: '$name ',
-                      style: AppTypography.bodyS.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TextSpan(text: action),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                detail,
-                style: AppTypography.labelS.copyWith(
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 0,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: AppTheme.spaceS),
-        Text(
-          time,
-          style: AppTypography.labelS.copyWith(
-            fontWeight: FontWeight.w400,
-            letterSpacing: 0,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1556,14 +1732,10 @@ class _NewPostFab extends ConsumerWidget {
             isScrollControlled: true,
             backgroundColor: Colors.transparent,
             builder: (_) => _NewPostSheet(
-              onSubmit: (content, steps, imagePath) {
+              onSubmit: (content, steps, imageUrl) {
                 ref
                     .read(postsProvider.notifier)
-                    .createPost(
-                      content,
-                      stepCount: steps,
-                      imagePath: imagePath,
-                    );
+                    .createPost(content, stepCount: steps, imageUrl: imageUrl);
               },
               currentSteps: ref.read(stepCountProvider),
             ),
@@ -1588,7 +1760,7 @@ class _NewPostFab extends ConsumerWidget {
 class _NewPostSheet extends StatefulWidget {
   const _NewPostSheet({required this.onSubmit, required this.currentSteps});
 
-  final void Function(String content, int? steps, String? imagePath) onSubmit;
+  final void Function(String content, int? steps, String? imageUrl) onSubmit;
   final int currentSteps;
 
   @override
@@ -1681,14 +1853,31 @@ class _NewPostSheetState extends State<_NewPostSheet> {
   }
 
   Future<void> _submit() async {
-    if (_controller.text.trim().isEmpty) return;
+    if (_controller.text.trim().isEmpty || _submitting) return;
     setState(() => _submitting = true);
-    widget.onSubmit(
-      _controller.text.trim(),
-      _shareSteps ? widget.currentSteps : null,
-      _imageFile?.path,
-    );
-    if (mounted) Navigator.of(context).pop();
+    try {
+      String? imageUrl;
+      if (_imageFile != null) {
+        imageUrl = await FirebaseClient.uploadCommunityPostImage(
+          File(_imageFile!.path),
+        );
+      }
+      widget.onSubmit(
+        _controller.text.trim(),
+        _shareSteps ? widget.currentSteps : null,
+        imageUrl,
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not upload image. Please try again.'),
+          ),
+        );
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   @override

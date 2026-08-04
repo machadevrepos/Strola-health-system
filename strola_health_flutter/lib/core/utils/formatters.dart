@@ -16,8 +16,7 @@ class Formatters {
 
   /// Formats a distance given in kilometres, respecting [units] —
   /// e.g. "5.2 km" or "3.2 mi".
-  static String distanceLabel(double km, UnitSystem units,
-      {int decimals = 1}) {
+  static String distanceLabel(double km, UnitSystem units, {int decimals = 1}) {
     final value = distanceFromKm(km, units);
     return '${value.toStringAsFixed(decimals)} ${distanceUnitLabel(units)}';
   }
@@ -31,9 +30,7 @@ class Formatters {
           ? '${miles.toStringAsFixed(2)} mi'
           : '${(miles * 1760).round()} yd';
     }
-    return km >= 1
-        ? '${km.toStringAsFixed(1)} km'
-        : '${(km * 1000).round()} m';
+    return km >= 1 ? '${km.toStringAsFixed(1)} km' : '${(km * 1000).round()} m';
   }
 
   static String stepCount(int steps) {
@@ -83,7 +80,15 @@ class Formatters {
     final diff = today.difference(d).inDays;
     if (diff == 0) return 'Today';
     if (diff == 1) return 'Yesterday';
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
     return days[date.weekday - 1];
   }
 }

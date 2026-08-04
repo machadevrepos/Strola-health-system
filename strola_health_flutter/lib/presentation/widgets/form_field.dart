@@ -59,7 +59,11 @@ class AppFormField extends StatelessWidget {
         ),
         hintText: hint,
         hintStyle: AppTypography.bodyM.copyWith(color: AppColors.textMuted),
-        prefixIcon: Icon(icon, color: AppColors.textMuted, size: AppTheme.iconS),
+        prefixIcon: Icon(
+          icon,
+          color: AppColors.textMuted,
+          size: AppTheme.iconS,
+        ),
         suffixIcon: suffixIcon == null
             ? null
             : GestureDetector(

@@ -1,6 +1,12 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
@@ -8,6 +14,8 @@ import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
 import 'package:strola_health/domain/entities/workout_session.dart';
+import 'package:strola_health/presentation/providers/community_providers.dart';
+import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/screens/session_screen.dart'
     show ActivityTypeUI;
@@ -34,6 +42,12 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
   int _selectedIndex = 0;
   String _message = '';
   final _messageController = TextEditingController();
+  bool _sharing = false;
+
+  // Reattached to whichever branded card is currently on screen — used to
+  // capture it as an image for the native share sheet (social platforms
+  // only; Community posts as text, no image needed).
+  final _shareCardKey = GlobalKey();
 
   static const _destinations = <_Destination>[
     _Destination(label: 'Community', brand: BrandType.community),
@@ -113,6 +127,12 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
     final steps = ref.watch(stepCountProvider);
     final goal = ref.watch(dailyGoalProvider);
     final calories = ref.watch(caloriesProvider);
+    final profile = ref.watch(userProfileProvider);
+    final displayName = profile.name.trim().isNotEmpty
+        ? profile.name.trim()
+        : (profile.username.trim().isNotEmpty
+              ? profile.username.trim()
+              : 'You');
     // `progress` stays clamped — it only ever feeds progress-bar fills,
     // which can't visually exceed full. `progressPct` is what gets shown as
     // text, and should reflect steps actually going over goal (110%, etc.)
@@ -189,13 +209,17 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
                     ),
                     child: _isWorkout
                         ? (_isCommunity
-                              ? _communityWorkoutContent(widget.session!)
+                              ? _communityWorkoutContent(
+                                  displayName,
+                                  widget.session!,
+                                )
                               : _socialWorkoutContent(
                                   _selected,
                                   widget.session!,
                                 ))
                         : (_isCommunity
                               ? _communityContent(
+                                  displayName,
                                   steps,
                                   goal,
                                   calories,
@@ -226,7 +250,9 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: () => _share(context, steps: steps),
+                    onPressed: _sharing
+                        ? null
+                        : () => _share(context, steps: steps),
                     style: FilledButton.styleFrom(
                       backgroundColor: accent,
                       shape: RoundedRectangleBorder(
@@ -237,10 +263,23 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
                       ),
                       elevation: 0,
                     ),
-                    child: Text(
-                      _isCommunity ? 'Share' : 'Share to ${_selected.label}',
-                      style: AppTypography.titleS.copyWith(color: Colors.white),
-                    ),
+                    child: _sharing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            _isCommunity
+                                ? 'Share'
+                                : 'Share to ${_selected.label}',
+                            style: AppTypography.titleS.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ),
@@ -289,6 +328,7 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
 
   // ── Community content ─────────────────────────────────────────────────────
   Widget _communityContent(
+    String displayName,
     int steps,
     int goal,
     int calories,
@@ -466,6 +506,7 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
         Text('Preview', style: AppTypography.titleS),
         const SizedBox(height: AppTheme.spaceS),
         _PreviewCard(
+          name: displayName,
           steps: steps,
           calories: calories,
           distanceVal: distanceVal,
@@ -495,69 +536,73 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
       children: [
         const SizedBox(height: AppTheme.spaceXS),
 
-        // Branded share card
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppTheme.radiusL),
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.bgDeep, AppColors.bgSurface],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border: Border.all(
-                color: AppColors.accentSecondary.withValues(alpha: 0.25),
-              ),
-              borderRadius: BorderRadius.circular(AppTheme.radiusL),
-            ),
-            child: Stack(
-              children: [
-                const Positioned(top: -28, left: -18, child: _Blob(size: 96)),
-                const Positioned(
-                  bottom: -22,
-                  left: -10,
-                  child: _Blob(size: 64),
+        // Branded share card — RepaintBoundary so _captureShareCard() can
+        // render exactly this (and nothing else on screen) to an image.
+        RepaintBoundary(
+          key: _shareCardKey,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.radiusL),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.bgDeep, AppColors.bgSurface],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(AppTheme.spaceXXL),
-                  child: Column(
-                    children: [
-                      Text('strolla', style: AppTypography.brand),
-                      const SizedBox(height: AppTheme.spaceS),
-                      Text(dest.tagline, style: AppTypography.bodyM),
-                      const SizedBox(height: AppTheme.spaceS),
-                      Text(
-                        Formatters.stepCount(steps),
-                        style: AppTypography.displayXL.copyWith(
-                          color: AppColors.accent,
-                        ),
-                      ),
-                      Text(dest.stepsLabel, style: AppTypography.titleL),
-                      const SizedBox(height: AppTheme.spaceXL),
-                      Row(
-                        children: [
-                          _ShareStatItem(
-                            icon: AppIcons.calories,
-                            value: '$calories',
-                            label: 'Active Calories',
-                          ),
-                          _ShareStatItem(
-                            icon: AppIcons.location,
-                            value: distance,
-                            label: 'Distance',
-                          ),
-                          _ShareStatItem(
-                            icon: AppIcons.target,
-                            value: '$progressPct%',
-                            label: 'of daily goal',
-                          ),
-                        ],
-                      ),
-                    ],
+                border: Border.all(
+                  color: AppColors.accentSecondary.withValues(alpha: 0.25),
+                ),
+                borderRadius: BorderRadius.circular(AppTheme.radiusL),
+              ),
+              child: Stack(
+                children: [
+                  const Positioned(top: -28, left: -18, child: _Blob(size: 96)),
+                  const Positioned(
+                    bottom: -22,
+                    left: -10,
+                    child: _Blob(size: 64),
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.all(AppTheme.spaceXXL),
+                    child: Column(
+                      children: [
+                        Text('strolla', style: AppTypography.brand),
+                        const SizedBox(height: AppTheme.spaceS),
+                        Text(dest.tagline, style: AppTypography.bodyM),
+                        const SizedBox(height: AppTheme.spaceS),
+                        Text(
+                          Formatters.stepCount(steps),
+                          style: AppTypography.displayXL.copyWith(
+                            color: AppColors.accent,
+                          ),
+                        ),
+                        Text(dest.stepsLabel, style: AppTypography.titleL),
+                        const SizedBox(height: AppTheme.spaceXL),
+                        Row(
+                          children: [
+                            _ShareStatItem(
+                              icon: AppIcons.calories,
+                              value: '$calories',
+                              label: 'Active Calories',
+                            ),
+                            _ShareStatItem(
+                              icon: AppIcons.location,
+                              value: distance,
+                              label: 'Distance',
+                            ),
+                            _ShareStatItem(
+                              icon: AppIcons.target,
+                              value: '$progressPct%',
+                              label: 'of daily goal',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -617,7 +662,7 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
   }
 
   // ── Community content (workout) ───────────────────────────────────────────
-  Widget _communityWorkoutContent(WorkoutSession session) {
+  Widget _communityWorkoutContent(String displayName, WorkoutSession session) {
     final type = session.activityType;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,6 +806,7 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
         Text('Preview', style: AppTypography.titleS),
         const SizedBox(height: AppTheme.spaceS),
         _WorkoutPreviewCard(
+          name: displayName,
           session: session,
           message: _message.isEmpty
               ? 'Just finished a ${session.displayName.toLowerCase()}! 💪'
@@ -806,71 +852,75 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
       children: [
         const SizedBox(height: AppTheme.spaceXS),
 
-        // Branded share card
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppTheme.radiusL),
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.bgDeep, AppColors.bgSurface],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border: Border.all(
-                color: AppColors.accentSecondary.withValues(alpha: 0.25),
-              ),
-              borderRadius: BorderRadius.circular(AppTheme.radiusL),
-            ),
-            child: Stack(
-              children: [
-                const Positioned(top: -28, left: -18, child: _Blob(size: 96)),
-                const Positioned(
-                  bottom: -22,
-                  left: -10,
-                  child: _Blob(size: 64),
+        // Branded share card — RepaintBoundary so _captureShareCard() can
+        // render exactly this (and nothing else on screen) to an image.
+        RepaintBoundary(
+          key: _shareCardKey,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.radiusL),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.bgDeep, AppColors.bgSurface],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(AppTheme.spaceXXL),
-                  child: Column(
-                    children: [
-                      Text('strolla', style: AppTypography.brand),
-                      const SizedBox(height: AppTheme.spaceS),
-                      Text(tagline, style: AppTypography.bodyM),
-                      const SizedBox(height: AppTheme.spaceS),
-                      Text(
-                        heroValue,
-                        style: AppTypography.displayXL.copyWith(
-                          color: AppColors.accent,
-                        ),
-                      ),
-                      if (heroLabel.isNotEmpty)
-                        Text(heroLabel, style: AppTypography.titleL),
-                      const SizedBox(height: AppTheme.spaceXL),
-                      Row(
-                        children: [
-                          _ShareStatItem(
-                            icon: AppIcons.calories,
-                            value: '${session.calories}',
-                            label: 'Calories',
-                          ),
-                          if (type.showsDistance)
-                            _ShareStatItem(
-                              icon: AppIcons.duration,
-                              value: session.formattedDuration,
-                              label: 'Duration',
-                            ),
-                          _ShareStatItem(
-                            icon: AppIcons.steps,
-                            value: '${session.steps}',
-                            label: 'Steps',
-                          ),
-                        ],
-                      ),
-                    ],
+                border: Border.all(
+                  color: AppColors.accentSecondary.withValues(alpha: 0.25),
+                ),
+                borderRadius: BorderRadius.circular(AppTheme.radiusL),
+              ),
+              child: Stack(
+                children: [
+                  const Positioned(top: -28, left: -18, child: _Blob(size: 96)),
+                  const Positioned(
+                    bottom: -22,
+                    left: -10,
+                    child: _Blob(size: 64),
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.all(AppTheme.spaceXXL),
+                    child: Column(
+                      children: [
+                        Text('strolla', style: AppTypography.brand),
+                        const SizedBox(height: AppTheme.spaceS),
+                        Text(tagline, style: AppTypography.bodyM),
+                        const SizedBox(height: AppTheme.spaceS),
+                        Text(
+                          heroValue,
+                          style: AppTypography.displayXL.copyWith(
+                            color: AppColors.accent,
+                          ),
+                        ),
+                        if (heroLabel.isNotEmpty)
+                          Text(heroLabel, style: AppTypography.titleL),
+                        const SizedBox(height: AppTheme.spaceXL),
+                        Row(
+                          children: [
+                            _ShareStatItem(
+                              icon: AppIcons.calories,
+                              value: '${session.calories}',
+                              label: 'Calories',
+                            ),
+                            if (type.showsDistance)
+                              _ShareStatItem(
+                                icon: AppIcons.duration,
+                                value: session.formattedDuration,
+                                label: 'Duration',
+                              ),
+                            _ShareStatItem(
+                              icon: AppIcons.steps,
+                              value: '${session.steps}',
+                              label: 'Steps',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -930,32 +980,123 @@ class _ShareStepsScreenState extends ConsumerState<ShareStepsScreen> {
   }
 
   // ── Share action ──────────────────────────────────────────────────────────
-  void _share(BuildContext context, {required int steps}) {
-    HapticsHelper.goalReached();
+  Future<void> _share(BuildContext context, {required int steps}) async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
+    try {
+      if (_isCommunity) {
+        await _shareToCommunity(context, steps: steps);
+      } else {
+        await _shareToSocial(context, steps: steps);
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
 
-    final String text;
-    final Color color;
-    if (_isCommunity) {
-      text = _isWorkout
-          ? 'Shared to Community! Your workout is inspiring others 🌸'
-          : 'Shared to Community! Your ${Formatters.stepCount(steps)} steps are inspiring others 🌸';
-      color = AppColors.accent;
-    } else {
-      text = 'Opening ${_selected.label}...';
-      color = brandColorOf(_selected.brand);
+  // ── Community — creates a real post via the same path the composer uses ──
+  Future<void> _shareToCommunity(
+    BuildContext context, {
+    required int steps,
+  }) async {
+    final message = _message.trim().isEmpty
+        ? (_isWorkout
+              ? 'Just finished a ${widget.session!.displayName.toLowerCase()}! 💪'
+              : 'Just hit ${Formatters.stepCount(steps)} steps today! 💪')
+        : _message.trim();
+
+    try {
+      await ref
+          .read(postsProvider.notifier)
+          .createPost(message, stepCount: _isWorkout ? null : steps);
+      HapticsHelper.goalReached();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isWorkout
+                ? 'Shared to Community! Your workout is inspiring others 🌸'
+                : 'Shared to Community! Your ${Formatters.stepCount(steps)} steps are inspiring others 🌸',
+          ),
+          backgroundColor: AppColors.accent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusM),
+          ),
+        ),
+      );
+      Navigator.pop(context);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Couldn't share to Community right now. Please try again.",
+          ),
+        ),
+      );
+    }
+  }
+
+  // ── Social — hands the branded card off to the real OS share sheet ───────
+  // Not a direct-to-Instagram-Stories deep link: that only exists via each
+  // platform's private, undocumented URL scheme (Meta doesn't officially
+  // support it, and there's no equivalent for Facebook feed or TikTok
+  // without their own SDKs, which need developer app registration we don't
+  // have). The native share sheet is the one mechanism that genuinely works
+  // for every app already on the phone, including all four listed here.
+  Future<void> _shareToSocial(
+    BuildContext context, {
+    required int steps,
+  }) async {
+    final file = await _captureShareCard();
+    if (file == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Couldn't prepare the image to share. Please try again.",
+          ),
+        ),
+      );
+      return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusM),
-        ),
-      ),
-    );
-    Navigator.pop(context);
+    final caption = _message.trim().isEmpty
+        ? (_isWorkout
+              ? 'Just finished a ${widget.session!.displayName.toLowerCase()}! 💪'
+              : 'Just hit ${Formatters.stepCount(steps)} steps today! 💪')
+        : _message.trim();
+
+    try {
+      await SharePlus.instance.share(ShareParams(files: [file], text: caption));
+      HapticsHelper.goalReached();
+      if (!context.mounted) return;
+      Navigator.pop(context);
+    } catch (_) {
+      // The OS share sheet being dismissed/cancelled surfaces as an
+      // exception on some platforms — not a real error worth showing.
+    }
+  }
+
+  Future<XFile?> _captureShareCard() async {
+    try {
+      final boundary =
+          _shareCardKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return null;
+      final dir = await getTemporaryDirectory();
+      final file = File(
+        '${dir.path}/strolla_share_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+      return XFile(file.path);
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -1158,6 +1299,7 @@ class _SummaryStatCol extends StatelessWidget {
 
 class _PreviewCard extends StatelessWidget {
   const _PreviewCard({
+    required this.name,
     required this.steps,
     required this.calories,
     required this.distanceVal,
@@ -1165,6 +1307,7 @@ class _PreviewCard extends StatelessWidget {
     required this.message,
   });
 
+  final String name;
   final int steps;
   final int calories;
   final String distanceVal;
@@ -1200,7 +1343,7 @@ class _PreviewCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Sarah Abu-Ramadan', style: AppTypography.titleS),
+                  Text(name, style: AppTypography.titleS),
                   Row(
                     children: [
                       Text('Just now', style: AppTypography.labelS),
@@ -1245,8 +1388,13 @@ class _PreviewCard extends StatelessWidget {
 }
 
 class _WorkoutPreviewCard extends StatelessWidget {
-  const _WorkoutPreviewCard({required this.session, required this.message});
+  const _WorkoutPreviewCard({
+    required this.name,
+    required this.session,
+    required this.message,
+  });
 
+  final String name;
   final WorkoutSession session;
   final String message;
 
@@ -1280,7 +1428,7 @@ class _WorkoutPreviewCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Sarah Abu-Ramadan', style: AppTypography.titleS),
+                  Text(name, style: AppTypography.titleS),
                   Row(
                     children: [
                       Text('Just now', style: AppTypography.labelS),

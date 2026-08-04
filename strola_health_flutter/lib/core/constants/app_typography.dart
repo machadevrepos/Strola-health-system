@@ -153,20 +153,20 @@ class AppTypography {
   // ─────────────────────────────────────────────────────────────────────────
 
   static const TextTheme textTheme = TextTheme(
-    displayLarge: displayXL,     // 52/w800
-    displayMedium: displayL,     // 36/w700
-    displaySmall: displayM,      // 28/w700
-    headlineLarge: titleL,       // 20/w600
-    headlineMedium: titleM,      // 17/w600
-    headlineSmall: titleS,       // 15/w600
-    titleLarge: titleM,          // 17/w600 (Material nav/dialog title)
-    titleMedium: bodyL,          // 15/w500
-    titleSmall: bodyM,           // 14/w400
-    bodyLarge: bodyL,            // 15/w500
-    bodyMedium: bodyM,           // 14/w400
-    bodySmall: bodyS,            // 13/w400
-    labelLarge: labelM,          // 12/w500
-    labelMedium: labelS,         // 11/w500
-    labelSmall: labelS,          // 11/w500
+    displayLarge: displayXL, // 52/w800
+    displayMedium: displayL, // 36/w700
+    displaySmall: displayM, // 28/w700
+    headlineLarge: titleL, // 20/w600
+    headlineMedium: titleM, // 17/w600
+    headlineSmall: titleS, // 15/w600
+    titleLarge: titleM, // 17/w600 (Material nav/dialog title)
+    titleMedium: bodyL, // 15/w500
+    titleSmall: bodyM, // 14/w400
+    bodyLarge: bodyL, // 15/w500
+    bodyMedium: bodyM, // 14/w400
+    bodySmall: bodyS, // 13/w400
+    labelLarge: labelM, // 12/w500
+    labelMedium: labelS, // 11/w500
+    labelSmall: labelS, // 11/w500
   );
 }

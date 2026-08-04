@@ -29,6 +29,11 @@ class BleStatusChip extends ConsumerWidget {
         'Disconnected',
         AppIcons.bluetoothDisabled,
       ),
+      BleStatus.bluetoothOff => (
+        AppColors.error,
+        'Bluetooth is off',
+        AppIcons.bluetoothDisabled,
+      ),
     };
 
     return GestureDetector(
@@ -38,7 +43,8 @@ class BleStatusChip extends ConsumerWidget {
           case BleStatus.disconnected:
             notifier.connect();
           case BleStatus.scanning:
-            break; // wait — don't cancel mid-scan from chip tap
+          case BleStatus.bluetoothOff:
+            break; // wait/no-op — nothing to do until the radio's back
           case BleStatus.connected:
             notifier.disconnect();
         }

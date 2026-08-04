@@ -13,7 +13,7 @@ class HourlyChart extends StatelessWidget {
   final List<int> hourlySteps; // 24 values, index = hour 0–23
 
   static const double _chartMaxY = 2100;
-  static const double _yInterval  = 1000;
+  static const double _yInterval = 1000;
 
   @override
   Widget build(BuildContext context) {
@@ -36,9 +36,11 @@ class HourlyChart extends StatelessWidget {
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false)),
+            sideTitles: SideTitles(showTitles: false),
+          ),
           rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false)),
+            sideTitles: SideTitles(showTitles: false),
+          ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -67,8 +69,9 @@ class HourlyChart extends StatelessWidget {
               BarChartRodData(
                 toY: steps,
                 width: 7,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(4)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(4),
+                ),
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
@@ -104,11 +107,7 @@ class HourlyChart extends StatelessWidget {
     } else {
       return const SizedBox.shrink();
     }
-    return Text(
-      text,
-      style: AppTypography.labelS,
-      textAlign: TextAlign.right,
-    );
+    return Text(text, style: AppTypography.labelS, textAlign: TextAlign.right);
   }
 
   Widget _bottomTitle(double value, TitleMeta meta) {

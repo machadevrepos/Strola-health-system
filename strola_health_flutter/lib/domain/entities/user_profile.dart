@@ -7,31 +7,37 @@ enum Gender { male, female, other, preferNotToSay }
 enum UnitSystem { metric, imperial }
 
 /// Why the user picked Strolla — drives onboarding personalization. Multi-select.
-enum StrollaReason { strollerWagon, walkingPad, cantWearWearable, accurateTracking, other }
+enum StrollaReason {
+  strollerWagon,
+  walkingPad,
+  cantWearWearable,
+  accurateTracking,
+  other,
+}
 
 extension GenderLabel on Gender {
   String get label => switch (this) {
-        Gender.male => 'Male',
-        Gender.female => 'Female',
-        Gender.other => 'Other',
-        Gender.preferNotToSay => 'Prefer not to say',
-      };
+    Gender.male => 'Male',
+    Gender.female => 'Female',
+    Gender.other => 'Other',
+    Gender.preferNotToSay => 'Prefer not to say',
+  };
 }
 
 extension StrollaReasonLabel on StrollaReason {
   String get title => switch (this) {
-        StrollaReason.strollerWagon => 'Stroller / wagon walks',
-        StrollaReason.walkingPad => 'Walking pad',
-        StrollaReason.cantWearWearable => "Can't wear a smart watch/ring at work",
-        StrollaReason.accurateTracking => 'Looking for more accurate step tracking',
-        StrollaReason.other => 'Other',
-      };
+    StrollaReason.strollerWagon => 'Stroller / wagon walks',
+    StrollaReason.walkingPad => 'Walking pad',
+    StrollaReason.cantWearWearable => "Can't wear a smart watch/ring at work",
+    StrollaReason.accurateTracking => 'Looking for more accurate step tracking',
+    StrollaReason.other => 'Other',
+  };
 
   String? get subtitle => switch (this) {
-        StrollaReason.cantWearWearable =>
-          'e.g. healthcare worker, food service worker, etc.',
-        _ => null,
-      };
+    StrollaReason.cantWearWearable =>
+      'e.g. healthcare worker, food service worker, etc.',
+    _ => null,
+  };
 }
 
 /// The user's identity + body metrics needed for accurate fitness math.
@@ -95,18 +101,18 @@ class UserProfile {
   }
 
   Map<String, dynamic> toJson() => {
-        'username': username,
-        'name': name,
-        'location': location,
-        'bio': bio,
-        'photoPath': photoPath,
-        'heightCm': heightCm,
-        'gender': gender.name,
-        'dateOfBirth': dateOfBirth?.millisecondsSinceEpoch,
-        'reasons': reasons.map((r) => r.name).toList(),
-        'units': units.name,
-        'onboardingComplete': onboardingComplete,
-      };
+    'username': username,
+    'name': name,
+    'location': location,
+    'bio': bio,
+    'photoPath': photoPath,
+    'heightCm': heightCm,
+    'gender': gender.name,
+    'dateOfBirth': dateOfBirth?.millisecondsSinceEpoch,
+    'reasons': reasons.map((r) => r.name).toList(),
+    'units': units.name,
+    'onboardingComplete': onboardingComplete,
+  };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
@@ -116,7 +122,9 @@ class UserProfile {
       bio: json['bio'] as String?,
       photoPath: json['photoPath'] as String?,
       heightCm: (json['heightCm'] as num?)?.toDouble() ?? 170,
-      gender: Gender.values.byName(json['gender'] as String? ?? 'preferNotToSay'),
+      gender: Gender.values.byName(
+        json['gender'] as String? ?? 'preferNotToSay',
+      ),
       dateOfBirth: json['dateOfBirth'] == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(json['dateOfBirth'] as int),

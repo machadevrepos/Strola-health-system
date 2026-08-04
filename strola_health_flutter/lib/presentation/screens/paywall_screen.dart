@@ -12,7 +12,7 @@ import 'package:strola_health/presentation/widgets/flat_card.dart';
 
 const _kBenefits = [
   'Unlimited personal record tracking',
-  'Full platform sync — Strava, Oura, Garmin, and more',
+  'Full platform sync: Strava, Oura, Garmin, and more',
   'Advanced stats and trends',
   'Priority support',
 ];
@@ -55,7 +55,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -74,7 +76,11 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
           shadowColor: Colors.transparent,
           leading: GestureDetector(
             onTap: () => Navigator.maybePop(context),
-            child: const Icon(AppIcons.close, color: AppColors.textPrimary, size: AppTheme.iconM),
+            child: const Icon(
+              AppIcons.close,
+              color: AppColors.textPrimary,
+              size: AppTheme.iconM,
+            ),
           ),
           title: Text('Strolla Premium', style: AppTypography.titleM),
           centerTitle: true,
@@ -88,7 +94,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                   ),
                   error: (_, _) => const _UnavailableView(),
                   data: (offerings) {
-                    final packages = offerings?.current?.availablePackages ?? const <Package>[];
+                    final packages =
+                        offerings?.current?.availablePackages ??
+                        const <Package>[];
                     if (packages.isEmpty) return const _UnavailableView();
                     _selected ??= packages.first;
                     return _PaywallContent(
@@ -138,7 +146,11 @@ class _PaywallContent extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: AppTheme.spaceM),
             child: Row(
               children: [
-                const Icon(AppIcons.goalReached, color: AppColors.accent, size: AppTheme.iconS),
+                const Icon(
+                  AppIcons.goalReached,
+                  color: AppColors.accent,
+                  size: AppTheme.iconS,
+                ),
                 const SizedBox(width: AppTheme.spaceM),
                 Expanded(child: Text(b, style: AppTypography.bodyM)),
               ],
@@ -163,18 +175,26 @@ class _PaywallContent extends StatelessWidget {
             onPressed: busy ? null : onPurchase,
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.accent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusM)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusM),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             child: busy
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : Text(
                     'Continue',
-                    style: AppTypography.titleM.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+                    style: AppTypography.titleM.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
           ),
         ),
@@ -182,7 +202,10 @@ class _PaywallContent extends StatelessWidget {
         Center(
           child: TextButton(
             onPressed: busy ? null : onRestore,
-            child: Text('Restore purchases', style: AppTypography.bodyS.copyWith(color: AppColors.accent)),
+            child: Text(
+              'Restore purchases',
+              style: AppTypography.bodyS.copyWith(color: AppColors.accent),
+            ),
           ),
         ),
       ],
@@ -191,7 +214,11 @@ class _PaywallContent extends StatelessWidget {
 }
 
 class _PackageTile extends StatelessWidget {
-  const _PackageTile({required this.package, required this.selected, required this.onTap});
+  const _PackageTile({
+    required this.package,
+    required this.selected,
+    required this.onTap,
+  });
 
   final Package package;
   final bool selected;
@@ -212,11 +239,17 @@ class _PackageTile extends StatelessWidget {
             ),
             const SizedBox(width: AppTheme.spaceM),
             Expanded(
-              child: Text(package.storeProduct.title, style: AppTypography.bodyL),
+              child: Text(
+                package.storeProduct.title,
+                style: AppTypography.bodyL,
+              ),
             ),
             Text(
               package.storeProduct.priceString,
-              style: AppTypography.titleS.copyWith(color: AppColors.accent, fontWeight: FontWeight.w700),
+              style: AppTypography.titleS.copyWith(
+                color: AppColors.accent,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
@@ -236,12 +269,16 @@ class _AlreadyPremiumView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(AppIcons.premium, color: AppColors.accent, size: AppTheme.iconXXL),
+            const Icon(
+              AppIcons.premium,
+              color: AppColors.accent,
+              size: AppTheme.iconXXL,
+            ),
             const SizedBox(height: AppTheme.spaceM),
             Text("You're already Premium", style: AppTypography.titleL),
             const SizedBox(height: AppTheme.spaceS),
             Text(
-              'Thanks for supporting Strolla — every feature is unlocked.',
+              'Thanks for supporting Strolla. Every feature is unlocked.',
               style: AppTypography.bodyM,
               textAlign: TextAlign.center,
             ),
@@ -263,12 +300,20 @@ class _UnavailableView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(AppIcons.info, color: AppColors.textMuted, size: AppTheme.iconXXL),
+            const Icon(
+              AppIcons.info,
+              color: AppColors.textMuted,
+              size: AppTheme.iconXXL,
+            ),
             const SizedBox(height: AppTheme.spaceM),
-            Text('Premium isn\'t available yet', style: AppTypography.titleL, textAlign: TextAlign.center),
+            Text(
+              'Premium isn\'t available yet',
+              style: AppTypography.titleL,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: AppTheme.spaceS),
             Text(
-              'Check back soon — we\'re still setting up purchases.',
+              'Check back soon. We\'re still setting up purchases.',
               style: AppTypography.bodyM,
               textAlign: TextAlign.center,
             ),

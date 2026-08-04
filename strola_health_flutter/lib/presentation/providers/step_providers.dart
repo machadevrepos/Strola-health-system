@@ -13,39 +13,124 @@ import 'package:strola_health/presentation/providers/profile_providers.dart';
 
 // ── Live step count ──────────────────────────────────────────────────────────
 
+/// Displayed steps are always the raw counter minus a baseline captured at
+/// the start of today — not the raw counter itself. That's what makes a BLE
+/// firmware counter that never resets on its own (or the mock timer, which
+/// only ever counts up) read as "today's steps" instead of a lifetime total,
+/// and it's what a local-midnight rollover can act on: finalize today's
+/// total into SQLite, then rebase to the counter's current value so
+/// tomorrow starts back at zero.
 class StepCountNotifier extends StateNotifier<int> {
-  // Starts at 95% of the daily goal (not a fixed step count) so the step
-  // ring loads right at the edge of "goal reached" — lets whoever's
-  // debugging the ring see the near-full, goal-reached, and overflow-lap
-  // states within a few mock ticks instead of waiting from a cold ~3k start.
-  StepCountNotifier(this._ref)
-    : super((_ref.read(dailyGoalProvider) * 0.95).round()) {
+  StepCountNotifier(this._ref, this._prefs) : super(0) {
+    _todayKey = _dateKey(DateTime.now());
+    _loadToday();
+
     _ref.listen<AsyncValue<int>>(
       bleStepStreamProvider,
-      (_, next) => next.whenData((steps) => state = steps),
+      (_, next) => next.whenData(_onRaw),
     );
 
     _mockTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (_ref.read(bleStatusProvider) != BleStatus.connected) {
-        state = (state + Random().nextInt(8) + 1).clamp(0, 99999);
+        _rawCumulative = (_rawCumulative + Random().nextInt(8) + 1).clamp(
+          0,
+          99999999,
+        );
+        _onRaw(_rawCumulative);
       }
     });
+
+    // A minute-resolution safety net so the day boundary is still caught
+    // even if BLE goes quiet, or disconnected-mode's own tick just happens
+    // to land a while before/after midnight.
+    _midnightCheckTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _checkDayRollover(),
+    );
   }
 
   final Ref _ref;
+  final SharedPreferences _prefs;
   Timer? _mockTimer;
+  Timer? _midnightCheckTimer;
 
-  void reset() => state = 0;
+  static const _baselineRawKey = 'step_baseline_raw';
+  static const _baselineDateKey = 'step_baseline_date';
+
+  int _rawCumulative = 0;
+  int _baselineRaw = 0;
+  late String _todayKey;
+
+  String _dateKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  DateTime _parseYmd(String s) {
+    final p = s.split('-');
+    return DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
+  }
+
+  Future<void> _loadToday() async {
+    final storedDate = _prefs.getString(_baselineDateKey);
+    if (storedDate == _todayKey) {
+      _baselineRaw = _prefs.getInt(_baselineRawKey) ?? 0;
+    } else {
+      // First launch today (or ever) — nothing to rebase from, so today
+      // starts counting from wherever the raw counter is at its first
+      // reading. Persisted immediately so a rollover mid-session (below)
+      // always has a saved baseline to compare against.
+      _baselineRaw = 0;
+      await _persistBaseline();
+    }
+    // Resume today's already-recorded total (app closed and reopened
+    // mid-day) instead of restarting the ring at zero on every launch.
+    final recorded = await _ref
+        .read(sessionRepositoryProvider)
+        .getStepsForDate(DateTime.now());
+    _rawCumulative = _baselineRaw + recorded;
+    state = recorded;
+  }
+
+  Future<void> _onRaw(int raw) async {
+    _rawCumulative = raw;
+    await _checkDayRollover();
+    state = (raw - _baselineRaw).clamp(0, 99999999);
+  }
+
+  /// Detects local midnight having passed since the last reading and, if
+  /// so, finalizes the day that just ended and rebases for the new one.
+  Future<void> _checkDayRollover() async {
+    final nowKey = _dateKey(DateTime.now());
+    if (nowKey == _todayKey) return;
+
+    await _ref
+        .read(sessionRepositoryProvider)
+        .recordDailyTotal(
+          _parseYmd(_todayKey),
+          state,
+          goal: _ref.read(dailyGoalProvider),
+        );
+
+    _todayKey = nowKey;
+    _baselineRaw = _rawCumulative;
+    await _persistBaseline();
+    state = 0;
+  }
+
+  Future<void> _persistBaseline() async {
+    await _prefs.setInt(_baselineRawKey, _baselineRaw);
+    await _prefs.setString(_baselineDateKey, _todayKey);
+  }
 
   @override
   void dispose() {
     _mockTimer?.cancel();
+    _midnightCheckTimer?.cancel();
     super.dispose();
   }
 }
 
 final stepCountProvider = StateNotifierProvider<StepCountNotifier, int>(
-  (ref) => StepCountNotifier(ref),
+  (ref) => StepCountNotifier(ref, ref.watch(sharedPreferencesProvider)),
 );
 
 // ── Daily goal — persisted via SharedPreferences ──────────────────────────────
@@ -140,10 +225,10 @@ final progressProvider = Provider<double>((ref) {
   return (steps / goal).clamp(0.0, 1.0);
 });
 
-// Last 7 days — today's value is live from BLE/mock
-final weeklyStepsProvider = Provider<List<int>>((ref) {
-  return [6800, 11200, 9400, 4100, 12500, 8900, ref.watch(stepCountProvider)];
-});
+// weeklyStepsProvider now lives in session_providers.dart, next to the real
+// SQLite-backed daily history it's derived from (dailyStepsMapProvider) —
+// moved there to avoid importing session_providers.dart back into this file
+// (which already imports this one, for stepCountProvider).
 
 final goalReachedProvider = Provider<bool>((ref) {
   return ref.watch(stepCountProvider) >= ref.watch(dailyGoalProvider);

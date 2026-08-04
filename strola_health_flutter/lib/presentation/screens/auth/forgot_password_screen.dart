@@ -100,9 +100,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                           child: Center(
                             child: Text(
                               'strolla',
-                              style: AppTypography.brand.copyWith(
-                                fontSize: 45,
-                              ),
+                              style: AppTypography.brand.copyWith(fontSize: 45),
                             ),
                           ),
                         ),

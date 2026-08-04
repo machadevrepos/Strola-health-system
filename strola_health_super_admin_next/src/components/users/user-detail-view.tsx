@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -56,6 +57,7 @@ import { EditProfileSheet, type ProfileEdits } from "@/components/users/edit-pro
 import { BanUserDialog } from "@/components/users/ban-user-dialog";
 import { GrantPremiumMenu } from "@/components/users/grant-premium-menu";
 import { DeleteAccountDialog } from "@/components/users/delete-account-dialog";
+import { PurgeAccountDialog } from "@/components/users/purge-account-dialog";
 import { RoleChangeDialog, type PendingRoleChange } from "@/components/users/role-change-dialog";
 import { SendEmailDialog } from "@/components/users/send-email-dialog";
 import { BanFromPostingDialog } from "@/components/moderation/ban-from-posting-dialog";
@@ -66,6 +68,7 @@ import {
   CONNECTED_APP_LABEL,
   LIFETIME_ISO,
   accountTimeline,
+  daysUntilPurge,
   findUserById,
   hasAdminGrantedPremium,
   lifetimeStats,
@@ -86,6 +89,7 @@ import {
   deleteUser,
   fetchUser,
   grantPremium as apiGrantPremium,
+  purgeAccountNow as apiPurgeAccountNow,
   resetUserPassword,
   revokeBadge as apiRevokeBadge,
   revokePremium as apiRevokePremium,
@@ -149,7 +153,11 @@ export function UserDetailView({
   notes: UserNote[];
   staff: UserProfile[];
 }) {
-  const { user: authUser } = useAuth();
+  const router = useRouter();
+  const { user: authUser, role: viewerRole } = useAuth();
+  // Backend-enforced too (setUserRole requires super_admin for any change
+  // that touches the admin/super_admin tier).
+  const isSuperAdmin = viewerRole === "super_admin";
   const [user, setUser] = React.useState(initialUser);
   const [devices, setDevices] = React.useState(initialDevices);
   const [notes, setNotes] = React.useState(initialNotes);
@@ -159,6 +167,7 @@ export function UserDetailView({
   const [editOpen, setEditOpen] = React.useState(false);
   const [banOpen, setBanOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [purgeOpen, setPurgeOpen] = React.useState(false);
   const [pendingRole, setPendingRole] = React.useState<PendingRoleChange | null>(null);
   const [pickedBadgeId, setPickedBadgeId] = React.useState("");
   const [emailOpen, setEmailOpen] = React.useState(false);
@@ -265,6 +274,19 @@ export function UserDetailView({
       toast.error(apiErrorMessage(err, "Couldn't delete this account"));
     } finally {
       setDeleteOpen(false);
+    }
+  }
+
+  async function purgeAccountNow() {
+    try {
+      await apiPurgeAccountNow(user.id);
+      toast.success(`${name}'s data has been permanently purged`);
+      logAction("Purged account data", name);
+      router.push("/users");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't purge this account"));
+    } finally {
+      setPurgeOpen(false);
     }
   }
 
@@ -474,8 +496,12 @@ export function UserDetailView({
             <Separator orientation="vertical" className="h-6" />
 
             {/* Sensitive / irreversible-leaning actions */}
-            <Select value={user.role} onValueChange={(v) => v && requestRoleChange(v as UserProfile["role"])}>
-              <SelectTrigger size="sm" className="w-[140px]" aria-label="Change role">
+            <Select
+              value={user.role}
+              onValueChange={(v) => v && requestRoleChange(v as UserProfile["role"])}
+              disabled={!isSuperAdmin}
+            >
+              <SelectTrigger size="sm" className="w-[140px]" aria-label="Change role" title={!isSuperAdmin ? "Only super admins can change roles" : undefined}>
                 <SelectValue>{ROLE_LABEL[user.role]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -504,6 +530,24 @@ export function UserDetailView({
             )}
             <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
               <Trash size={14} /> Delete
+            </Button>
+          </div>
+        )}
+
+        {user.deleted && (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">
+              {user.deleted_at ? (
+                <>
+                  Deleted {formatDate(user.deleted_at)} {"·"} remaining history purges automatically in{" "}
+                  <span className="font-medium text-foreground">{daysUntilPurge(user.deleted_at)} days</span>
+                </>
+              ) : (
+                "Deleted."
+              )}
+            </p>
+            <Button variant="destructive" size="sm" onClick={() => setPurgeOpen(true)}>
+              <Trash size={14} /> Purge now
             </Button>
           </div>
         )}
@@ -1036,6 +1080,7 @@ export function UserDetailView({
       <EditProfileSheet user={user} open={editOpen} onOpenChange={setEditOpen} onSave={saveProfile} />
       <BanUserDialog user={banOpen ? user : null} onOpenChange={setBanOpen} onConfirm={ban} />
       <DeleteAccountDialog user={user} open={deleteOpen} onOpenChange={setDeleteOpen} onConfirm={deleteAccount} />
+      <PurgeAccountDialog user={user} open={purgeOpen} onOpenChange={setPurgeOpen} onConfirm={purgeAccountNow} />
       <RoleChangeDialog pending={pendingRole} onOpenChange={(open) => !open && setPendingRole(null)} onConfirm={confirmRoleChange} />
       <SendEmailDialog user={emailOpen ? user : null} onOpenChange={setEmailOpen} onConfirm={sendEmail} />
       <BanFromPostingDialog

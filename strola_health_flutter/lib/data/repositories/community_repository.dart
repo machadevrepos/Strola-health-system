@@ -1,281 +1,233 @@
-import 'dart:math';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:strola_health/core/constants/app_colors.dart';
-import 'package:strola_health/domain/entities/challenge.dart';
+import 'package:strola_health/core/services/firebase_client.dart';
+import 'package:strola_health/data/repositories/public_profile_repository.dart';
 import 'package:strola_health/domain/entities/community_post.dart';
+import 'package:strola_health/domain/entities/public_profile.dart';
 
-// Mock community repository — swap for Firebase implementation when ready.
-// All methods mirror what a real Firestore-backed repo would expose.
+/// One page of the feed — a keyset/cursor pagination result (the same
+/// pattern Instagram/Twitter/Reddit feeds use: "give me N items after this
+/// specific item", never "give me page 7"). Offset-based paging would mean
+/// asking Firestore to skip an ever-growing number of documents as someone
+/// scrolls deeper, which gets slower with every page; a cursor is a fixed
+/// cost regardless of how far in the feed you are.
+class PostsPage {
+  const PostsPage({
+    required this.posts,
+    required this.cursor,
+    required this.hasMore,
+  });
 
+  final List<CommunityPost> posts;
+
+  /// Opaque cursor for `getPostsPage(startAfter: ...)`'s next call —
+  /// nothing about its shape should leak past this repository.
+  final DocumentSnapshot<Map<String, dynamic>>? cursor;
+
+  /// True if this page was full (`posts.length == limit`), meaning there's
+  /// *probably* more — the cheap, standard heuristic (skips an extra COUNT
+  /// query just to know for certain).
+  final bool hasMore;
+}
+
+/// Real Firestore-backed community feed. Posts/comments are written via
+/// callables (createPost/addComment/etc. — see
+/// strola_health_firebase/functions/src/community); likes are the one
+/// direct-client-write exception in firestore.rules (owner-only
+/// `likes/{uid}` create/delete), so those go straight to Firestore.
+///
+/// Post images: the composer uploads directly to Storage (see
+/// FirebaseClient.uploadCommunityPostImage) and passes the resulting
+/// download URL through `createPost` as `imageUrl` — no callable in the
+/// upload path itself, matching the storage.rules owner-only write.
 class CommunityRepository {
-  List<CommunityPost> _posts = _seedPosts();
-  List<Challenge> _challenges = _seedChallenges();
+  CommunityRepository(this._firestore, this._auth, this._profiles);
 
-  Future<List<CommunityPost>> getPosts({int page = 0, int limit = 20}) async {
-    await Future.delayed(const Duration(milliseconds: 600)); // simulate network
-    final start = page * limit;
-    if (start >= _posts.length) return [];
-    return _posts.sublist(start, min(start + limit, _posts.length));
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+  final PublicProfileRepository _profiles;
+
+  String get _uid {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw StateError('Not signed in.');
+    return uid;
   }
 
-  Future<CommunityPost> likePost(String postId) async {
-    final idx = _posts.indexWhere((p) => p.id == postId);
-    if (idx < 0) throw Exception('Post not found');
-    final post = _posts[idx];
-    final updated = post.copyWith(
-      isLiked: !post.isLiked,
-      likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+  CollectionReference<Map<String, dynamic>> get _posts =>
+      _firestore.collection('communityPosts');
+
+  DateTime? _timestamp(Object? v) => v is Timestamp ? v.toDate() : null;
+
+  /// One page of the feed, newest first (official posts pinned to the top).
+  /// [startAfter] is the previous page's [PostsPage.cursor] — omit it for
+  /// the first page.
+  ///
+  /// Fetches the "did I like this?" flag for the whole page in a single
+  /// batched query (`_likedPostIds`) instead of one Firestore read per
+  /// post — the N+1 pattern the old `getPosts()` had (`Future.wait` over
+  /// one `.get()` per post) was the actual reason the feed felt slow: 20
+  /// individual round trips serialize into far more wall-clock time than
+  /// the one query that replaced them, even though both eventually finish.
+  Future<PostsPage> getPostsPage({
+    int limit = 20,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) async {
+    var query = _posts
+        .where('moderation.hidden', isEqualTo: false)
+        .orderBy('pinned', descending: true)
+        .orderBy('timestamp', descending: true)
+        .limit(limit);
+    if (startAfter != null) query = query.startAfterDocument(startAfter);
+    final snap = await query.get();
+    if (snap.docs.isEmpty) {
+      return PostsPage(posts: const [], cursor: startAfter, hasMore: false);
+    }
+
+    final postIds = snap.docs.map((d) => d.id).toList();
+    final authorIds = snap.docs
+        .map((d) => d.data()['author_id'] as String)
+        .toSet();
+    // Independent reads — run together rather than one after the other.
+    final results = await Future.wait([
+      _profiles.getMany(authorIds),
+      _likedPostIds(postIds),
+    ]);
+    final profiles = {
+      for (final p in results[0] as List<PublicProfile>) p.id: p,
+    };
+    final liked = results[1] as Set<String>;
+
+    final posts = [
+      for (final doc in snap.docs)
+        CommunityPost.fromFirestore(
+          {...doc.data(), 'timestamp': _timestamp(doc.data()['timestamp'])},
+          doc.id,
+          author:
+              profiles[doc.data()['author_id']] ??
+              PublicProfile.unknown(doc.data()['author_id'] as String),
+          isLiked: liked.contains(doc.id),
+          currentUserId: _uid,
+        ),
+    ];
+
+    return PostsPage(
+      posts: posts,
+      cursor: snap.docs.last,
+      hasMore: snap.docs.length == limit,
     );
-    _posts = [..._posts]..[idx] = updated;
-    return updated;
   }
 
-  Future<CommunityPost> createPost(
+  /// Which of [postIds] the current user has liked — one
+  /// `collectionGroup('likes')` query filtered by exact document path
+  /// (`FieldPath.documentId whereIn [...]`) instead of a separate
+  /// `likes/{uid}` existence check per post. `whereIn` caps at 30 values,
+  /// so this chunks defensively even though today's page size (20) always
+  /// fits in a single call.
+  Future<Set<String>> _likedPostIds(List<String> postIds) async {
+    if (postIds.isEmpty) return const {};
+    final liked = <String>{};
+    for (var i = 0; i < postIds.length; i += 30) {
+      final chunk = postIds.skip(i).take(30);
+      final refs = [
+        for (final id in chunk) _posts.doc(id).collection('likes').doc(_uid),
+      ];
+      final snap = await _firestore
+          .collectionGroup('likes')
+          .where(FieldPath.documentId, whereIn: refs)
+          .get();
+      liked.addAll(snap.docs.map((d) => d.reference.parent.parent!.id));
+    }
+    return liked;
+  }
+
+  Future<void> toggleLike(String postId, {required bool currentlyLiked}) async {
+    final ref = _posts.doc(postId).collection('likes').doc(_uid);
+    if (currentlyLiked) {
+      await ref.delete();
+    } else {
+      await ref.set({
+        'user_id': _uid,
+        'created_at': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  Future<String> createPost(
     String content, {
     int? stepCount,
-    String? imagePath,
+    String? badgeEmoji,
+    String? imageUrl,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    final post = CommunityPost(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      authorName: 'You',
-      content: content,
-      timestamp: DateTime.now(),
-      avatarColor: AppColors.accent.toARGB32(),
-      likes: 0,
-      comments: 0,
-      stepCount: stepCount,
-      imageUrl: imagePath,
-    );
-    _posts = [post, ..._posts];
-    return post;
+    final result = await FirebaseClient.call('createPost', {
+      'content': content,
+      if (stepCount != null) 'stepCount': stepCount,
+      if (badgeEmoji != null) 'badgeEmoji': badgeEmoji,
+      if (imageUrl != null) 'imageUrl': imageUrl,
+    });
+    return result['postId'] as String;
   }
 
-  Future<List<Challenge>> getChallenges() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return _challenges;
-  }
+  Future<void> deletePost(String postId) =>
+      FirebaseClient.call('deletePost', {'postId': postId});
 
-  Future<Challenge> joinChallenge(String challengeId) async {
-    final idx = _challenges.indexWhere((c) => c.id == challengeId);
-    if (idx < 0) throw Exception('Challenge not found');
-    final updated = _challenges[idx].copyWith(isJoined: true);
-    _challenges = [..._challenges]..[idx] = updated;
-    return updated;
-  }
+  Future<List<CommunityComment>> getComments(String postId) async {
+    final snap = await _posts
+        .doc(postId)
+        .collection('comments')
+        .where('hidden', isEqualTo: false)
+        .orderBy('timestamp')
+        .get();
+    if (snap.docs.isEmpty) return const [];
 
-  static List<CommunityPost> _seedPosts() {
-    final now = DateTime.now();
+    final authorIds = snap.docs
+        .map((d) => d.data()['author_id'] as String)
+        .toSet();
+    final profiles = {
+      for (final p in await _profiles.getMany(authorIds)) p.id: p,
+    };
+
     return [
-      CommunityPost(
-        id: '1',
-        authorName: 'Sarah M',
-        content:
-            '🎉 Just hit 10,000 steps for the 5th day in a row! Consistency is key. Who else is on a streak?',
-        timestamp: now.subtract(const Duration(minutes: 12)),
-        avatarColor: 0xFF7C3AED,
-        likes: 24,
-        comments: 8,
-        stepCount: 10247,
-        badgeEmoji: '🔥',
-      ),
-      CommunityPost(
-        id: '2',
-        authorName: 'James K',
-        content:
-            'Morning walk at the park — absolutely love how the Strolla device tracks every step. 6.2 km done before breakfast! 🌅',
-        timestamp: now.subtract(const Duration(hours: 1)),
-        avatarColor: 0xFF0891B2,
-        likes: 18,
-        comments: 5,
-        stepCount: 8100,
-      ),
-      CommunityPost(
-        id: '3',
-        authorName: 'Priya S',
-        content:
-            'Finally broke my 5k step barrier after my knee injury. Small wins matter. Thank you all for the support! 💪',
-        timestamp: now.subtract(const Duration(hours: 3)),
-        avatarColor: 0xFFDB2777,
-        likes: 47,
-        comments: 14,
-        stepCount: 5320,
-        badgeEmoji: '⭐',
-      ),
-      CommunityPost(
-        id: '4',
-        authorName: 'Tom B',
-        content:
-            'Pro tip: park further away from the entrance and take stairs instead of elevators. I added 2,000 steps to my daily count without any extra workout!',
-        timestamp: now.subtract(const Duration(hours: 5)),
-        avatarColor: 0xFF059669,
-        likes: 33,
-        comments: 11,
-      ),
-      CommunityPost(
-        id: '5',
-        authorName: 'Alex R',
-        content:
-            'Week 1 of the 70k Challenge complete ✅ Averaged 10,200 steps/day. This community keeps me going!',
-        timestamp: now.subtract(const Duration(hours: 8)),
-        avatarColor: 0xFFD97706,
-        likes: 29,
-        comments: 7,
-        stepCount: 71400,
-        badgeEmoji: '🏆',
-      ),
-      CommunityPost(
-        id: '6',
-        authorName: 'Mei L',
-        content:
-            'Rainy day = indoor steps. Paced my living room for 45 minutes and somehow got to 4,800 steps 😂 never giving up on that goal!',
-        timestamp: now.subtract(const Duration(hours: 14)),
-        avatarColor: 0xFF7C3AED,
-        likes: 52,
-        comments: 19,
-        stepCount: 4800,
-      ),
-      CommunityPost(
-        id: '7',
-        authorName: 'Dan H',
-        content:
-            'New personal best: 18,432 steps! Went for a long hike with friends. Strolla BLE held the connection the entire time 🙌',
-        timestamp: now.subtract(const Duration(days: 1)),
-        avatarColor: 0xFF0891B2,
-        likes: 61,
-        comments: 22,
-        stepCount: 18432,
-        badgeEmoji: '🏔️',
-      ),
-    ];
-  }
-
-  static List<Challenge> _seedChallenges() {
-    final now = DateTime.now();
-    return [
-      Challenge(
-        id: 'c1',
-        title: '10K Daily Streak',
-        description: 'Hit 10,000 steps every day for 7 days straight.',
-        goalSteps: 70000,
-        startDate: now.subtract(const Duration(days: 3)),
-        endDate: now.add(const Duration(days: 4)),
-        isJoined: true,
-        badgeEmoji: '🔥',
-        accentColorValue: AppColors.accent.toARGB32(),
-        mySteps: 31200,
-        participants: [
-          const ChallengeParticipant(
-            name: 'Alex R',
-            steps: 42100,
-            rank: 1,
-            avatarColor: 0xFFD97706,
-          ),
-          const ChallengeParticipant(
-            name: 'Sarah M',
-            steps: 38500,
-            rank: 2,
-            avatarColor: 0xFF7C3AED,
-          ),
-          const ChallengeParticipant(
-            name: 'You',
-            steps: 31200,
-            rank: 3,
-            isMe: true,
-          ),
-          const ChallengeParticipant(
-            name: 'Dan H',
-            steps: 28900,
-            rank: 4,
-            avatarColor: 0xFF0891B2,
-          ),
-          const ChallengeParticipant(
-            name: 'Priya S',
-            steps: 21000,
-            rank: 5,
-            avatarColor: 0xFFDB2777,
-          ),
-        ],
-      ),
-      Challenge(
-        id: 'c2',
-        title: '50 km This Month',
-        description: 'Walk or run 50 kilometres before the month ends.',
-        goalSteps: 65616, // ~50km at 0.762m/step
-        startDate: DateTime(now.year, now.month, 1),
-        endDate: DateTime(now.year, now.month + 1, 0),
-        isJoined: false,
-        badgeEmoji: '🗺️',
-        accentColorValue: AppColors.accentSecondary.toARGB32(),
-        mySteps: 0,
-        participants: [
-          const ChallengeParticipant(
-            name: 'Tom B',
-            steps: 52400,
-            rank: 1,
-            avatarColor: 0xFF059669,
-          ),
-          const ChallengeParticipant(
-            name: 'James K',
-            steps: 48900,
-            rank: 2,
-            avatarColor: 0xFF0891B2,
-          ),
-          const ChallengeParticipant(
-            name: 'Mei L',
-            steps: 41200,
-            rank: 3,
-            avatarColor: 0xFF7C3AED,
-          ),
-          const ChallengeParticipant(
-            name: 'Alex R',
-            steps: 33100,
-            rank: 4,
-            avatarColor: 0xFFD97706,
-          ),
-        ],
-      ),
-      Challenge(
-        id: 'c3',
-        title: 'Weekend Warrior',
-        description: 'Get 25,000 steps over Saturday and Sunday.',
-        goalSteps: 25000,
-        startDate: now.subtract(
-          Duration(
-            days: now.weekday - 6 < 0 ? 7 + (now.weekday - 6) : now.weekday - 6,
-          ),
+      for (final doc in snap.docs)
+        CommunityComment.fromFirestore(
+          {...doc.data(), 'timestamp': _timestamp(doc.data()['timestamp'])},
+          doc.id,
+          author:
+              profiles[doc.data()['author_id']] ??
+              PublicProfile.unknown(doc.data()['author_id'] as String),
+          currentUserId: _uid,
         ),
-        endDate: now.add(Duration(days: 7 - now.weekday)),
-        isJoined: true,
-        badgeEmoji: '⚡',
-        accentColorValue: AppColors.accent.toARGB32(),
-        mySteps: 14300,
-        participants: [
-          const ChallengeParticipant(
-            name: 'Dan H',
-            steps: 22800,
-            rank: 1,
-            avatarColor: 0xFF0891B2,
-          ),
-          const ChallengeParticipant(
-            name: 'You',
-            steps: 14300,
-            rank: 2,
-            isMe: true,
-          ),
-          const ChallengeParticipant(
-            name: 'Priya S',
-            steps: 12100,
-            rank: 3,
-            avatarColor: 0xFFDB2777,
-          ),
-        ],
-      ),
     ];
   }
+
+  Future<void> addComment(String postId, String content) =>
+      FirebaseClient.call('addComment', {'postId': postId, 'content': content});
+
+  Future<void> deleteComment(String postId, String commentId) =>
+      FirebaseClient.call('deleteComment', {
+        'postId': postId,
+        'commentId': commentId,
+      });
+
+  /// [targetType] is `'post'` or `'user'` — matches the backend's
+  /// `ReportTargetType` exactly (reportContent.ts).
+  Future<void> reportContent({
+    required String targetType,
+    required String targetId,
+    required String category,
+    required String reason,
+  }) => FirebaseClient.call('reportContent', {
+    'targetType': targetType,
+    'targetId': targetId,
+    'category': category,
+    'reason': reason,
+  });
 }
 
 final communityRepositoryProvider = Provider<CommunityRepository>(
-  (_) => CommunityRepository(),
+  (ref) => CommunityRepository(
+    FirebaseClient.firestore,
+    FirebaseAuth.instance,
+    ref.watch(publicProfileRepositoryProvider),
+  ),
 );

@@ -51,7 +51,7 @@ import {
 } from "@/lib/data/queries";
 import { formatDateTime, formatNumber, formatPercent } from "@/lib/format";
 import { IOSNotificationPreview, AndroidNotificationPreview } from "@/components/notifications/notification-preview";
-import { PUSH_BODY_MAX, PUSH_TEMPLATES, PUSH_TITLE_MAX } from "@/components/notifications/push-constants";
+import { NOTIFICATION_TRIGGERS, PUSH_BODY_MAX, PUSH_TEMPLATES, PUSH_TITLE_MAX } from "@/components/notifications/push-constants";
 import { DiscardNotificationDialog, type DiscardNotificationTarget } from "@/components/notifications/discard-notification-dialog";
 import type {
   AnalyticsEvent,
@@ -330,8 +330,7 @@ export function NotificationsView({
           <CardHeader>
             <CardTitle>{editingId ? "Editing" : "Compose"}</CardTitle>
             <CardDescription>
-              No push provider is wired in yet — sending here records history and simulates the audience, delivery, and
-              open stats it would have produced.
+              Sends a real push via Firebase Cloud Messaging to every device registered for the selected audience.
               {editingId && (
                 <>
                   {" "}
@@ -513,6 +512,7 @@ export function NotificationsView({
           <TabsTrigger value="drafts">Drafts ({drafts.length})</TabsTrigger>
           <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
           <TabsTrigger value="sent">Performance ({sent.length})</TabsTrigger>
+          <TabsTrigger value="triggers">Automated notifications</TabsTrigger>
         </TabsList>
 
         <TabsContent value="drafts" className="mt-4">
@@ -616,6 +616,52 @@ export function NotificationsView({
                   </Table>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="triggers" className="mt-4">
+          <Card className="border-border shadow-none">
+            <CardHeader>
+              <CardTitle>Automated notifications</CardTitle>
+              <CardDescription>
+                Reference only, these aren&apos;t composed here. They fire on their own from app and backend logic —
+                this is what causes each one to fire and roughly what it says.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Notification</TableHead>
+                      <TableHead>Fires when</TableHead>
+                      <TableHead>Sample message</TableHead>
+                      <TableHead>Source</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {NOTIFICATION_TRIGGERS.map((t, i) => (
+                      <TableRow key={`${t.category}-${i}`}>
+                        <TableCell className="whitespace-nowrap font-medium text-foreground">{t.category}</TableCell>
+                        <TableCell className="w-80 max-w-80 min-w-64 whitespace-normal text-sm text-muted-foreground">{t.cause}</TableCell>
+                        <TableCell className="w-64 max-w-64 min-w-52 whitespace-normal text-sm text-muted-foreground">
+                          <span className="font-medium text-foreground">{t.title}</span> — {t.sample}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <Badge variant="outline" className="text-[11px]">
+                            {t.source === "device" ? "Mobile app" : "Server push"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Mobile app notifications fire entirely on-device and never pass through this admin panel or FCM.
+                Server push notifications are sent from the backend the same way a manual send above is.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

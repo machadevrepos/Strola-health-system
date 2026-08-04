@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { ChartEmptyState } from "@/components/shell/page-states";
 import { formatNumber } from "@/lib/format";
 
 export function StepsBarChart({
@@ -11,6 +12,10 @@ export function StepsBarChart({
   data: { date: string; steps: number }[];
   goal: number;
 }) {
+  if (data.every((d) => d.steps === 0)) {
+    return <ChartEmptyState height={200} message="No steps recorded yet." />;
+  }
+
   const formatted = data.map((d) => ({
     ...d,
     label: new Date(d.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),

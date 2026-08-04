@@ -53,7 +53,9 @@ class RouteSpeedLegend extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.bgSurface.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.accentSecondary.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppColors.accentSecondary.withValues(alpha: 0.3),
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.accent.withValues(alpha: 0.08),
@@ -139,9 +141,19 @@ class StaticRouteMap extends StatelessWidget {
             height: height,
             child: FlutterMap(
               options: MapOptions(
+                // maxZoom caps what CameraFit.bounds can compute — without
+                // it, a very short/GPS-sparse session (a couple of fixes a
+                // few seconds apart, near-identical coordinates) collapses
+                // the bounding box toward zero size, which sends the
+                // fit-to-bounds zoom calculation to Infinity and crashes
+                // deep inside flutter_map's tile layer (`.round()` on
+                // Infinity). 18 is an ordinary close-up street-level zoom —
+                // exactly what a single-point/tiny-radius trace should show
+                // once clamped, not a workaround value.
                 initialCameraFit: CameraFit.bounds(
                   bounds: bounds,
                   padding: const EdgeInsets.all(40),
+                  maxZoom: 18,
                 ),
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.none,

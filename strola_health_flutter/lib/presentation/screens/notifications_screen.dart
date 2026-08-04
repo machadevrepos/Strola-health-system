@@ -7,6 +7,7 @@ import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/formatters.dart';
+import 'package:strola_health/core/utils/push_routing.dart';
 import 'package:strola_health/domain/entities/app_notification.dart';
 import 'package:strola_health/presentation/providers/navigation_providers.dart';
 import 'package:strola_health/presentation/providers/notification_providers.dart';
@@ -16,16 +17,9 @@ import 'package:strola_health/presentation/widgets/skeleton_loaders.dart';
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
-  static const _routeTabIndex = {
-    'home': 0,
-    'stats': 1,
-    'community': 2,
-    'challenges': 3,
-  };
-
   void _onTileTap(BuildContext context, WidgetRef ref, AppNotification n) {
     ref.read(notificationsProvider.notifier).markRead(n.id);
-    final tabIndex = _routeTabIndex[n.routeTarget];
+    final tabIndex = tabIndexForLinkTarget(n.routeTarget);
     if (tabIndex != null) {
       ref.read(mainTabIndexProvider.notifier).state = tabIndex;
       Navigator.pop(context);
@@ -47,8 +41,11 @@ class NotificationsScreen extends ConsumerWidget {
           shadowColor: Colors.transparent,
           leading: GestureDetector(
             onTap: () => Navigator.pop(context),
-            child: const Icon(AppIcons.back,
-                color: AppColors.textPrimary, size: AppTheme.iconM),
+            child: const Icon(
+              AppIcons.back,
+              color: AppColors.textPrimary,
+              size: AppTheme.iconM,
+            ),
           ),
           title: Text('Notifications', style: AppTypography.titleM),
           centerTitle: true,
@@ -71,7 +68,10 @@ class NotificationsScreen extends ConsumerWidget {
             child: NotificationListSkeleton(),
           ),
           error: (_, __) => const Center(
-            child: Text('Could not load notifications.', style: AppTypography.bodyM),
+            child: Text(
+              'Could not load notifications.',
+              style: AppTypography.bodyM,
+            ),
           ),
           data: (notifications) {
             if (notifications.isEmpty) {
@@ -219,7 +219,10 @@ class _NotificationTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: AppTheme.spaceXS),
-                  Text(timeago.format(notification.timestamp), style: AppTypography.labelS),
+                  Text(
+                    timeago.format(notification.timestamp),
+                    style: AppTypography.labelS,
+                  ),
                 ],
               ),
             ),

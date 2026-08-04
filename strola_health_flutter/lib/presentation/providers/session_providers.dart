@@ -277,10 +277,14 @@ class SessionNotifier extends StateNotifier<SessionState> {
   }
 
   Future<void> saveCompletedSession(WorkoutSession session) async {
-    await _ref
-        .read(sessionRepositoryProvider)
-        .saveSession(session, goal: _ref.read(dailyGoalProvider));
+    final repo = _ref.read(sessionRepositoryProvider);
+    await repo.saveSession(session, goal: _ref.read(dailyGoalProvider));
     _ref.invalidate(sessionHistoryProvider);
+    // Best-effort — the local save above is already durable; a sync
+    // failure (offline, transient error) must never block or surface to
+    // the session-complete flow. `id` is the server-side idempotency key,
+    // so this is always safe to have missed once and pick up later.
+    unawaited(repo.syncToBackend(session).catchError((_) {}));
   }
 
   @override
@@ -301,16 +305,36 @@ final sessionHistoryProvider = FutureProvider<List<WorkoutSession>>((ref) {
   return ref.read(sessionRepositoryProvider).getSessions();
 });
 
+// 60 days, not 30 — the Activity tab's "vs previous 30 days" trend needs a
+// full prior 30-day window alongside the current one.
 final dailyStepsMapProvider = FutureProvider<Map<DateTime, int>>((ref) async {
-  return ref.read(sessionRepositoryProvider).getRecentDailySteps(days: 30);
+  return ref.read(sessionRepositoryProvider).getRecentDailySteps(days: 60);
 });
 
-/// Days with recorded steps, most recent first — real data, padded out with
-/// deterministic filler days when there isn't yet enough real history (same
-/// "visual richness during development" pattern as the calendar heat-map in
-/// `activity_screen.dart`). Today's entry always reflects the live count.
-/// One shared list so the Profile screen's preview and its "View All" page
-/// always agree — the preview is just this list's first 4 entries.
+/// Rolling last 7 days, oldest first, today last (index 6) — matches
+/// `_WeekDots`' own indexing in home_screen.dart exactly. Real SQLite
+/// history for the first 6 days; today is always the live step count, even
+/// before it's been written to `daily_steps`. A day with no recorded
+/// history is 0, not a filler number — the whole point of this row is
+/// showing which real days met the goal.
+final weeklyStepsProvider = Provider<List<int>>((ref) {
+  final dailyMap = ref.watch(dailyStepsMapProvider).value ?? const {};
+  final today = DateTime.now();
+  final todayKey = DateTime(today.year, today.month, today.day);
+  final liveToday = ref.watch(stepCountProvider);
+  return [
+    for (var offset = 6; offset >= 0; offset--)
+      offset == 0
+          ? liveToday
+          : (dailyMap[todayKey.subtract(Duration(days: offset))] ?? 0),
+  ];
+});
+
+/// Days with recorded steps, most recent first — real data only, however
+/// many days that actually is (a brand new account may only have one).
+/// Today's entry always reflects the live count. One shared list so the
+/// Profile screen's preview and its "View All" page always agree — the
+/// preview is just this list's first 4 entries.
 final recentActivityProvider = Provider<List<MapEntry<DateTime, int>>>((ref) {
   final steps = ref.watch(stepCountProvider);
   final recentMap = ref.watch(dailyStepsMapProvider).value ?? const {};
@@ -318,28 +342,8 @@ final recentActivityProvider = Provider<List<MapEntry<DateTime, int>>>((ref) {
   final today = DateTime(now.year, now.month, now.day);
   final merged = {...recentMap, today: steps};
 
-  final real = merged.entries.where((e) => e.value > 0).toList()
+  return merged.entries.where((e) => e.value > 0).toList()
     ..sort((a, b) => b.key.compareTo(a.key));
-
-  const target = 16; // middle of the requested ~12–18 range
-  if (real.length >= target) return real;
-
-  final used = real.map((e) => e.key).toSet();
-  final padded = [...real];
-  var cursor = (real.isEmpty ? today : real.last.key).subtract(
-    const Duration(days: 1),
-  );
-  var seed = 1;
-  while (padded.length < target) {
-    if (!used.contains(cursor)) {
-      final mockSteps = 7600 + ((seed * 1597) % 6800);
-      padded.add(MapEntry(cursor, mockSteps));
-      used.add(cursor);
-      seed++;
-    }
-    cursor = cursor.subtract(const Duration(days: 1));
-  }
-  return padded;
 });
 
 /// [month]'s recorded days, each paired with the goal that was active when

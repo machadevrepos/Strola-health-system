@@ -1,0 +1,61 @@
+rules_version = '2';
+
+// Mirrors firestore.rules' posture: narrow, explicit exceptions only.
+// Community post images are the one client-direct-write path — the
+// composer uploads straight to Storage (no callable in between), gets the
+// download URL back, then sends that URL through createPost like any other
+// field. Everything else stays unwritable from a client.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // Storage rules can't import firestore.rules' helpers — each rules file
+    // is self-contained — so this is a deliberate duplicate of that file's
+    // role()/isAdmin(), reading the same custom claim.
+    function role() {
+      return isSignedIn() ? request.auth.token.role : null;
+    }
+
+    function isAdmin() {
+      return role() == 'admin' || role() == 'super_admin';
+    }
+
+    // 8 MB cap — comfortably above what image_picker's maxWidth:1600/
+    // quality:85 export produces, tight enough to keep a single abusive
+    // upload cheap. Content-type is checked against the upload's declared
+    // type, not the bytes themselves — Storage rules can't inspect file
+    // contents, so this is a client-honesty check, not a hard guarantee.
+    match /community_post_images/{userId}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && uid() == userId
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+
+    // Challenge cover photos — admin-only (both admin panels' challenge
+    // form), never a client-direct write from the mobile app. Folder is
+    // keyed by the uploading admin's uid, same shape as
+    // community_post_images, not by challengeId — the challenge doc doesn't
+    // exist yet at create time, only from the edit flow onward.
+    match /challenge_images/{adminUid}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && uid() == adminUid
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

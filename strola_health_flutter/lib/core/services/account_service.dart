@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/services/purchase_service.dart';
+import 'package:strola_health/core/services/push_token_service.dart';
 import 'package:strola_health/data/datasources/backend_api.dart';
 import 'package:strola_health/data/datasources/local_database.dart';
 import 'package:strola_health/data/repositories/notification_repository.dart';
@@ -19,20 +21,36 @@ import 'package:strola_health/presentation/providers/step_providers.dart';
 /// Deliberately not called after sign-*up* — a brand-new account has
 /// nothing to restore, and should always see onboarding once.
 ///
-/// Best-effort: if this fails (no network, brand-new account with no
-/// profile saved yet, etc.) it silently leaves local state as-is, so a
-/// returning user worst-case sees onboarding again rather than the app
-/// being blocked on a failed network call.
+/// Retries twice (a fresh sign-in can briefly race Firestore security rules
+/// evaluating the just-minted auth token) before giving up. Still
+/// best-effort in the end: a final failure leaves local state as-is and
+/// logs rather than throwing, so a returning user worst-case sees onboarding
+/// again rather than the app being blocked on a failed network call — but
+/// it's no longer silent, so a real, non-transient failure is at least
+/// visible instead of vanishing.
 Future<void> restoreProfileFromBackend(WidgetRef ref) async {
-  try {
-    final result = await ref.read(backendApiProvider).getMyProfile();
-    await ref.read(userProfileProvider.notifier).save(result.profile);
-    await ref.read(dailyGoalProvider.notifier).setGoal(result.dailyGoalSteps);
-    if (result.weightKg != null) {
-      await ref.read(userWeightKgProvider.notifier).setWeight(result.weightKg!);
+  const maxAttempts = 3;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      final result = await ref.read(backendApiProvider).getMyProfile();
+      await ref.read(userProfileProvider.notifier).save(result.profile);
+      await ref.read(dailyGoalProvider.notifier).setGoal(result.dailyGoalSteps);
+      if (result.weightKg != null) {
+        await ref
+            .read(userWeightKgProvider.notifier)
+            .setWeight(result.weightKg!);
+      }
+      return;
+    } catch (e) {
+      if (attempt == maxAttempts) {
+        debugPrint(
+          '[restoreProfileFromBackend] failed after $attempt attempts, '
+          'leaving local profile as-is: $e',
+        );
+      } else {
+        await Future.delayed(Duration(milliseconds: 500 * attempt));
+      }
     }
-  } catch (_) {
-    // Best-effort — see doc comment above.
   }
 }
 
@@ -65,6 +83,7 @@ Future<void> signOutAndWipeLocalData(WidgetRef ref) async {
   // anonymous purchaser id, so the next account signed in here doesn't
   // inherit this one's cached entitlements.
   await PurchaseService.logOut();
+  await PushTokenService.unregister();
 
   if (!ref.read(firebaseAvailableProvider)) {
     await ref.read(localSignedInProvider.notifier).signOut();
@@ -81,7 +100,6 @@ Future<void> signOutAndWipeLocalData(WidgetRef ref) async {
     prefs.remove(StreakNotifier.longestKey),
     prefs.remove(StreakNotifier.lastSeenDateKey),
     prefs.remove(PrivacySettingsNotifier.prefsKey),
-    prefs.remove(BlockedUsersNotifier.prefsKey),
     prefs.remove(NotificationRepository.prefsKey),
   ]);
 
@@ -114,6 +132,7 @@ Future<void> signOutAndWipeLocalData(WidgetRef ref) async {
 /// rather than treating it as a generic failure.
 Future<void> deleteAccountAndWipeData(WidgetRef ref) async {
   await PurchaseService.logOut();
+  await PushTokenService.unregister();
 
   if (ref.read(firebaseAvailableProvider)) {
     await ref.read(authServiceProvider).deleteAccount();
@@ -130,7 +149,6 @@ Future<void> deleteAccountAndWipeData(WidgetRef ref) async {
     prefs.remove(StreakNotifier.longestKey),
     prefs.remove(StreakNotifier.lastSeenDateKey),
     prefs.remove(PrivacySettingsNotifier.prefsKey),
-    prefs.remove(BlockedUsersNotifier.prefsKey),
     prefs.remove(NotificationRepository.prefsKey),
   ]);
 

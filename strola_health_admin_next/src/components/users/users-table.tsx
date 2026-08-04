@@ -19,6 +19,7 @@ import {
   EnvelopeSimple,
   AppleLogo,
   AndroidLogo,
+  Question,
 } from "@phosphor-icons/react";
 import {
   AlertDialog,
@@ -57,6 +58,7 @@ import { formatDate, formatRelative, initials } from "@/lib/format";
 import {
   TRACKER_STATUS_LABEL,
   LIFETIME_ISO,
+  daysUntilPurge,
   hasAdminGrantedPremium,
   lastActiveMap,
   trackerStatusForUser,
@@ -593,13 +595,24 @@ export function UsersTable({
                     </div>
                   </TableCell>
                   <TableCell><RoleBadge role={u.role} /></TableCell>
-                  <TableCell><AccountStatusBadge user={u} /></TableCell>
+                  <TableCell>
+                    <AccountStatusBadge user={u} />
+                    {u.deleted && u.deleted_at && (
+                      <p className="mt-1 text-xs text-muted-foreground">Purges in {daysUntilPurge(u.deleted_at)}d</p>
+                    )}
+                  </TableCell>
                   <TableCell><SubscriptionBadge subscription={u.subscription} /></TableCell>
                   <TableCell className="text-sm text-muted-foreground">{u.country ?? "—"}</TableCell>
                   <TableCell>
                     <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                      {u.platform === "ios" ? <AppleLogo size={14} /> : <AndroidLogo size={14} />}
-                      {u.device_model ?? (u.platform === "ios" ? "iPhone" : "Android")}
+                      {u.platform === "ios" ? (
+                        <AppleLogo size={14} />
+                      ) : u.platform === "android" ? (
+                        <AndroidLogo size={14} />
+                      ) : (
+                        <Question size={14} />
+                      )}
+                      {u.platform === null ? "—" : (u.device_model ?? (u.platform === "ios" ? "iPhone" : "Android"))}
                     </span>
                   </TableCell>
                   <TableCell>

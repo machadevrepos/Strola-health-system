@@ -26,13 +26,20 @@ class IntegrationsScreen extends ConsumerStatefulWidget {
 }
 
 class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
-  Set<String> _connected = {};
+  /// Provider apiValue → its connection doc (id/status/etc, see
+  /// listMyIntegrationConnections.ts's sanitizeConnection) — kept as full
+  /// maps rather than just a connected-providers set because disconnecting
+  /// needs the connection's real `id`.
+  Map<String, Map<String, dynamic>> _connections = {};
   bool _loading = true;
   String? _busyProvider;
 
   IntegrationProvider get _onDeviceProvider => Platform.isIOS
       ? IntegrationProvider.healthkit
       : IntegrationProvider.healthConnect;
+
+  bool _isConnected(String providerApiValue) =>
+      _connections[providerApiValue]?['status'] == 'connected';
 
   @override
   void initState() {
@@ -45,7 +52,9 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
       final integrations = await ref.read(backendApiProvider).getIntegrations();
       if (!mounted) return;
       setState(() {
-        _connected = integrations.map((i) => i['provider'] as String).toSet();
+        _connections = {
+          for (final i in integrations) i['provider'] as String: i,
+        };
         _loading = false;
       });
     } catch (_) {
@@ -62,7 +71,7 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
       final granted = await ref.read(healthServiceProvider).connect();
       if (!mounted) return;
       if (granted) {
-        setState(() => _connected = {..._connected, provider.apiValue});
+        await _loadConnections();
       } else {
         _showMessage('Permission was not granted.');
       }
@@ -90,16 +99,88 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
       if (!mounted) return;
       switch (status) {
         case 'success':
-          setState(() => _connected = {..._connected, provider.apiValue});
+          await _loadConnections();
         case 'pending_credentials':
           _showMessage(
-            '$displayName isn\'t fully live yet — pending API credentials.',
+            '$displayName isn\'t fully live yet, pending API credentials.',
           );
         default:
           _showMessage('Could not connect to $displayName.');
       }
     } catch (e) {
       if (mounted) _showMessage('Could not connect to $displayName: $e');
+    } finally {
+      if (mounted) setState(() => _busyProvider = null);
+    }
+  }
+
+  Future<void> _confirmDisconnect(
+    IntegrationProvider provider,
+    String displayName,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Disconnect $displayName?',
+          style: AppTypography.titleM.copyWith(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          "Strolla will stop syncing new data from $displayName. Your existing history stays as-is.",
+          style: AppTypography.bodyS,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: Text(
+              'Cancel',
+              style: AppTypography.bodyL.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Disconnect',
+              style: AppTypography.bodyL.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _disconnect(provider, displayName);
+  }
+
+  Future<void> _disconnect(
+    IntegrationProvider provider,
+    String displayName,
+  ) async {
+    final connectionId = _connections[provider.apiValue]?['id'] as String?;
+    if (connectionId == null) return;
+    setState(() => _busyProvider = provider.apiValue);
+    try {
+      await ref.read(backendApiProvider).disconnectIntegration(connectionId);
+      if (mounted) {
+        setState(() {
+          _connections = {..._connections}..remove(provider.apiValue);
+        });
+      }
+    } catch (e) {
+      if (mounted) _showMessage('Could not disconnect $displayName: $e');
     } finally {
       if (mounted) setState(() => _busyProvider = null);
     }
@@ -153,48 +234,83 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
                         : BrandType.healthConnect,
                     name: Platform.isIOS ? 'Apple Health' : 'Health Connect',
                     subtitle: Platform.isIOS
-                        ? 'Two-way sync — also writes back so other apps can prefer Strolla'
-                        : 'Also covers Samsung Health and Google Fit — set Strolla as the preferred source in Health Connect',
-                    connected: _connected.contains(onDevice.apiValue),
+                        ? 'Two-way sync, also writes back so other apps can prefer Strolla'
+                        : 'Also covers Samsung Health and Google Fit. Set Strolla as the preferred source in Health Connect',
+                    connected: _isConnected(onDevice.apiValue),
                     busy: _busyProvider == onDevice.apiValue,
                     onTap: _connectOnDevice,
+                    onDisconnect: () => _confirmDisconnect(
+                      onDevice,
+                      Platform.isIOS ? 'Apple Health' : 'Health Connect',
+                    ),
                   ),
                   const SizedBox(height: AppTheme.spaceM),
                   _IntegrationTile(
                     brand: BrandType.strava,
                     name: 'Strava',
                     subtitle: 'Import runs, rides, and walks',
-                    connected: _connected.contains(
+                    connected: _isConnected(
                       IntegrationProvider.strava.apiValue,
                     ),
                     busy: _busyProvider == IntegrationProvider.strava.apiValue,
                     onTap: () =>
                         _connectOAuth(IntegrationProvider.strava, 'Strava'),
+                    onDisconnect: () => _confirmDisconnect(
+                      IntegrationProvider.strava,
+                      'Strava',
+                    ),
+                    comingSoon: true,
                   ),
                   const SizedBox(height: AppTheme.spaceM),
                   _IntegrationTile(
                     brand: BrandType.oura,
                     name: 'Oura',
                     subtitle: 'Sync daily activity from your Oura Ring',
-                    connected: _connected.contains(
-                      IntegrationProvider.oura.apiValue,
-                    ),
+                    connected: _isConnected(IntegrationProvider.oura.apiValue),
                     busy: _busyProvider == IntegrationProvider.oura.apiValue,
                     onTap: () =>
                         _connectOAuth(IntegrationProvider.oura, 'Oura'),
+                    onDisconnect: () =>
+                        _confirmDisconnect(IntegrationProvider.oura, 'Oura'),
+                    comingSoon: true,
                   ),
                   const SizedBox(height: AppTheme.spaceM),
                   _IntegrationTile(
                     brand: BrandType.garmin,
                     name: 'Garmin',
                     subtitle: 'Sync activity from a connected Garmin device',
-                    connected: _connected.contains(
+                    connected: _isConnected(
                       IntegrationProvider.garmin.apiValue,
                     ),
                     busy: _busyProvider == IntegrationProvider.garmin.apiValue,
                     onTap: () =>
                         _connectOAuth(IntegrationProvider.garmin, 'Garmin'),
+                    onDisconnect: () => _confirmDisconnect(
+                      IntegrationProvider.garmin,
+                      'Garmin',
+                    ),
                     pendingApproval: true,
+                  ),
+                  const SizedBox(height: AppTheme.spaceM),
+                  _IntegrationTile(
+                    brand: BrandType.myFitnessPal,
+                    name: 'MyFitnessPal',
+                    subtitle: 'Sync logged meals and calorie totals',
+                    connected: _isConnected(
+                      IntegrationProvider.myfitnesspal.apiValue,
+                    ),
+                    busy:
+                        _busyProvider ==
+                        IntegrationProvider.myfitnesspal.apiValue,
+                    onTap: () => _connectOAuth(
+                      IntegrationProvider.myfitnesspal,
+                      'MyFitnessPal',
+                    ),
+                    onDisconnect: () => _confirmDisconnect(
+                      IntegrationProvider.myfitnesspal,
+                      'MyFitnessPal',
+                    ),
+                    comingSoon: true,
                   ),
                   const SizedBox(height: AppTheme.spaceXL),
                   Container(
@@ -217,7 +333,7 @@ class _IntegrationsScreenState extends ConsumerState<IntegrationsScreen> {
                         const SizedBox(width: AppTheme.spaceM),
                         Expanded(
                           child: Text(
-                            'These show a neutral icon while each platform\'s official badge is pending approval — syncing itself isn\'t affected.',
+                            'These show a neutral icon while each platform\'s official badge is pending approval. Syncing itself isn\'t affected.',
                             style: AppTypography.bodyS,
                           ),
                         ),
@@ -239,7 +355,9 @@ class _IntegrationTile extends StatelessWidget {
     required this.connected,
     required this.busy,
     required this.onTap,
+    required this.onDisconnect,
     this.pendingApproval = false,
+    this.comingSoon = false,
   });
 
   final BrandType brand;
@@ -248,7 +366,13 @@ class _IntegrationTile extends StatelessWidget {
   final bool connected;
   final bool busy;
   final VoidCallback onTap;
+  final VoidCallback onDisconnect;
   final bool pendingApproval;
+
+  /// Not open to users yet (backend integration still being built/verified)
+  /// — shows a static "Coming soon" pill instead of an active Connect
+  /// button, and the tile itself isn't tappable.
+  final bool comingSoon;
 
   @override
   Widget build(BuildContext context) {
@@ -267,8 +391,15 @@ class _IntegrationTile extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(name, style: AppTypography.bodyL),
-                    if (pendingApproval) ...[
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: AppTypography.bodyL,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (pendingApproval || comingSoon) ...[
                       const SizedBox(width: AppTheme.spaceS),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -284,7 +415,7 @@ class _IntegrationTile extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          'Pending approval',
+                          comingSoon ? 'Coming soon' : 'Pending approval',
                           style: AppTypography.labelS.copyWith(
                             color: AppColors.accent,
                             fontSize: 9,
@@ -299,7 +430,25 @@ class _IntegrationTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppTheme.spaceS),
-          if (busy)
+          if (comingSoon)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spaceM,
+                vertical: AppTheme.spaceS,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.textMuted.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+              ),
+              child: Text(
+                'Coming soon',
+                style: AppTypography.labelM.copyWith(
+                  color: AppColors.textMuted,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
+          else if (busy)
             const SizedBox(
               width: 20,
               height: 20,
@@ -310,7 +459,7 @@ class _IntegrationTile extends StatelessWidget {
             )
           else
             GestureDetector(
-              onTap: onTap,
+              onTap: connected ? onDisconnect : onTap,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppTheme.spaceM,

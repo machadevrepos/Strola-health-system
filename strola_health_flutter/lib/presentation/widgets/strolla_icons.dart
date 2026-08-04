@@ -7,9 +7,9 @@ import 'package:strola_health/core/constants/app_colors.dart';
 
 enum StrollaIconType {
   footstep, // distance stat chip
-  flame,    // calories stat chip
-  clock,    // time stat chip
-  shoe,     // step ring center
+  flame, // calories stat chip
+  clock, // time stat chip
+  shoe, // step ring center
 }
 
 class StrollaIcon extends StatelessWidget {
@@ -96,11 +96,36 @@ class _StrollaIconPainter extends CustomPainter {
     // Body goes up ~8 units and is ~5.5 units wide.
     final body = Path()
       ..moveTo(cx - 2.0, cy + 2.0) // heel bottom-left
-      ..quadraticBezierTo(cx - 2.8 * scale, cy - 0.5, cx - 2.4 * scale, cy - 3.0) // left side up
-      ..quadraticBezierTo(cx - 2.0 * scale, cy - 5.5, cx - 0.2 * scale, cy - 6.5) // upper left
-      ..quadraticBezierTo(cx + 2.0 * scale, cy - 6.8, cx + 3.2 * scale, cy - 5.5) // upper right
-      ..quadraticBezierTo(cx + 4.0 * scale, cy - 4.0, cx + 3.8 * scale, cy - 1.5) // right side
-      ..quadraticBezierTo(cx + 3.5 * scale, cy + 1.0, cx + 2.5 * scale, cy + 2.2) // heel bottom-right
+      ..quadraticBezierTo(
+        cx - 2.8 * scale,
+        cy - 0.5,
+        cx - 2.4 * scale,
+        cy - 3.0,
+      ) // left side up
+      ..quadraticBezierTo(
+        cx - 2.0 * scale,
+        cy - 5.5,
+        cx - 0.2 * scale,
+        cy - 6.5,
+      ) // upper left
+      ..quadraticBezierTo(
+        cx + 2.0 * scale,
+        cy - 6.8,
+        cx + 3.2 * scale,
+        cy - 5.5,
+      ) // upper right
+      ..quadraticBezierTo(
+        cx + 4.0 * scale,
+        cy - 4.0,
+        cx + 3.8 * scale,
+        cy - 1.5,
+      ) // right side
+      ..quadraticBezierTo(
+        cx + 3.5 * scale,
+        cy + 1.0,
+        cx + 2.5 * scale,
+        cy + 2.2,
+      ) // heel bottom-right
       ..quadraticBezierTo(cx + 0.5, cy + 2.8, cx - 2.0, cy + 2.0) // heel base
       ..close();
     canvas.drawPath(body, paint);
@@ -109,10 +134,10 @@ class _StrollaIconPainter extends CustomPainter {
     final toeData = [
       // [dx from cx, dy from cy, radius]
       [-0.7 * scale, -7.5 * scale, 1.25 * scale], // big toe
-      [1.2 * scale, -8.1 * scale, 1.05 * scale],  // 2nd toe
-      [2.8 * scale, -7.6 * scale, 0.95 * scale],  // 3rd toe
-      [4.0 * scale, -6.4 * scale, 0.85 * scale],  // 4th toe
-      [4.5 * scale, -4.8 * scale, 0.75 * scale],  // pinky toe
+      [1.2 * scale, -8.1 * scale, 1.05 * scale], // 2nd toe
+      [2.8 * scale, -7.6 * scale, 0.95 * scale], // 3rd toe
+      [4.0 * scale, -6.4 * scale, 0.85 * scale], // 4th toe
+      [4.5 * scale, -4.8 * scale, 0.75 * scale], // pinky toe
     ];
     for (final t in toeData) {
       canvas.drawCircle(Offset(cx + t[0], cy + t[1]), t[2], paint);
@@ -128,10 +153,15 @@ class _StrollaIconPainter extends CustomPainter {
 
     // ── Outer flame body ──────────────────────────────────────────────────────
     final body = Path()
-      ..moveTo(12, 22)                       // base center
+      ..moveTo(12, 22) // base center
       ..quadraticBezierTo(6.5, 19, 6.8, 14) // left side curve
       ..quadraticBezierTo(7.0, 9.5, 10.5, 7.5) // upper-left
-      ..quadraticBezierTo(9.8, 11.5, 12.5, 13.5) // left inner scoop (realistic flame lean)
+      ..quadraticBezierTo(
+        9.8,
+        11.5,
+        12.5,
+        13.5,
+      ) // left inner scoop (realistic flame lean)
       ..quadraticBezierTo(13.5, 6.5, 11.8, 2.5) // flame tip — thin and tall
       ..quadraticBezierTo(17.0, 6.0, 17.2, 11.5) // right upper
       ..quadraticBezierTo(17.5, 16, 17.5, 18) // right lower
@@ -145,7 +175,7 @@ class _StrollaIconPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final highlight = Path()
-      ..moveTo(12, 19.5)                      // inner base
+      ..moveTo(12, 19.5) // inner base
       ..quadraticBezierTo(9.5, 17, 10.0, 13) // inner left
       ..quadraticBezierTo(10.5, 10.5, 12.2, 11.5) // scoop point
       ..quadraticBezierTo(13.0, 7.5, 12.5, 5.5) // going to inner tip
@@ -173,10 +203,10 @@ class _StrollaIconPainter extends CustomPainter {
     final dotPaint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(const Offset(12, 3.5), 0.9, dotPaint);   // 12
-    canvas.drawCircle(const Offset(20.5, 12), 0.9, dotPaint);  // 3
-    canvas.drawCircle(const Offset(12, 20.5), 0.9, dotPaint);  // 6
-    canvas.drawCircle(const Offset(3.5, 12), 0.9, dotPaint);   // 9
+    canvas.drawCircle(const Offset(12, 3.5), 0.9, dotPaint); // 12
+    canvas.drawCircle(const Offset(20.5, 12), 0.9, dotPaint); // 3
+    canvas.drawCircle(const Offset(12, 20.5), 0.9, dotPaint); // 6
+    canvas.drawCircle(const Offset(3.5, 12), 0.9, dotPaint); // 9
 
     // ── Hour hand (10 o'clock, shorter) ──────────────────────────────────────
     final hourPaint = Paint()
@@ -209,20 +239,20 @@ class _StrollaIconPainter extends CustomPainter {
     // ── Sole (thick elongated pill at the bottom) ─────────────────────────────
     final sole = Path()
       ..moveTo(3, 21.5)
-      ..quadraticBezierTo(3, 23.5, 5.5, 23.5)  // heel bottom
+      ..quadraticBezierTo(3, 23.5, 5.5, 23.5) // heel bottom
       ..lineTo(18.5, 23.5)
       ..quadraticBezierTo(22.5, 23.5, 22.5, 21.5) // toe bottom
       ..quadraticBezierTo(22.5, 19.5, 20.5, 19.5) // toe top
       ..lineTo(4.5, 19.5)
-      ..quadraticBezierTo(3, 19.5, 3, 21.5)    // heel top
+      ..quadraticBezierTo(3, 19.5, 3, 21.5) // heel top
       ..close();
     canvas.drawPath(sole, fill);
 
     // ── Upper body (the shoe's main body above the sole) ─────────────────────
     final upper = Path()
-      ..moveTo(4, 19.5)      // bottom-left (resting on sole)
-      ..lineTo(4, 13.5)      // heel back — straight left wall
-      ..quadraticBezierTo(4, 7.5, 7, 6.5)  // heel curve upward
+      ..moveTo(4, 19.5) // bottom-left (resting on sole)
+      ..lineTo(4, 13.5) // heel back — straight left wall
+      ..quadraticBezierTo(4, 7.5, 7, 6.5) // heel curve upward
       ..quadraticBezierTo(9.5, 5.5, 11.5, 7) // ankle collar
       ..quadraticBezierTo(14.5, 8, 16.5, 8.5) // mid-upper
       ..quadraticBezierTo(19.5, 9.2, 21, 11.5) // toe box
@@ -263,9 +293,21 @@ class _StrollaIconPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0
       ..strokeCap = StrokeCap.round;
-    canvas.drawLine(const Offset(9.2, 10.0), const Offset(12.8, 10.0), lacePaint);
-    canvas.drawLine(const Offset(9.2, 12.0), const Offset(12.8, 12.0), lacePaint);
-    canvas.drawLine(const Offset(9.2, 14.0), const Offset(12.8, 14.0), lacePaint);
+    canvas.drawLine(
+      const Offset(9.2, 10.0),
+      const Offset(12.8, 10.0),
+      lacePaint,
+    );
+    canvas.drawLine(
+      const Offset(9.2, 12.0),
+      const Offset(12.8, 12.0),
+      lacePaint,
+    );
+    canvas.drawLine(
+      const Offset(9.2, 14.0),
+      const Offset(12.8, 14.0),
+      lacePaint,
+    );
 
     // ── Side swoosh / speed stripe ────────────────────────────────────────────
     final swooshPaint = Paint()

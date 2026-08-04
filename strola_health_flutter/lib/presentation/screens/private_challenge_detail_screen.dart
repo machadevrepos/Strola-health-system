@@ -1,44 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/services/firebase_client.dart';
+import 'package:strola_health/domain/entities/challenge.dart';
+import 'package:strola_health/presentation/providers/challenge_providers.dart';
 import 'package:strola_health/presentation/screens/challenge_of_the_month_screen.dart'
-    show ChallengeParticipant, ChallengePodiumRow, ChallengeLeaderboardRow;
+    show
+        ChallengePodiumRow,
+        ChallengeLeaderboardRow,
+        kChallengeAccentPalette,
+        formatChallengeDateRange,
+        daysLeftLabel;
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 
 /// Detail view for a single private challenge — same hero/leaderboard layout
 /// as [ChallengeOfTheMonthScreen], but with one leaderboard instead of a
 /// switchable pair: a private challenge is created with exactly one winner
-/// method (`winnerMethod`: 0 = Most Steps, 1 = Highest Goal Completion %),
-/// so there's nothing to toggle between here.
-class PrivateChallengeDetailScreen extends StatelessWidget {
+/// method (`Challenge.winnerType`), so there's nothing to toggle between
+/// here. Leaderboard is always the live `challengeLeaderboardProvider` per
+/// the migration plan, regardless of whether this was reached from the
+/// Private or Completed tab.
+class PrivateChallengeDetailScreen extends ConsumerWidget {
   const PrivateChallengeDetailScreen({
     super.key,
-    required this.name,
-    required this.subtitle,
-    required this.dateRange,
-    required this.daysLeft,
-    required this.winnerMethod,
-    required this.icon,
-    required this.color,
+    required this.challenge,
+    this.accentColor,
   });
 
-  final String name;
-  final String subtitle;
-  final String dateRange;
-  final String daysLeft;
+  final Challenge challenge;
 
-  /// 0 = Most Steps, 1 = Highest Goal Completion %.
-  final int winnerMethod;
-  final IconData icon;
-  final Color color;
+  /// Decorative color carried over from the list card that navigated here
+  /// (so the card and its detail screen match) — falls back to a
+  /// deterministic pick from the shared palette when opened another way.
+  final Color? accentColor;
 
-  bool get _byPercent => winnerMethod == 1;
+  bool get _byPercent => challenge.winnerType == WinnerType.goalCompletionPct;
 
-  List<(int rank, ChallengeParticipant p)> get _ranked {
-    final sorted = [..._participants]
+  List<(int rank, ChallengeLeaderboardEntry p)> _ranked(
+    List<ChallengeLeaderboardEntry> entries,
+  ) {
+    final sorted = [...entries]
       ..sort(
         (a, b) => _byPercent
             ? b.goalCompletionPct.compareTo(a.goalCompletionPct)
@@ -48,10 +53,16 @@ class PrivateChallengeDetailScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final ranked = _ranked;
-    final top3 = ranked.take(3).toList();
-    final rest = ranked.skip(3).toList();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final color =
+        accentColor ??
+        kChallengeAccentPalette[challenge.id.hashCode.abs() %
+            kChallengeAccentPalette.length];
+    final leaderboardAsync = ref.watch(
+      challengeLeaderboardProvider(challenge.id),
+    );
+    final canLeave =
+        !challenge.isOfficial && challenge.status != ChallengeStatus.archived;
 
     return Container(
       decoration: const BoxDecoration(gradient: AppColors.bgGradient),
@@ -70,20 +81,29 @@ class PrivateChallengeDetailScreen extends StatelessWidget {
               size: AppTheme.iconM,
             ),
           ),
-          title: Text(name, style: AppTypography.titleM),
+          title: Text(challenge.title, style: AppTypography.titleM),
           centerTitle: true,
           actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: AppTheme.spaceL),
-              child: GestureDetector(
-                onTap: () => _showComingSoon(context, 'Inviting friends'),
+            GestureDetector(
+              onTap: () => _showComingSoon(context, 'Inviting friends'),
+              child: const Icon(
+                AppIcons.addFriend,
+                color: AppColors.accent,
+                size: AppTheme.iconM,
+              ),
+            ),
+            if (canLeave) ...[
+              const SizedBox(width: AppTheme.spaceL),
+              GestureDetector(
+                onTap: () => _showChallengeMenu(context, ref),
                 child: const Icon(
-                  AppIcons.addFriend,
+                  AppIcons.more,
                   color: AppColors.accent,
                   size: AppTheme.iconM,
                 ),
               ),
-            ),
+            ],
+            const SizedBox(width: AppTheme.spaceL),
           ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(1),
@@ -103,11 +123,7 @@ class PrivateChallengeDetailScreen extends StatelessWidget {
           ),
           children: [
             _PrivateHeroCard(
-              name: name,
-              subtitle: subtitle,
-              dateRange: dateRange,
-              daysLeft: daysLeft,
-              icon: icon,
+              challenge: challenge,
               color: color,
             ).animate().fadeIn(duration: AppTheme.animSlow).slideY(begin: 0.08),
             const SizedBox(height: AppTheme.sectionGap),
@@ -120,28 +136,53 @@ class PrivateChallengeDetailScreen extends StatelessWidget {
             Text('Leaderboard', style: AppTypography.titleL),
             const SizedBox(height: AppTheme.spaceXL),
 
-            ChallengePodiumRow(
-              top3: top3,
-              showPercent: _byPercent,
-            ).animate().fadeIn(delay: 150.ms, duration: AppTheme.animSlow),
-            const SizedBox(height: AppTheme.spaceXL),
-
-            for (final entry in rest)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppTheme.spaceS),
-                child:
-                    ChallengeLeaderboardRow(
-                          rank: entry.$1,
-                          participant: entry.$2,
-                          showPercent: _byPercent,
-                        )
-                        .animate()
-                        .fadeIn(
-                          delay: (200 + entry.$1 * 40).ms,
-                          duration: AppTheme.animSlow,
-                        )
-                        .slideX(begin: 0.04),
+            leaderboardAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppTheme.spaceXXL),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.accent),
+                ),
               ),
+              error: (_, __) => const _CenteredMessage(
+                icon: AppIcons.error,
+                message: 'Could not load the leaderboard.',
+              ),
+              data: (entries) {
+                if (entries.isEmpty) {
+                  return const _CenteredMessage(
+                    icon: AppIcons.groups,
+                    message: "No one's joined yet. Invite some friends!",
+                  );
+                }
+                final ranked = _ranked(entries);
+                final top3 = ranked.take(3).toList();
+                final rest = ranked.skip(3).toList();
+                return Column(
+                  children: [
+                    ChallengePodiumRow(top3: top3, showPercent: _byPercent)
+                        .animate()
+                        .fadeIn(delay: 150.ms, duration: AppTheme.animSlow),
+                    const SizedBox(height: AppTheme.spaceXL),
+                    for (final entry in rest)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppTheme.spaceS),
+                        child:
+                            ChallengeLeaderboardRow(
+                                  rank: entry.$1,
+                                  participant: entry.$2,
+                                  showPercent: _byPercent,
+                                )
+                                .animate()
+                                .fadeIn(
+                                  delay: (200 + entry.$1 * 40).ms,
+                                  duration: AppTheme.animSlow,
+                                )
+                                .slideX(begin: 0.04),
+                      ),
+                  ],
+                );
+              },
+            ),
 
             const SizedBox(height: AppTheme.spaceL),
             Center(
@@ -174,6 +215,132 @@ class PrivateChallengeDetailScreen extends StatelessWidget {
       context,
     ).showSnackBar(SnackBar(content: Text('$feature coming soon')));
   }
+
+  void _showChallengeMenu(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Container(
+          margin: const EdgeInsets.all(AppTheme.spaceL),
+          decoration: BoxDecoration(
+            color: AppColors.bgSurface,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.accentSecondary.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                ),
+              ),
+              const SizedBox(height: AppTheme.spaceS),
+              ListTile(
+                leading: const Icon(AppIcons.logout, color: AppColors.error),
+                title: Text(
+                  'Leave Challenge',
+                  style: AppTypography.bodyL.copyWith(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _confirmLeave(context, ref);
+                },
+              ),
+              const SizedBox(height: AppTheme.spaceM),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmLeave(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Leave "${challenge.title}"?',
+          style: AppTypography.titleM.copyWith(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          "You'll be removed from the leaderboard and will need a new "
+          'invite to rejoin.',
+          style: AppTypography.bodyS,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(
+              'Cancel',
+              style: AppTypography.bodyL.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
+              final dialogNavigator = Navigator.of(dialogCtx);
+              try {
+                await ref
+                    .read(myChallengesProvider.notifier)
+                    .leave(challenge.id);
+              } on BackendException catch (e) {
+                dialogNavigator.pop();
+                messenger.showSnackBar(SnackBar(content: Text(e.message)));
+                return;
+              } catch (_) {
+                dialogNavigator.pop();
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Could not leave. Please try again.'),
+                  ),
+                );
+                return;
+              }
+              dialogNavigator.pop(); // close dialog
+              navigator.pop(); // close detail screen
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text('You left "${challenge.title}".'),
+                  behavior: SnackBarBehavior.floating,
+                  backgroundColor: AppColors.accent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Leave',
+              style: AppTypography.bodyL.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -181,20 +348,9 @@ class PrivateChallengeDetailScreen extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PrivateHeroCard extends StatelessWidget {
-  const _PrivateHeroCard({
-    required this.name,
-    required this.subtitle,
-    required this.dateRange,
-    required this.daysLeft,
-    required this.icon,
-    required this.color,
-  });
+  const _PrivateHeroCard({required this.challenge, required this.color});
 
-  final String name;
-  final String subtitle;
-  final String dateRange;
-  final String daysLeft;
-  final IconData icon;
+  final Challenge challenge;
   final Color color;
 
   @override
@@ -220,18 +376,20 @@ class _PrivateHeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      name,
+                      challenge.title,
                       style: AppTypography.titleL.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: AppTypography.bodyS.copyWith(
-                        color: AppColors.textSecondary,
+                    if (challenge.description.trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        challenge.description,
+                        style: AppTypography.bodyS.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -243,7 +401,11 @@ class _PrivateHeroCard extends StatelessWidget {
                   color: color.withValues(alpha: 0.16),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: color, size: AppTheme.iconM),
+                child: Icon(
+                  AppIcons.trophy,
+                  color: color,
+                  size: AppTheme.iconM,
+                ),
               ),
             ],
           ),
@@ -262,7 +424,14 @@ class _PrivateHeroCard extends StatelessWidget {
                     size: AppTheme.iconXS,
                   ),
                   const SizedBox(width: AppTheme.spaceXS),
-                  Text(dateRange, style: AppTypography.labelM),
+                  Text(
+                    formatChallengeDateRange(
+                      challenge.startDate,
+                      challenge.endDate,
+                      withYear: true,
+                    ),
+                    style: AppTypography.labelM,
+                  ),
                 ],
               ),
               Container(
@@ -275,7 +444,9 @@ class _PrivateHeroCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                 ),
                 child: Text(
-                  daysLeft,
+                  challenge.status == ChallengeStatus.archived
+                      ? 'Completed'
+                      : daysLeftLabel(challenge),
                   style: AppTypography.labelS.copyWith(
                     color: color,
                     fontWeight: FontWeight.w700,
@@ -376,32 +547,35 @@ class _PrivateHowItWorksCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MOCK PARTICIPANTS — a private challenge's pool is just its invited members
+// SMALL SHARED WIDGET — loading-error / empty leaderboard message.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const _participants = [
-  ChallengeParticipant(
-    name: 'Priya N.',
-    steps: 84213,
-    goalCompletionPct: 121,
-    colorValue: 0xFF7C3AED,
-  ),
-  ChallengeParticipant(
-    name: 'You',
-    steps: 76590,
-    goalCompletionPct: 109,
-    isMe: true,
-  ),
-  ChallengeParticipant(
-    name: 'Hannah B.',
-    steps: 68940,
-    goalCompletionPct: 98,
-    colorValue: 0xFFDB2777,
-  ),
-  ChallengeParticipant(
-    name: 'Liz M.',
-    steps: 52110,
-    goalCompletionPct: 87,
-    colorValue: 0xFF0891B2,
-  ),
-];
+class _CenteredMessage extends StatelessWidget {
+  const _CenteredMessage({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceXXL),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: AppTheme.iconXL, color: AppColors.textMuted),
+            const SizedBox(height: AppTheme.spaceS),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyS.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

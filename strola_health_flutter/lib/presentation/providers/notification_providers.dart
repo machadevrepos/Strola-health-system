@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/constants/notification_copy.dart';
@@ -9,7 +8,7 @@ import 'package:strola_health/data/repositories/notification_repository.dart';
 import 'package:strola_health/domain/entities/app_notification.dart';
 import 'package:strola_health/domain/entities/challenge.dart';
 import 'package:strola_health/presentation/providers/ble_providers.dart';
-import 'package:strola_health/presentation/providers/community_providers.dart';
+import 'package:strola_health/presentation/providers/challenge_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 
@@ -40,8 +39,8 @@ class NotificationsNotifier extends AsyncNotifier<List<AppNotification>> {
 
 final notificationsProvider =
     AsyncNotifierProvider<NotificationsNotifier, List<AppNotification>>(
-  NotificationsNotifier.new,
-);
+      NotificationsNotifier.new,
+    );
 
 final unreadNotificationCountProvider = Provider<int>((ref) {
   final notifications = ref.watch(notificationsProvider).value ?? const [];
@@ -76,7 +75,6 @@ void registerNotificationDetectors(WidgetRef ref) {
   _watchGoalReminder(ref);
   _watchStreak(ref);
   _watchChallenges(ref);
-  _watchCommunitySimulator(ref);
   _watchDeviceStatus(ref);
 }
 
@@ -148,7 +146,8 @@ Future<void> _maybeFireGoalReminderNow(WidgetRef ref, String body) async {
 void _watchStreak(WidgetRef ref) {
   ref.listen<StreakState>(streakProvider, (previous, next) {
     if (next.current == (previous?.current ?? 0)) return;
-    if (next.current <= (previous?.current ?? 0)) return; // streak broke — no notification for that
+    if (next.current <= (previous?.current ?? 0))
+      return; // streak broke — no notification for that
 
     final oldLongest = previous?.longest ?? 0;
     if (next.current == oldLongest && oldLongest > 0) {
@@ -162,7 +161,8 @@ void _watchStreak(WidgetRef ref) {
       return;
     }
 
-    final isMilestone = next.current == 3 ||
+    final isMilestone =
+        next.current == 3 ||
         next.current == 7 ||
         (next.current >= 14 && next.current % 7 == 0);
     if (isMilestone) {
@@ -185,25 +185,32 @@ void _watchChallenges(WidgetRef ref) {
   }
 
   ref.listen<AsyncValue<List<Challenge>>>(
-    challengesProvider,
+    myChallengesProvider,
     (_, next) => evaluate(next.value),
   );
-  evaluate(ref.read(challengesProvider).value);
+  evaluate(ref.read(myChallengesProvider).value);
 }
 
-Future<void> _processChallenges(WidgetRef ref, List<Challenge> challenges) async {
+/// Rank-change notifications were dropped along with the mock challenge
+/// data — a real per-challenge rank means fetching that challenge's
+/// leaderboard (see ChallengeRepository.getLeaderboard), which this
+/// lightweight local-notification sweep doesn't do per challenge per tick.
+/// "Challenge started" and "days left" don't need rank data, so those still
+/// fire for real.
+Future<void> _processChallenges(
+  WidgetRef ref,
+  List<Challenge> challenges,
+) async {
   final prefs = ref.read(sharedPreferencesProvider);
 
-  final seenIds = (jsonDecode(prefs.getString('challenge_seen_ids') ?? '[]') as List)
-      .cast<String>()
-      .toSet();
-  final prevRanks = (jsonDecode(prefs.getString('challenge_prev_ranks') ?? '{}')
-          as Map<String, dynamic>)
-      .map((k, v) => MapEntry(k, v as int));
-  final daysLeftNotified = (jsonDecode(
-          prefs.getString('challenge_days_left_notified') ?? '{}')
-      as Map<String, dynamic>)
-      .map((k, v) => MapEntry(k, v as int));
+  final seenIds =
+      (jsonDecode(prefs.getString('challenge_seen_ids') ?? '[]') as List)
+          .cast<String>()
+          .toSet();
+  final daysLeftNotified =
+      (jsonDecode(prefs.getString('challenge_days_left_notified') ?? '{}')
+              as Map<String, dynamic>)
+          .map((k, v) => MapEntry(k, v as int));
 
   for (final challenge in challenges) {
     if (!challenge.isJoined) continue;
@@ -215,33 +222,9 @@ Future<void> _processChallenges(WidgetRef ref, List<Challenge> challenges) async
         category: NotificationCategory.challenge,
         title: NotificationCopy.challengeTitle,
         body: NotificationCopy.challengeStarted(challenge.title),
-        routeTarget: 'challenges',
+        routeTarget: 'challenge',
       );
     }
-
-    final currentRank = challenge.myRank;
-    final prevRank = prevRanks[challenge.id];
-    if (prevRank == null) {
-      await _fire(
-        ref,
-        category: NotificationCategory.challenge,
-        title: NotificationCopy.challengeTitle,
-        body: NotificationCopy.challengeCurrentRank(currentRank, challenge.title),
-        routeTarget: 'challenges',
-      );
-    } else if (currentRank < prevRank) {
-      await _fire(
-        ref,
-        category: NotificationCategory.challenge,
-        title: NotificationCopy.challengeTitle,
-        body: NotificationCopy.challengeMovedUp(
-          prevRank - currentRank,
-          challenge.title,
-        ),
-        routeTarget: 'challenges',
-      );
-    }
-    prevRanks[challenge.id] = currentRank;
 
     final daysLeft = challenge.daysLeft;
     if (daysLeft <= 3 && daysLeftNotified[challenge.id] != daysLeft) {
@@ -251,53 +234,18 @@ Future<void> _processChallenges(WidgetRef ref, List<Challenge> challenges) async
         category: NotificationCategory.challenge,
         title: NotificationCopy.challengeTitle,
         body: NotificationCopy.challengeDaysLeft(daysLeft, challenge.title),
-        routeTarget: 'challenges',
+        routeTarget: 'challenge',
       );
     }
   }
 
   await Future.wait([
     prefs.setString('challenge_seen_ids', jsonEncode(seenIds.toList())),
-    prefs.setString('challenge_prev_ranks', jsonEncode(prevRanks)),
     prefs.setString(
       'challenge_days_left_notified',
       jsonEncode(daysLeftNotified),
     ),
   ]);
-}
-
-// ── Community — simulated; no real multi-user backend yet ───────────────────
-
-Timer? _communityTimer;
-
-void _watchCommunitySimulator(WidgetRef ref) {
-  _communityTimer ??= Timer.periodic(const Duration(seconds: 90), (_) {
-    final posts = ref.read(postsProvider).value;
-    if (posts == null || posts.isEmpty) return;
-
-    final names = posts
-        .map((p) => p.authorName)
-        .where((n) => n != 'You')
-        .toSet()
-        .toList();
-    if (names.isEmpty) return;
-
-    final random = Random();
-    final name = names[random.nextInt(names.length)];
-    final body = switch (random.nextInt(3)) {
-      0 => NotificationCopy.communityComment(name),
-      1 => NotificationCopy.communityLike(name),
-      _ => NotificationCopy.communityFriendRequest(),
-    };
-
-    _fire(
-      ref,
-      category: NotificationCategory.community,
-      title: NotificationCopy.communityTitle,
-      body: body,
-      routeTarget: 'community',
-    );
-  });
 }
 
 // ── Device — disconnect (real) + low battery (stub) ──────────────────────────

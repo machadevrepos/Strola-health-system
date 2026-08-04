@@ -9,16 +9,21 @@ import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
+import 'package:strola_health/core/utils/rolling_week.dart';
+import 'package:strola_health/core/utils/streak.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
+import 'package:strola_health/presentation/providers/ble_providers.dart';
 import 'package:strola_health/presentation/providers/navigation_providers.dart';
 import 'package:strola_health/presentation/providers/notification_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
+import 'package:strola_health/presentation/providers/session_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/providers/widget_prompt_providers.dart';
 import 'package:strola_health/presentation/screens/notifications_screen.dart';
 import 'package:strola_health/presentation/screens/profile_screen.dart';
 import 'package:strola_health/presentation/screens/share_steps_screen.dart';
 import 'package:strola_health/presentation/widgets/add_widget_sheet.dart';
+import 'package:strola_health/presentation/widgets/announcement_banner.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/goal_settings_sheet.dart';
 import 'package:strola_health/presentation/widgets/hourly_chart.dart';
@@ -87,6 +92,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final distKm = ref.watch(distanceKmProvider);
     final units = ref.watch(userProfileProvider).units;
 
+    // Real, not mock — batteryLevelProvider is a deliberate stub (null)
+    // until the firmware exposes a real battery characteristic to parse, so
+    // this always reads as "no reading available" today. Distinct from "not
+    // connected" regardless: a real device could in principle be connected
+    // with the battery simply not known yet, so the label reflects BLE
+    // connection state and the value reflects whether a reading exists.
+    final batteryLevel = ref.watch(batteryLevelProvider);
+    final isBleConnected = ref.watch(bleStatusProvider) == BleStatus.connected;
+    final hasBatteryReading = isBleConnected && batteryLevel != null;
+
     final String distanceStr;
     final String distanceUnit;
     if (units == UnitSystem.imperial) {
@@ -100,15 +115,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       distanceUnit = 'm';
     }
 
-    // ── Streak — count consecutive past days meeting goal ─────────────────────
-    int streak = 0;
-    for (int i = weeklySteps.length - 2; i >= 0; i--) {
-      if (weeklySteps[i] >= goal) {
-        streak++;
-      } else {
-        break;
-      }
-    }
+    final streak = calcStreak(weeklySteps, goal);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -136,6 +143,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   CustomScrollView(
                     physics: const BouncingScrollPhysics(),
                     slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: AppTheme.spaceS),
+                          child: const AnnouncementBanner(),
+                        ),
+                      ),
+
                       // ── 2. Step ring — tap to adjust the daily goal ────────────────
                       SliverToBoxAdapter(
                         child:
@@ -198,9 +212,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 Expanded(
                                   child: _StatCard(
                                     icon: AppIcons.battery,
-                                    iconColor: AppColors.success,
-                                    value: '87%',
-                                    label: 'Battery',
+                                    iconColor: hasBatteryReading
+                                        ? AppColors.success
+                                        : AppColors.bleDisconnected,
+                                    value: hasBatteryReading
+                                        ? '$batteryLevel%'
+                                        : '—',
+                                    label: isBleConnected
+                                        ? 'Battery'
+                                        : 'Not Connected',
                                   ),
                                 ),
                               ],
@@ -685,13 +705,9 @@ class _WeekDots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
-    const letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-
     return Row(
       children: List.generate(7, (i) {
-        final date = today.subtract(Duration(days: 6 - i));
-        final letter = letters[date.weekday - 1];
+        final letter = RollingWeek.letterForIndex(i, 7);
         final met = weeklySteps[i] >= goal;
         final isToday = i == 6;
 

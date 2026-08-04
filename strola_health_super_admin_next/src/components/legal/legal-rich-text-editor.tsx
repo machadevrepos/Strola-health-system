@@ -4,18 +4,7 @@ import * as React from "react";
 import { LinkSimple, ListBullets, ListNumbers, TextB, TextHOne, TextHTwo } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-
-interface TransformResult {
-  text: string;
-  start: number;
-  end: number;
-}
-
-function wrapSelection(text: string, start: number, end: number, prefix: string, suffix: string): TransformResult {
-  const selected = text.slice(start, end) || "text";
-  const next = text.slice(0, start) + prefix + selected + suffix + text.slice(end);
-  return { text: next, start: start + prefix.length, end: start + prefix.length + selected.length };
-}
+import { insertLink, wrapSelection, type TransformResult } from "@/lib/text-editor-transforms";
 
 // Applied per-line, not per-list — a numbered-list click always inserts
 // "1. " on every touched line rather than auto-numbering 1/2/3, the same
@@ -30,14 +19,6 @@ function prefixLines(text: string, start: number, end: number, prefix: string): 
   const joined = lines.join("\n");
   const next = text.slice(0, lineStart) + joined + text.slice(lineEnd);
   return { text: next, start: lineStart, end: lineStart + joined.length };
-}
-
-function insertLink(text: string, start: number, end: number): TransformResult {
-  const label = text.slice(start, end) || "link text";
-  const token = `[${label}](https://)`;
-  const next = text.slice(0, start) + token + text.slice(end);
-  const urlStart = start + label.length + 3; // just after "[label]("
-  return { text: next, start: urlStart, end: urlStart + "https://".length };
 }
 
 export function LegalRichTextEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {

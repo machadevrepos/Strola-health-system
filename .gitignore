@@ -9,3 +9,10 @@ Thumbs.db
 # strola_health_backend_fastApi, strola_health_flutter) has its own
 # .gitignore covering node_modules, .next, .venv, build artifacts, and env
 # files — this root file only covers things specific to the workspace root.
+
+# Firebase emulator run artifacts (strola_health_firebase/functions), left
+# behind by `npm run test:rules`.
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+.firebase/

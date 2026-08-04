@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EmojiPickerPopover } from "@/components/ui/emoji-picker-popover";
 import type { Badge as BadgeT, BadgeRequirementMetric } from "@/lib/types";
 
 export const METRIC_LABEL: Record<BadgeRequirementMetric, string> = {
@@ -126,14 +127,22 @@ export function BadgeFormDialog({
           <DialogDescription>Badges are awarded manually from a user&apos;s profile.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
-          <div className="grid grid-cols-[1fr_5rem] gap-3">
+          <div className="grid grid-cols-[1fr_7rem] gap-3">
             <div className="grid gap-2">
               <Label htmlFor="badge-name">Name</Label>
               <Input id="badge-name" value={values.name} onChange={(e) => setValues({ ...values, name: e.target.value })} autoFocus />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="badge-emoji">Emoji</Label>
-              <Input id="badge-emoji" value={values.emoji} onChange={(e) => setValues({ ...values, emoji: e.target.value })} />
+              <div className="flex gap-1.5">
+                <EmojiPickerPopover value={values.emoji} onSelect={(emoji) => setValues({ ...values, emoji })} />
+                <Input
+                  id="badge-emoji"
+                  value={values.emoji}
+                  onChange={(e) => setValues({ ...values, emoji: e.target.value })}
+                  className="min-w-0 px-2 text-center"
+                />
+              </div>
             </div>
           </div>
           <div className="grid gap-2">

@@ -10,7 +10,15 @@ import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/formatters.dart';
+import 'package:strola_health/core/utils/streak.dart';
+import 'package:strola_health/data/repositories/friend_repository.dart';
+import 'package:strola_health/data/repositories/public_profile_repository.dart';
+import 'package:strola_health/domain/entities/challenge.dart';
+import 'package:strola_health/domain/entities/friend.dart';
+import 'package:strola_health/domain/entities/public_profile.dart';
+import 'package:strola_health/presentation/providers/challenge_providers.dart';
 import 'package:strola_health/presentation/providers/community_providers.dart';
+import 'package:strola_health/presentation/providers/friend_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/providers/session_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
@@ -45,14 +53,10 @@ class ProfileScreen extends ConsumerWidget {
         ? profile.bio!
         : 'Walking for strength, energy, and a healthier me. 💕';
 
-    int streak = 0;
-    for (int i = weekly.length - 2; i >= 0; i--) {
-      if (weekly[i] >= goal) {
-        streak++;
-      } else {
-        break;
-      }
-    }
+    final streak = calcStreak(weekly, goal);
+    final completedChallenges = (ref.watch(myChallengesProvider).value ?? const [])
+        .where((c) => c.status == ChallengeStatus.archived)
+        .length;
 
     // Shared with RecentActivityScreen's "View All" — same list, this is
     // just its first 4 entries, so the preview and full page always agree.
@@ -413,17 +417,15 @@ class ProfileScreen extends ConsumerWidget {
                                   value: '$calories',
                                   label: 'Active Calories',
                                 ),
-                                PressableScale(
+                                _StatTile(
+                                  icon: AppIcons.trophy,
+                                  value: '$completedChallenges',
+                                  label: 'Challenges\nCompleted',
+                                  isLink: true,
                                   onTap: () => Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => const ChallengesScreen(),
                                     ),
-                                  ),
-                                  child: const _StatTile(
-                                    icon: AppIcons.trophy,
-                                    value: '27',
-                                    label: 'Challenges\nCompleted',
-                                    isLink: true,
                                   ),
                                 ),
                               ],
@@ -704,27 +706,41 @@ class ProfileScreen extends ConsumerWidget {
 // ── Public Profile (viewed by others) ─────────────────────────────────────────
 
 class PublicProfileScreen extends ConsumerWidget {
-  const PublicProfileScreen({
-    super.key,
-    required this.name,
-    required this.username,
-    required this.stepsToday,
-    required this.distanceKm,
-    required this.streak,
-    this.location = 'Toronto, Canada',
-    this.bio =
-        'Mother. Healthcare worker. Walking for strength, energy, and my little ones. 💕',
-    this.isConnected = false,
-  });
+  const PublicProfileScreen({super.key, required this.userId});
 
-  final String name;
-  final String username;
-  final int stepsToday;
-  final double distanceKm;
-  final int streak;
-  final String location;
-  final String bio;
-  final bool isConnected;
+  final String userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(publicProfileProvider(userId));
+    return profileAsync.when(
+      loading: () => const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+      ),
+      error: (_, __) => Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+        body: const Center(
+          child: Text(
+            'Could not load this profile.',
+            style: AppTypography.bodyM,
+          ),
+        ),
+      ),
+      data: (profile) => _PublicProfileBody(userId: userId, profile: profile),
+    );
+  }
+}
+
+class _PublicProfileBody extends ConsumerWidget {
+  const _PublicProfileBody({required this.userId, required this.profile});
+
+  final String userId;
+  final PublicProfile profile;
+
+  String get name => profile.displayName;
+  String get username => profile.username;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -776,6 +792,7 @@ class PublicProfileScreen extends ConsumerWidget {
                         Container(
                           width: 76,
                           height: 76,
+                          clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: AppColors.accentSecondary.withValues(
@@ -788,11 +805,21 @@ class PublicProfileScreen extends ConsumerWidget {
                               width: 2,
                             ),
                           ),
-                          child: const Icon(
-                            AppIcons.profile,
-                            color: AppColors.accent,
-                            size: 38,
-                          ),
+                          child: profile.photoUrl != null
+                              ? Image.network(
+                                  profile.photoUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    AppIcons.profile,
+                                    color: AppColors.accent,
+                                    size: 38,
+                                  ),
+                                )
+                              : const Icon(
+                                  AppIcons.profile,
+                                  color: AppColors.accent,
+                                  size: 38,
+                                ),
                         ),
                         const SizedBox(width: 14),
                         // Identity
@@ -807,48 +834,18 @@ class PublicProfileScreen extends ConsumerWidget {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              Text(
-                                '@$username',
-                                style: AppTypography.bodyS.copyWith(
-                                  color: AppColors.textMuted,
+                              if (username.isNotEmpty)
+                                Text(
+                                  '@$username',
+                                  style: AppTypography.bodyS.copyWith(
+                                    color: AppColors.textMuted,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                bio,
-                                style: AppTypography.bodyS.copyWith(
-                                  fontSize: 12,
-                                  height: 1.35,
-                                ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
                             ],
                           ),
                         ),
                         const SizedBox(width: 10),
-                        // Connect + connections
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            _ConnectButton(initiallyConnected: isConnected),
-                            const SizedBox(height: 14),
-                            Text(
-                              '842',
-                              style: AppTypography.titleL.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            Text(
-                              'Friends',
-                              style: AppTypography.labelS.copyWith(
-                                fontWeight: FontWeight.w400,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                          ],
-                        ),
+                        _ConnectButton(userId: userId),
                       ],
                     ).animate().fadeIn(
                       delay: 50.ms,
@@ -857,290 +854,105 @@ class PublicProfileScreen extends ConsumerWidget {
 
                     const SizedBox(height: AppTheme.spaceM),
 
-                    // Chips
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: AppTheme.spaceXS,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                AppIcons.streak,
-                                color: AppColors.accent,
-                                size: 13,
-                              ),
-                              const SizedBox(width: AppTheme.spaceXS),
-                              Text(
-                                '$streak Day Streak',
-                                style: AppTypography.labelS.copyWith(
-                                  color: AppColors.accent,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (location.isNotEmpty) ...[
-                          const SizedBox(width: AppTheme.spaceS),
+                    if (profile.showStats &&
+                        (profile.streakCurrent ?? 0) > 0) ...[
+                      // Chips
+                      Row(
+                        children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
                               vertical: AppTheme.spaceXS,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.accentSecondary.withValues(
-                                alpha: 0.18,
-                              ),
+                              color: AppColors.accent.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(
-                                  AppIcons.location,
-                                  color: AppColors.textMuted,
+                                  AppIcons.streak,
+                                  color: AppColors.accent,
                                   size: 13,
                                 ),
-                                const SizedBox(width: 3),
+                                const SizedBox(width: AppTheme.spaceXS),
                                 Text(
-                                  location,
+                                  '${profile.streakCurrent} Day Streak',
                                   style: AppTypography.labelS.copyWith(
-                                    fontWeight: FontWeight.w400,
-                                    letterSpacing: 0,
+                                    color: AppColors.accent,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
                             ),
                           ),
                         ],
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: AppTheme.spaceL),
+                    ],
 
-                    const SizedBox(height: AppTheme.spaceL),
-
-                    // Stats row
-                    FlatCard(
-                          padding: const EdgeInsets.all(AppTheme.spaceL),
-                          child: Row(
-                            children: [
-                              _StatTile(
-                                icon: AppIcons.steps,
-                                value: Formatters.stepCount(stepsToday),
-                                label: 'Steps Today',
-                              ),
-                              _StatTile(
-                                icon: AppIcons.location,
-                                value: '${distanceKm.toStringAsFixed(1)} km',
-                                label: 'Distance',
-                              ),
-                              const _StatTile(
-                                icon: AppIcons.calories,
-                                value: '423',
-                                label: 'Active Calories',
-                              ),
-                              const _StatTile(
-                                icon: AppIcons.trophy,
-                                value: '27',
-                                label: 'Challenges\nCompleted',
-                              ),
-                            ],
-                          ),
-                        )
-                        .animate()
-                        .fadeIn(delay: 100.ms, duration: AppTheme.animSlow)
-                        .slideY(begin: 0.12),
-
-                    const SizedBox(height: AppTheme.sectionGap),
-
-                    // Achievements
-                    FlatCard(
-                          padding: const EdgeInsets.all(AppTheme.spaceL),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Achievements',
-                                    style: AppTypography.titleM.copyWith(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0,
+                    // Stats row — only what the backend actually exposes for
+                    // another user (see PublicProfileRepository/
+                    // getPublicProfiles): lifetime totals gated by their own
+                    // "public profile" privacy toggle. Per-day steps,
+                    // calories, and achievements aren't cross-user readable
+                    // (firestore.rules scopes dailyActivity/userBadges to
+                    // owner+admin only), so there's nothing real to show
+                    // there instead of fabricating numbers.
+                    if (profile.showStats)
+                      FlatCard(
+                            padding: const EdgeInsets.all(AppTheme.spaceL),
+                            child: Row(
+                              children: [
+                                _StatTile(
+                                  icon: AppIcons.streak,
+                                  value: '${profile.streakCurrent ?? 0}',
+                                  label: 'Day Streak',
+                                ),
+                                _StatTile(
+                                  icon: AppIcons.trophy,
+                                  value: '${profile.streakLongest ?? 0}',
+                                  label: 'Longest\nStreak',
+                                ),
+                                _StatTile(
+                                  icon: AppIcons.steps,
+                                  value: Formatters.stepCount(
+                                    profile.lifetimeSteps ?? 0,
+                                  ),
+                                  label: 'Lifetime\nSteps',
+                                ),
+                              ],
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(delay: 100.ms, duration: AppTheme.animSlow)
+                          .slideY(begin: 0.12)
+                    else
+                      FlatCard(
+                            padding: const EdgeInsets.all(AppTheme.spaceL),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  AppIcons.lock,
+                                  color: AppColors.textMuted,
+                                  size: AppTheme.iconM,
+                                ),
+                                const SizedBox(width: AppTheme.spaceM),
+                                Expanded(
+                                  child: Text(
+                                    "$name's stats are private.",
+                                    style: AppTypography.bodyS.copyWith(
+                                      color: AppColors.textSecondary,
                                     ),
-                                  ),
-                                  PressableScale(
-                                    onTap: () {},
-                                    child: Text(
-                                      'View All',
-                                      style: AppTypography.bodyS.copyWith(
-                                        color: AppColors.accent,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: AppTheme.sectionGap),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: const [
-                                  HexBadge(
-                                    big: '12',
-                                    small: 'DAY STREAK',
-                                    label: '12 Day Streak',
-                                    date: 'May 12, 2024',
-                                    gradient: [
-                                      AppColors.accent,
-                                      AppColors.error,
-                                    ],
-                                  ),
-                                  HexBadge(
-                                    big: '100K',
-                                    small: 'STEPS',
-                                    label: '100K Steps',
-                                    date: 'Apr 28, 2024',
-                                    gradient: [
-                                      AppColors.success,
-                                      AppColors.success,
-                                    ],
-                                  ),
-                                  HexBadge(
-                                    icon: AppIcons.earlyBird,
-                                    small: 'EARLY BIRD',
-                                    label: 'Early Bird',
-                                    date: 'Apr 15, 2024',
-                                    gradient: [
-                                      AppColors.goalAmber,
-                                      AppColors.accent,
-                                    ],
-                                  ),
-                                  HexBadge(
-                                    big: '7',
-                                    small: 'DAY STREAK',
-                                    label: '7 Day Streak',
-                                    date: 'Apr 7, 2024',
-                                    gradient: [
-                                      AppColors.goalAmber,
-                                      AppColors.goalAmber,
-                                    ],
-                                  ),
-                                  HexBadge(
-                                    big: '50K',
-                                    small: 'STEPS',
-                                    label: '50K Steps',
-                                    date: 'Mar 22, 2024',
-                                    gradient: [
-                                      AppColors.accentSecondary,
-                                      AppColors.accent,
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        )
-                        .animate()
-                        .fadeIn(delay: 150.ms, duration: AppTheme.animSlow)
-                        .slideY(begin: 0.12),
-
-                    const SizedBox(height: AppTheme.sectionGap),
-
-                    // Recent Activity
-                    FlatCard(
-                          padding: const EdgeInsets.all(AppTheme.spaceL),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Recent Activity',
-                                    style: AppTypography.titleM.copyWith(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0,
-                                    ),
-                                  ),
-                                  PressableScale(
-                                    onTap: () {},
-                                    child: Text(
-                                      'View All',
-                                      style: AppTypography.bodyS.copyWith(
-                                        color: AppColors.accent,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: AppTheme.spaceM),
-                              ...[
-                                'Hit ${Formatters.stepCount(stepsToday)} steps',
-                                'Completed Day $streak of the 10K Steps Challenge',
-                                'Hit 11,009 steps',
-                                'Hit 9,842 steps',
-                              ].asMap().entries.map(
-                                (e) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 30,
-                                        height: 30,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.accent.withValues(
-                                            alpha: 0.1,
-                                          ),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(
-                                          AppIcons.steps,
-                                          color: AppColors.accent,
-                                          size: AppTheme.iconXS,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          e.value,
-                                          style: AppTypography.labelM.copyWith(
-                                            color: AppColors.textPrimary,
-                                            fontWeight: FontWeight.w400,
-                                            letterSpacing: 0,
-                                          ),
-                                        ),
-                                      ),
-                                      Text(
-                                        'May ${14 - e.key}, 2024',
-                                        style: AppTypography.labelS.copyWith(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w400,
-                                          letterSpacing: 0,
-                                        ),
-                                      ),
-                                    ],
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        )
-                        .animate()
-                        .fadeIn(delay: 200.ms, duration: AppTheme.animSlow)
-                        .slideY(begin: 0.12),
+                              ],
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(delay: 100.ms, duration: AppTheme.animSlow)
+                          .slideY(begin: 0.12),
 
                     const SizedBox(height: 80),
                   ],
@@ -1210,7 +1022,12 @@ class PublicProfileScreen extends ConsumerWidget {
               ),
               onTap: () {
                 Navigator.pop(sheetCtx);
-                showReportSheet(context, subject: name);
+                showReportSheet(
+                  context,
+                  subject: name,
+                  targetType: 'user',
+                  targetId: userId,
+                );
               },
             ),
             const SizedBox(height: AppTheme.spaceM),
@@ -1247,11 +1064,21 @@ class PublicProfileScreen extends ConsumerWidget {
             ),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
-              ref.read(blockedUsersProvider.notifier).block(name);
-              Navigator.pop(dialogCtx); // close dialog
-              Navigator.pop(context); // close profile
+              final navigator = Navigator.of(context);
+              try {
+                await ref.read(blockedUsersProvider.notifier).block(userId);
+              } catch (_) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Could not block. Please try again.'),
+                  ),
+                );
+                return;
+              }
+              navigator.pop(); // close dialog
+              navigator.pop(); // close profile
               messenger.showSnackBar(
                 SnackBar(
                   content: Text("You've blocked $name."),
@@ -1398,40 +1225,68 @@ Future<void> _changeProfilePhoto(BuildContext context, WidgetRef ref) async {
 
 // ── Connect button (toggles connect / connected) ──────────────────────────────
 
-class _ConnectButton extends StatefulWidget {
-  const _ConnectButton({required this.initiallyConnected});
+/// Reflects and mutates real friendship state (`friendshipWithProvider` /
+/// `FriendRepository`) rather than pure local toggle state. `_busy` guards
+/// against double-taps while a callable is in flight.
+class _ConnectButton extends ConsumerStatefulWidget {
+  const _ConnectButton({required this.userId});
 
-  final bool initiallyConnected;
+  final String userId;
 
   @override
-  State<_ConnectButton> createState() => _ConnectButtonState();
+  ConsumerState<_ConnectButton> createState() => _ConnectButtonState();
 }
 
-class _ConnectButtonState extends State<_ConnectButton> {
-  late bool _connected;
+class _ConnectButtonState extends ConsumerState<_ConnectButton> {
+  bool _busy = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _connected = widget.initiallyConnected;
+  Future<void> _handleTap(FriendshipStatus? status) async {
+    setState(() => _busy = true);
+    try {
+      if (status == FriendshipStatus.accepted) {
+        await ref.read(friendRepositoryProvider).removeFriend(widget.userId);
+      } else if (status == FriendshipStatus.pending) {
+        // A pending request the caller already sent — tapping again cancels
+        // it via the same removeFriend callable (deletes the doc outright).
+        await ref.read(friendRepositoryProvider).removeFriend(widget.userId);
+      } else {
+        await ref.read(friendRepositoryProvider).sendRequest(widget.userId);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Something went wrong. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      ref.invalidate(friendshipWithProvider(widget.userId));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final statusAsync = ref.watch(friendshipWithProvider(widget.userId));
+    final status = statusAsync.value;
+    final connected = status == FriendshipStatus.accepted;
+    final pending = status == FriendshipStatus.pending;
+
     return PressableScale(
-      onTap: () => setState(() => _connected = !_connected),
+      onTap: _busy ? null : () => _handleTap(status),
       child: AnimatedContainer(
         duration: AppTheme.animFast,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
         decoration: BoxDecoration(
-          color: _connected ? AppColors.bgSurface : AppColors.accent,
+          color: connected || pending ? AppColors.bgSurface : AppColors.accent,
           borderRadius: BorderRadius.circular(AppTheme.radiusM),
           border: Border.all(
-            color: _connected
+            color: connected || pending
                 ? AppColors.accentSecondary.withValues(alpha: 0.5)
                 : AppColors.accent,
           ),
-          boxShadow: _connected
+          boxShadow: connected || pending
               ? null
               : [
                   BoxShadow(
@@ -1442,9 +1297,11 @@ class _ConnectButtonState extends State<_ConnectButton> {
                 ],
         ),
         child: Text(
-          _connected ? 'Friends' : 'Add Friend',
+          connected ? 'Friends' : (pending ? 'Requested' : 'Add Friend'),
           style: AppTypography.bodyS.copyWith(
-            color: _connected ? AppColors.textSecondary : Colors.white,
+            color: connected || pending
+                ? AppColors.textSecondary
+                : Colors.white,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -1461,6 +1318,7 @@ class _StatTile extends StatelessWidget {
     required this.value,
     required this.label,
     this.isLink = false,
+    this.onTap,
   });
 
   final IconData icon;
@@ -1468,33 +1326,45 @@ class _StatTile extends StatelessWidget {
   final String label;
   final bool isLink;
 
+  /// Handled *inside* this widget (via [PressableScale], wrapping only the
+  /// [Column] below) rather than by the caller wrapping the whole
+  /// `_StatTile` externally — `Expanded` must be a direct child of the
+  /// `Row` it sits in, and `PressableScale`'s `AnimatedScale` breaks that
+  /// if it sits between them (`Incorrect use of ParentDataWidget` — this is
+  /// exactly the bug that shape produced for the one tile that used to be
+  /// wrapped externally).
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      children: [
+        Icon(icon, color: AppColors.accent, size: AppTheme.iconM),
+        const SizedBox(height: AppTheme.spaceXS),
+        Text(
+          value,
+          style: AppTypography.bodyM.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
+          ),
+        ),
+        Text(
+          label,
+          style: AppTypography.labelS.copyWith(
+            color: isLink ? AppColors.accent : AppColors.textMuted,
+            fontSize: 10,
+            fontWeight: isLink ? FontWeight.w600 : FontWeight.w400,
+            letterSpacing: 0,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
     return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: AppColors.accent, size: AppTheme.iconM),
-          const SizedBox(height: AppTheme.spaceXS),
-          Text(
-            value,
-            style: AppTypography.bodyM.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-            ),
-          ),
-          Text(
-            label,
-            style: AppTypography.labelS.copyWith(
-              color: isLink ? AppColors.accent : AppColors.textMuted,
-              fontSize: 10,
-              fontWeight: isLink ? FontWeight.w600 : FontWeight.w400,
-              letterSpacing: 0,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+      child: onTap == null
+          ? content
+          : PressableScale(onTap: onTap, child: content),
     );
   }
 }

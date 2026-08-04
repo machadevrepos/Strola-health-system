@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "334480287391",
+    "project_id": "strolla-health-4c93b",
+    "storage_bucket": "strolla-health-4c93b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:334480287391:android:df2aa629da659dd91924aa",
+        "android_client_info": {
+          "package_name": "com.machadev.strola_health"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "334480287391-cqr2bpd1h898lv0r07p0lnda35tp5vof.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDWPqBEHNj77Y_DSR9Q9m7TZCLIHalbMBI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "334480287391-cqr2bpd1h898lv0r07p0lnda35tp5vof.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "334480287391-fb4gp9e2vijeobhikpns7viu6l4vp6nq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.machadev.strolaHealth"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

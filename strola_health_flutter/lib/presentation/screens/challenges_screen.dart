@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/services/firebase_client.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
+import 'package:strola_health/domain/entities/challenge.dart';
+import 'package:strola_health/presentation/providers/challenge_providers.dart';
 import 'package:strola_health/presentation/screens/challenge_of_the_month_screen.dart';
 import 'package:strola_health/presentation/screens/private_challenge_detail_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
@@ -234,150 +239,300 @@ class _ChallengesViewState extends State<ChallengesView>
   }
 }
 
-class _PublicChallengesTab extends StatelessWidget {
+class _PublicChallengesTab extends ConsumerWidget {
   const _PublicChallengesTab();
 
   @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const ChallengeOfTheMonthScreen(),
-            ),
-          ),
-          child: const _ChallengeOfTheMonthCard(),
-        ).animate().fadeIn(delay: 60.ms).slideY(begin: 0.06),
-        const SizedBox(height: 15), // sectionGap (14) + 10%
-        // Last Month's Winners
-        Row(
-          children: [
-            const Icon(
-              AppIcons.trophy,
-              color: AppColors.accent,
-              size: AppTheme.iconS,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              "Last Month's Winners",
-              style: AppTypography.bodyL.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
-            ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final officialAsync = ref.watch(officialChallengeProvider);
+    final lastCompletedAsync = ref.watch(
+      lastCompletedOfficialChallengeProvider,
+    );
+    final lastCompleted = lastCompletedAsync.asData?.value;
+
+    return RefreshIndicator(
+      color: AppColors.accent,
+      onRefresh: () async {
+        ref.invalidate(officialChallengeProvider);
+        ref.invalidate(lastCompletedOfficialChallengeProvider);
+      },
+      child: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+        children: [
+          officialAsync
+              .when(
+                loading: () => const _PublicTabPlaceholder(
+                  icon: AppIcons.trophy,
+                  message: 'Loading this month\'s challenge…',
+                ),
+                error: (_, __) => const _PublicTabPlaceholder(
+                  icon: AppIcons.error,
+                  message: 'Could not load the challenge of the month.',
+                ),
+                data: (challenge) {
+                  if (challenge == null) {
+                    return const _PublicTabPlaceholder(
+                      icon: AppIcons.trophy,
+                      message:
+                          "There's no official challenge running right "
+                          'now. Check back soon!',
+                    );
+                  }
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ChallengeOfTheMonthScreen(),
+                      ),
+                    ),
+                    child: _ChallengeOfTheMonthCard(challenge: challenge),
+                  );
+                },
+              )
+              .animate()
+              .fadeIn(delay: 60.ms)
+              .slideY(begin: 0.06),
+
+          if (lastCompleted != null) ...[
+            const SizedBox(height: 15), // sectionGap (14) + 10%
+            _LastMonthWinnersSection(challenge: lastCompleted),
           ],
-        ),
-        const SizedBox(height: 2),
-        Text(
-          'Two ways to win, two champions!',
-          style: AppTypography.labelM.copyWith(
-            fontWeight: FontWeight.w400,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(height: 9), // spaceS (8) + 10%
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: const [
-              Expanded(
-                child: _WinnerCard(
-                  icon: AppIcons.steps,
-                  title: 'Most Steps',
-                  subtitle: 'Total steps in the challenge',
-                  name: 'Sarah J.',
-                  value: '284,932',
-                  valueLabel: 'steps',
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _WinnerCard(
-                  icon: AppIcons.target,
-                  title: 'Highest Goal Completion',
-                  subtitle: 'Highest average % of daily goal',
-                  name: 'Emily R.',
-                  value: '132%',
-                  valueLabel: 'of goal',
-                ),
-              ),
-            ],
-          ),
-        ).animate().fadeIn(delay: 150.ms).slideY(begin: 0.06),
 
-        const SizedBox(height: 14),
+          const SizedBox(height: 14),
 
-        // Badge banner
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.accentSecondary.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  AppIcons.trophy,
-                  color: AppColors.accent,
-                  size: AppTheme.iconM,
-                ),
-              ),
-              const SizedBox(width: AppTheme.spaceM),
-              Expanded(
-                child: Text(
-                  'Everyone who joins earns a special badge when the '
-                  'challenge is complete!',
-                  style: AppTypography.labelM.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 0,
-                    height: 1.4,
+          // Badge banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.accentSecondary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    AppIcons.trophy,
+                    color: AppColors.accent,
+                    size: AppTheme.iconM,
                   ),
                 ),
-              ),
-              const SizedBox(width: AppTheme.spaceS),
-              const Icon(
-                AppIcons.chevronRight,
-                color: AppColors.textMuted,
-                size: 18,
+                const SizedBox(width: AppTheme.spaceM),
+                Expanded(
+                  child: Text(
+                    'Everyone who joins earns a special badge when the '
+                    'challenge is complete!',
+                    style: AppTypography.labelM.copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spaceS),
+                const Icon(
+                  AppIcons.chevronRight,
+                  color: AppColors.textMuted,
+                  size: 18,
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 250.ms).slideY(begin: 0.06),
+        ],
+      ),
+    );
+  }
+}
+
+/// Centered icon + message for the hero slot — loading/error/empty states,
+/// matching the tone of `_EmptyBadgeRow` in achievements_screen.dart.
+class _PublicTabPlaceholder extends StatelessWidget {
+  const _PublicTabPlaceholder({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceXXL),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.accentSecondary.withValues(alpha: 0.30),
+        ),
+      ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceXXL),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: AppTheme.iconXXL, color: AppColors.textMuted),
+              const SizedBox(height: AppTheme.spaceM),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: AppTypography.bodyM.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ],
           ),
-        ).animate().fadeIn(delay: 250.ms).slideY(begin: 0.06),
-      ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Last Month's Winners" — resolves the archived official challenge's
+/// denormalized top-N standings and shows the "Most Steps" and "Highest
+/// Goal Completion %" winners (they may or may not be the same person).
+class _LastMonthWinnersSection extends ConsumerWidget {
+  const _LastMonthWinnersSection({required this.challenge});
+
+  final Challenge challenge;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final topAsync = ref.watch(challengeLeaderboardTopProvider(challenge));
+    return topAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (entries) {
+        if (entries.isEmpty) return const SizedBox.shrink();
+        final bySteps = [...entries]
+          ..sort((a, b) => b.steps.compareTo(a.steps));
+        final byPercent = [...entries]
+          ..sort((a, b) => b.goalCompletionPct.compareTo(a.goalCompletionPct));
+        final stepsWinner = bySteps.first;
+        final percentWinner = byPercent.first;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  AppIcons.trophy,
+                  color: AppColors.accent,
+                  size: AppTheme.iconS,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  "Last Month's Winners",
+                  style: AppTypography.bodyL.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Two ways to win, two champions!',
+              style: AppTypography.labelM.copyWith(
+                fontWeight: FontWeight.w400,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 9), // spaceS (8) + 10%
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _WinnerCard(
+                      icon: AppIcons.steps,
+                      title: 'Most Steps',
+                      subtitle: 'Total steps in the challenge',
+                      name: stepsWinner.name,
+                      initials: stepsWinner.initials,
+                      value: Formatters.stepCount(stepsWinner.steps),
+                      valueLabel: 'steps',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _WinnerCard(
+                      icon: AppIcons.target,
+                      title: 'Highest Goal Completion',
+                      subtitle: 'Highest average % of daily goal',
+                      name: percentWinner.name,
+                      initials: percentWinner.initials,
+                      value: '${percentWinner.goalCompletionPct}%',
+                      valueLabel: 'of goal',
+                    ),
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(delay: 150.ms).slideY(begin: 0.06),
+          ],
+        );
+      },
     );
   }
 }
 
 /// Hero card for the single featured "Challenge of the Month".
-class _ChallengeOfTheMonthCard extends StatefulWidget {
-  const _ChallengeOfTheMonthCard();
+class _ChallengeOfTheMonthCard extends ConsumerStatefulWidget {
+  const _ChallengeOfTheMonthCard({required this.challenge});
+
+  final Challenge challenge;
 
   @override
-  State<_ChallengeOfTheMonthCard> createState() =>
+  ConsumerState<_ChallengeOfTheMonthCard> createState() =>
       _ChallengeOfTheMonthCardState();
 }
 
-class _ChallengeOfTheMonthCardState extends State<_ChallengeOfTheMonthCard> {
-  bool _joined = false;
+class _ChallengeOfTheMonthCardState
+    extends ConsumerState<_ChallengeOfTheMonthCard> {
+  bool _joining = false;
+
+  Future<void> _join() async {
+    setState(() => _joining = true);
+    try {
+      await ref
+          .read(myChallengesProvider.notifier)
+          .join(challengeId: widget.challenge.id);
+      ref.invalidate(officialChallengeProvider);
+      HapticsHelper.lightImpact();
+    } on BackendException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not join. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final challenge = widget.challenge;
+    final joined = challenge.isJoined;
+    final imageUrl = challenge.imageUrl;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: AppColors.accentSecondary.withValues(alpha: 0.30),
@@ -386,188 +541,222 @@ class _ChallengeOfTheMonthCardState extends State<_ChallengeOfTheMonthCard> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: Column(
+        child: Stack(
           children: [
-            // Pink hero zone — title, date, description + image placeholder.
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(18, 15, 18, 13),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.bgDeep,
-                    AppColors.accentSecondary.withValues(alpha: 0.35),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            // Landscape challenge photo, full-bleed behind both zones below —
+            // falls back to each zone's own plain background when no image
+            // has been uploaded (admin-only, see updateChallenge.ts).
+            if (hasImage)
+              Positioned.fill(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
                 ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                AppIcons.trophy,
-                                color: AppColors.accent,
-                                size: 13,
-                              ),
-                              const SizedBox(width: AppTheme.spaceXS),
-                              Text(
-                                'Challenge of the Month',
-                                style: AppTypography.labelS.copyWith(
-                                  color: AppColors.accent,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0,
-                                ),
+            if (hasImage)
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.black38, Colors.black45, Colors.black87],
+                    ),
+                  ),
+                ),
+              ),
+            Column(
+              children: [
+                // Hero zone — pill, title, date, description.
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(18, 15, 18, 13),
+                  decoration: hasImage
+                      ? null
+                      : BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.bgDeep,
+                              AppColors.accentSecondary.withValues(
+                                alpha: 0.35,
                               ),
                             ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
                         ),
-                        const SizedBox(height: 11),
-                        Text(
-                          'May Walking Challenge',
-                          style: AppTypography.titleL.copyWith(
-                            fontSize: 21,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.4,
-                            height: 1.15,
-                          ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
                         ),
-                        const SizedBox(height: 7),
-                        Row(
+                        decoration: BoxDecoration(
+                          color: hasImage
+                              ? Colors.white.withValues(alpha: 0.20)
+                              : AppColors.accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
-                              AppIcons.calendar,
-                              color: AppColors.textMuted,
-                              size: 12,
+                            Icon(
+                              AppIcons.trophy,
+                              color: hasImage
+                                  ? Colors.white
+                                  : AppColors.accent,
+                              size: 13,
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: AppTheme.spaceXS),
                             Text(
-                              'May 1 – May 31',
-                              style: AppTypography.labelM.copyWith(
-                                fontWeight: FontWeight.w400,
+                              'Challenge of the Month',
+                              style: AppTypography.labelS.copyWith(
+                                color: hasImage
+                                    ? Colors.white
+                                    : AppColors.accent,
+                                fontWeight: FontWeight.w700,
                                 letterSpacing: 0,
                               ),
                             ),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 11),
+                      Text(
+                        challenge.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.titleL.copyWith(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.4,
+                          height: 1.15,
+                          color: hasImage ? Colors.white : null,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Row(
+                        children: [
+                          Icon(
+                            AppIcons.calendar,
+                            color: hasImage
+                                ? Colors.white70
+                                : AppColors.textMuted,
+                            size: 12,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            formatChallengeDateRange(
+                              challenge.startDate,
+                              challenge.endDate,
+                            ),
+                            style: AppTypography.labelM.copyWith(
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: 0,
+                              color: hasImage ? Colors.white70 : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (challenge.description.trim().isNotEmpty) ...[
                         const SizedBox(height: 9),
                         Text(
-                          'Step more, move together, and finish May stronger '
-                          'than you started!',
+                          challenge.description,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                           style: AppTypography.bodyS.copyWith(
-                            color: AppColors.textSecondary,
+                            color: hasImage
+                                ? Colors.white.withValues(alpha: 0.85)
+                                : AppColors.textSecondary,
                             letterSpacing: 0,
                             height: 1.4,
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: AppTheme.spaceS),
-                  const _ChallengePathIllustration(),
-                ],
-              ),
-            ),
+                ),
 
-            // White stats + CTA zone.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 13, 18, 15),
-              child: Column(
-                children: [
-                  Row(
+                // Stats + CTA zone.
+                Container(
+                  width: double.infinity,
+                  color: hasImage ? Colors.transparent : Colors.white,
+                  padding: const EdgeInsets.fromLTRB(18, 13, 18, 15),
+                  child: Column(
                     children: [
-                      const Expanded(
-                        child: _ChallengeStat(
-                          icon: AppIcons.groups,
-                          value: '1,248',
-                          label: 'Participants',
+                      _ChallengeStat(
+                        icon: AppIcons.star,
+                        value: daysLeftLabel(challenge),
+                        label: 'to join and participate',
+                        light: hasImage,
+                      ),
+                      const SizedBox(height: 13),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: joined || _joining ? null : _join,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: joined
+                                ? AppColors.success
+                                : AppColors.accent,
+                            disabledBackgroundColor: joined
+                                ? AppColors.success
+                                : AppColors.accent.withValues(alpha: 0.6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                          ),
+                          child: _joining
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (joined) ...[
+                                      const Icon(
+                                        AppIcons.goalReached,
+                                        color: Colors.white,
+                                        size: AppTheme.iconS,
+                                      ),
+                                      const SizedBox(width: AppTheme.spaceS),
+                                    ],
+                                    Text(
+                                      joined ? 'Joined' : 'Join Challenge',
+                                      style: AppTypography.bodyL.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                         ),
                       ),
-                      const SizedBox(width: AppTheme.spaceM),
-                      Container(
-                        width: 1,
-                        height: 35,
-                        color: AppColors.accentSecondary.withValues(
-                          alpha: 0.25,
-                        ),
-                      ),
-                      const SizedBox(width: AppTheme.spaceM),
-                      const Expanded(
-                        child: _ChallengeStat(
-                          icon: AppIcons.star,
-                          value: '12 days left',
-                          label: 'to join and participate',
+                      const SizedBox(height: 9),
+                      Text(
+                        'Join anytime! Your progress will count from the day you join.',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.labelS.copyWith(
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: 0,
+                          color: hasImage ? Colors.white70 : null,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 13),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () {
-                        HapticsHelper.lightImpact();
-                        setState(() => _joined = !_joined);
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _joined
-                            ? AppColors.success
-                            : AppColors.accent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (_joined) ...[
-                            const Icon(
-                              AppIcons.goalReached,
-                              color: Colors.white,
-                              size: AppTheme.iconS,
-                            ),
-                            const SizedBox(width: AppTheme.spaceS),
-                          ],
-                          Text(
-                            _joined ? 'Joined' : 'Join Challenge',
-                            style: AppTypography.bodyL.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 9),
-                  Text(
-                    'Join anytime! Your progress will count from the day you join.',
-                    textAlign: TextAlign.center,
-                    style: AppTypography.labelS.copyWith(
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         ),
@@ -581,11 +770,17 @@ class _ChallengeStat extends StatelessWidget {
     required this.icon,
     required this.value,
     required this.label,
+    this.light = false,
   });
 
   final IconData icon;
   final String value;
   final String label;
+
+  /// True when this sits over a full-bleed challenge photo — swaps the
+  /// accent-tinted styling for white/translucent so it stays legible on a
+  /// dark overlay instead of disappearing against it.
+  final bool light;
 
   @override
   Widget build(BuildContext context) {
@@ -595,10 +790,16 @@ class _ChallengeStat extends StatelessWidget {
           width: 30,
           height: 30,
           decoration: BoxDecoration(
-            color: AppColors.accent.withValues(alpha: 0.12),
+            color: light
+                ? Colors.white.withValues(alpha: 0.20)
+                : AppColors.accent.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: AppColors.accent, size: 15),
+          child: Icon(
+            icon,
+            color: light ? Colors.white : AppColors.accent,
+            size: 15,
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -610,7 +811,7 @@ class _ChallengeStat extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.bodyM.copyWith(
-                  color: AppColors.accent,
+                  color: light ? Colors.white : AppColors.accent,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
                 ),
@@ -623,40 +824,13 @@ class _ChallengeStat extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: FontWeight.w400,
                   letterSpacing: 0,
+                  color: light ? Colors.white70 : null,
                 ),
               ),
             ],
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Placeholder for the real "May Walking Challenge" illustration asset —
-/// swap the Icon for an Image.asset(...) once the art is ready.
-class _ChallengePathIllustration extends StatelessWidget {
-  const _ChallengePathIllustration();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 97,
-      height: 132,
-      decoration: BoxDecoration(
-        color: AppColors.accentSecondary.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(AppTheme.radiusL),
-        border: Border.all(
-          color: AppColors.accentSecondary.withValues(alpha: 0.5),
-        ),
-      ),
-      child: const Center(
-        child: Icon(
-          AppIcons.image,
-          color: AppColors.accent,
-          size: AppTheme.iconXL,
-        ),
-      ),
     );
   }
 }
@@ -668,6 +842,7 @@ class _WinnerCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.name,
+    required this.initials,
     required this.value,
     required this.valueLabel,
   });
@@ -676,6 +851,7 @@ class _WinnerCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String name;
+  final String initials;
   final String value;
   final String valueLabel;
 
@@ -734,7 +910,7 @@ class _WinnerCard extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(
-                    name[0],
+                    initials,
                     style: AppTypography.titleM.copyWith(
                       color: AppColors.accent,
                       fontSize: 16,
@@ -840,176 +1016,153 @@ class _TrophyCluster extends StatelessWidget {
 // PRIVATE CHALLENGES TAB
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _PrivateChallengesTab extends StatelessWidget {
+class _PrivateChallengesTab extends ConsumerWidget {
   const _PrivateChallengesTab({required this.onCreateTap});
 
   final VoidCallback onCreateTap;
 
-  // (name, subtitle, dateRange, daysLeft, progress, members, yourRank, color,
-  //  winnerMethod — 0 = Most Steps, 1 = Highest Goal Completion %)
-  // `color` follows the same rank-coloring convention as Completed
-  // Challenges' rank badges (amber/blue/orange/green), not tied 1:1 to rank
-  // there either — just picked per entry for visual variety.
-  static const _challenges =
-      <(String, String, String, String, double, int, int, Color, int)>[
-        (
-          'Weekend Warrior',
-          'Step challenge',
-          'May 11 – May 17, 2024',
-          '3 days left',
-          0.72,
-          2,
-          1,
-          AppColors.goalAmber,
-          0,
-        ),
-        (
-          '5K in May',
-          'Distance challenge',
-          'May 1 – May 31, 2024',
-          '10 days left',
-          0.66,
-          1,
-          3,
-          Color(0xFFD97706),
-          1,
-        ),
-        (
-          '14 Day Fitness Streak',
-          'Streak challenge',
-          'Apr 28 – May 11, 2024',
-          '2 days left',
-          0.85,
-          3,
-          1,
-          AppColors.goalAmber,
-          0,
-        ),
-        (
-          'Family Steps Challenge',
-          'Step challenge',
-          'Apr 20 – May 20, 2024',
-          '19 days left',
-          0.40,
-          4,
-          4,
-          AppColors.success,
-          1,
-        ),
-        (
-          'Active Hour Challenge',
-          'Active Time challenge',
-          'Apr 15 – May 15, 2024',
-          '14 days left',
-          0.55,
-          2,
-          2,
-          Color(0xFF0891B2),
-          0,
-        ),
-      ];
-
   @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
-      children: [
-        _PrivateBanner(
-          onCreateTap: onCreateTap,
-        ).animate().fadeIn(delay: 60.ms).slideY(begin: 0.06),
-        const SizedBox(height: 18),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final challengesAsync = ref.watch(myChallengesProvider);
 
-        Row(
-          children: [
-            Text(
-              'Your Private Challenges',
-              style: AppTypography.bodyL.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              'Sort by: Recent',
-              style: AppTypography.labelS.copyWith(
-                fontWeight: FontWeight.w400,
-                letterSpacing: 0,
-              ),
-            ),
-            const Icon(
-              AppIcons.expandMore,
-              color: AppColors.textMuted,
-              size: 14,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
+    return RefreshIndicator(
+      color: AppColors.accent,
+      onRefresh: () => ref.read(myChallengesProvider.notifier).refresh(),
+      child: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+        children: [
+          _PrivateBanner(
+            onCreateTap: onCreateTap,
+          ).animate().fadeIn(delay: 60.ms).slideY(begin: 0.06),
+          const SizedBox(height: 18),
 
-        ..._challenges.asMap().entries.map(
-          (e) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child:
-                _PrivateChallengeCard(
-                      name: e.value.$1,
-                      subtitle: e.value.$2,
-                      dateRange: e.value.$3,
-                      daysLeft: e.value.$4,
-                      progress: e.value.$5,
-                      members: e.value.$6,
-                      yourRank: e.value.$7,
-                      color: e.value.$8,
-                      winnerMethod: e.value.$9,
-                    )
-                    .animate(delay: Duration(milliseconds: 80 + e.key * 60))
-                    .fadeIn()
-                    .slideY(begin: 0.06),
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // Privacy note
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.accentSecondary.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
+          Row(
             children: [
+              Text(
+                'Your Private Challenges',
+                style: AppTypography.bodyL.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Sort by: Recent',
+                style: AppTypography.labelS.copyWith(
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0,
+                ),
+              ),
               const Icon(
-                AppIcons.lock,
+                AppIcons.expandMore,
                 color: AppColors.textMuted,
-                size: AppTheme.iconS,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Only people you invite can see and join these private '
-                  'challenges.',
-                  style: AppTypography.labelS.copyWith(
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppTheme.spaceS),
-              GestureDetector(
-                onTap: () {},
-                child: Text(
-                  'Learn More',
-                  style: AppTypography.labelS.copyWith(
-                    color: AppColors.accent,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                  ),
-                ),
+                size: 14,
               ),
             ],
           ),
-        ).animate().fadeIn(delay: 400.ms),
+          const SizedBox(height: 12),
+
+          // Stale-while-revalidate: once we've ever loaded this, keep
+          // showing it during a refresh instead of a blank spinner.
+          if (challengesAsync.value != null)
+            _PrivateChallengesList(all: challengesAsync.value!)
+          else
+            challengesAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppTheme.spaceXXL),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.accent),
+                ),
+              ),
+              error: (_, __) => const _TabEmptyMessage(
+                icon: AppIcons.error,
+                message: 'Could not load your private challenges.',
+              ),
+              data: (_) => const SizedBox.shrink(),
+            ),
+
+          const SizedBox(height: 8),
+
+          // Privacy note
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.accentSecondary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  AppIcons.lock,
+                  color: AppColors.textMuted,
+                  size: AppTheme.iconS,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Only people you invite can see and join these private '
+                    'challenges.',
+                    style: AppTypography.labelS.copyWith(
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spaceS),
+                GestureDetector(
+                  onTap: () {},
+                  child: Text(
+                    'Learn More',
+                    style: AppTypography.labelS.copyWith(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 400.ms),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrivateChallengesList extends StatelessWidget {
+  const _PrivateChallengesList({required this.all});
+
+  final List<Challenge> all;
+
+  @override
+  Widget build(BuildContext context) {
+    final challenges = all
+        .where((c) => c.status != ChallengeStatus.archived)
+        .toList();
+    if (challenges.isEmpty) {
+      return const _TabEmptyMessage(
+        icon: AppIcons.challenge,
+        message:
+            "You haven't joined any private challenges yet. "
+            'Create one or ask a friend to invite you!',
+      );
+    }
+    return Column(
+      children: [
+        for (final entry in challenges.asMap().entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child:
+                _PrivateChallengeCard(
+                      challenge: entry.value,
+                      color: challengeColorFor(entry.key, isMe: false),
+                    )
+                    .animate(delay: Duration(milliseconds: 80 + entry.key * 60))
+                    .fadeIn()
+                    .slideY(begin: 0.06),
+          ),
       ],
     );
   }
@@ -1116,48 +1269,24 @@ class _PrivateBanner extends StatelessWidget {
   }
 }
 
-class _PrivateChallengeCard extends StatelessWidget {
-  const _PrivateChallengeCard({
-    required this.name,
-    required this.subtitle,
-    required this.dateRange,
-    required this.daysLeft,
-    required this.progress,
-    required this.members,
-    required this.yourRank,
-    required this.color,
-    required this.winnerMethod,
-  });
+class _PrivateChallengeCard extends ConsumerWidget {
+  const _PrivateChallengeCard({required this.challenge, required this.color});
 
-  final String name;
-  final String subtitle;
-  final String dateRange;
-  final String daysLeft;
-  final double progress;
-
-  /// Members beyond the 3 shown in the overlapping avatar stack.
-  final int members;
-
-  /// The signed-in user's current standing in this challenge's leaderboard.
-  final int yourRank;
+  final Challenge challenge;
   final Color color;
 
-  /// 0 = Most Steps, 1 = Highest Goal Completion %.
-  final int winnerMethod;
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final leaderboardAsync = ref.watch(
+      challengeLeaderboardProvider(challenge.id),
+    );
+
     return GestureDetector(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => PrivateChallengeDetailScreen(
-            name: name,
-            subtitle: subtitle,
-            dateRange: dateRange,
-            daysLeft: daysLeft,
-            winnerMethod: winnerMethod,
-            icon: AppIcons.trophy,
-            color: color,
+            challenge: challenge,
+            accentColor: color,
           ),
         ),
       ),
@@ -1166,10 +1295,18 @@ class _PrivateChallengeCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _RankBadge(
-              rank: yourRank,
-              totalParticipants: members + 3,
-              color: color,
+            leaderboardAsync.when(
+              loading: () => _RankBadgePlaceholder(color: color),
+              error: (_, __) => _RankBadgePlaceholder(color: color),
+              data: (entries) {
+                final myIndex = entries.indexWhere((e) => e.isMe);
+                if (myIndex == -1) return _RankBadgePlaceholder(color: color);
+                return _RankBadge(
+                  rank: myIndex + 1,
+                  totalParticipants: entries.length,
+                  color: color,
+                );
+              },
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1184,7 +1321,7 @@ class _PrivateChallengeCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              name,
+                              challenge.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTypography.bodyM.copyWith(
@@ -1193,14 +1330,18 @@ class _PrivateChallengeCard extends StatelessWidget {
                                 letterSpacing: 0,
                               ),
                             ),
-                            const SizedBox(height: 1),
-                            Text(
-                              subtitle,
-                              style: AppTypography.labelS.copyWith(
-                                fontWeight: FontWeight.w400,
-                                letterSpacing: 0,
+                            if (challenge.description.trim().isNotEmpty) ...[
+                              const SizedBox(height: 1),
+                              Text(
+                                challenge.description,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.labelS.copyWith(
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: 0,
+                                ),
                               ),
-                            ),
+                            ],
                             const SizedBox(height: 4),
                             Row(
                               children: [
@@ -1212,7 +1353,11 @@ class _PrivateChallengeCard extends StatelessWidget {
                                 const SizedBox(width: AppTheme.spaceXS),
                                 Flexible(
                                   child: Text(
-                                    dateRange,
+                                    formatChallengeDateRange(
+                                      challenge.startDate,
+                                      challenge.endDate,
+                                      withYear: true,
+                                    ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppTypography.labelS.copyWith(
@@ -1228,7 +1373,12 @@ class _PrivateChallengeCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      _MemberAvatars(extra: members),
+                      leaderboardAsync.maybeWhen(
+                        data: (entries) => _MemberAvatars(
+                          extra: (entries.length - 3).clamp(0, 999),
+                        ),
+                        orElse: () => const SizedBox(width: 44, height: 22),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -1238,7 +1388,7 @@ class _PrivateChallengeCard extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(6),
                           child: LinearProgressIndicator(
-                            value: progress,
+                            value: challenge.progress,
                             minHeight: 5,
                             backgroundColor: AppColors.accentSecondary
                                 .withValues(alpha: 0.2),
@@ -1248,7 +1398,7 @@ class _PrivateChallengeCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        daysLeft,
+                        daysLeftLabel(challenge),
                         style: AppTypography.labelS.copyWith(
                           color: color,
                           fontSize: 10,
@@ -1334,61 +1484,65 @@ class _MemberAvatars extends StatelessWidget {
 // COMPLETED CHALLENGES TAB
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _CompletedChallengesTab extends StatelessWidget {
+class _CompletedChallengesTab extends ConsumerWidget {
   const _CompletedChallengesTab();
 
-  // (name, dateRange, rank, totalParticipants, totalSteps, color)
-  static const _challenges = <(String, String, int, int, int, Color)>[
-    (
-      'Spring Step Showdown',
-      'Apr 1 – Apr 14, 2024',
-      1,
-      12,
-      128543,
-      AppColors.goalAmber,
-    ),
-    (
-      '10K Steps a Day',
-      'Mar 10 – Mar 23, 2024',
-      2,
-      20,
-      157832,
-      Color(0xFF0891B2),
-    ),
-    (
-      'March Madness Steps',
-      'Feb 25 – Mar 9, 2024',
-      3,
-      15,
-      101245,
-      Color(0xFFD97706),
-    ),
-    (
-      "Valentine's Step Challenge",
-      'Feb 1 – Feb 14, 2024',
-      4,
-      18,
-      88731,
-      AppColors.success,
-    ),
-    (
-      'New Year, New Steps',
-      'Jan 1 – Jan 14, 2024',
-      1,
-      10,
-      112894,
-      Color(0xFF7C3AED),
-    ),
-  ];
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final challengesAsync = ref.watch(myChallengesProvider);
+
+    return RefreshIndicator(
+      color: AppColors.accent,
+      onRefresh: () => ref.read(myChallengesProvider.notifier).refresh(),
+      child: challengesAsync.value != null
+          ? _CompletedChallengesList(all: challengesAsync.value!)
+          : challengesAsync.when(
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppTheme.spaceXXL),
+                  child: CircularProgressIndicator(color: AppColors.accent),
+                ),
+              ),
+              error: (_, __) => const _TabEmptyMessage(
+                icon: AppIcons.error,
+                message: 'Could not load your completed challenges.',
+              ),
+              data: (_) => const SizedBox.shrink(),
+            ),
+    );
+  }
+}
+
+class _CompletedChallengesList extends StatelessWidget {
+  const _CompletedChallengesList({required this.all});
+
+  final List<Challenge> all;
 
   @override
   Widget build(BuildContext context) {
+    final challenges = all
+        .where((c) => c.status == ChallengeStatus.archived)
+        .toList();
+
+    if (challenges.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+        children: const [
+          _TabEmptyMessage(
+            icon: AppIcons.trophy,
+            message: "You haven't completed any challenges yet.",
+          ),
+        ],
+      );
+    }
+
     return ListView(
-      physics: const BouncingScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
       children: [
         _CompletedBanner(
-          completedCount: _challenges.length,
+          completedCount: challenges.length,
         ).animate().fadeIn(delay: 60.ms).slideY(begin: 0.06),
         const SizedBox(height: 18),
 
@@ -1402,34 +1556,17 @@ class _CompletedChallengesTab extends StatelessWidget {
                 letterSpacing: -0.2,
               ),
             ),
-            const Spacer(),
-            Text(
-              'Sort by: Most Recent',
-              style: AppTypography.labelS.copyWith(
-                fontWeight: FontWeight.w400,
-                letterSpacing: 0,
-              ),
-            ),
-            const Icon(
-              AppIcons.expandMore,
-              color: AppColors.textMuted,
-              size: 14,
-            ),
           ],
         ),
         const SizedBox(height: 12),
 
-        ..._challenges.asMap().entries.map(
+        ...challenges.asMap().entries.map(
           (e) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child:
-                _CompletedChallengeCard(
-                      name: e.value.$1,
-                      dateRange: e.value.$2,
-                      rank: e.value.$3,
-                      totalParticipants: e.value.$4,
-                      totalSteps: e.value.$5,
-                      color: e.value.$6,
+                _CompletedChallengeEntry(
+                      challenge: e.value,
+                      color: challengeColorFor(e.key, isMe: false),
                     )
                     .animate(delay: Duration(milliseconds: 80 + e.key * 50))
                     .fadeIn()
@@ -1437,6 +1574,63 @@ class _CompletedChallengesTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Resolves one archived challenge's final standing from its denormalized
+/// `leaderboard_top` (see ChallengeRepository.getLeaderboardTop) — the live
+/// `participants` subcollection isn't the authoritative source once a
+/// challenge has ended.
+class _CompletedChallengeEntry extends ConsumerWidget {
+  const _CompletedChallengeEntry({
+    required this.challenge,
+    required this.color,
+  });
+
+  final Challenge challenge;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final topAsync = ref.watch(challengeLeaderboardTopProvider(challenge));
+    final dateRange = formatChallengeDateRange(
+      challenge.startDate,
+      challenge.endDate,
+      withYear: true,
+    );
+
+    return topAsync.when(
+      loading: () => _CompletedChallengeCard(
+        name: challenge.title,
+        dateRange: dateRange,
+        rank: null,
+        totalParticipants: 0,
+        totalSteps: challenge.myStepsInChallenge,
+        color: color,
+      ),
+      error: (_, __) => _CompletedChallengeCard(
+        name: challenge.title,
+        dateRange: dateRange,
+        rank: null,
+        totalParticipants: 0,
+        totalSteps: challenge.myStepsInChallenge,
+        color: color,
+      ),
+      data: (entries) {
+        final myIndex = entries.indexWhere((e) => e.isMe);
+        final mySteps = myIndex >= 0
+            ? entries[myIndex].steps
+            : challenge.myStepsInChallenge;
+        return _CompletedChallengeCard(
+          name: challenge.title,
+          dateRange: dateRange,
+          rank: myIndex >= 0 ? myIndex + 1 : null,
+          totalParticipants: entries.length,
+          totalSteps: mySteps,
+          color: color,
+        );
+      },
     );
   }
 }
@@ -1549,7 +1743,10 @@ class _CompletedChallengeCard extends StatelessWidget {
 
   final String name;
   final String dateRange;
-  final int rank;
+
+  /// Null while the final standing is still loading/unavailable — renders a
+  /// placeholder badge rather than a fake "0th of 0".
+  final int? rank;
   final int totalParticipants;
   final int totalSteps;
   final Color color;
@@ -1561,11 +1758,13 @@ class _CompletedChallengeCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _RankBadge(
-            rank: rank,
-            totalParticipants: totalParticipants,
-            color: color,
-          ),
+          rank == null
+              ? _RankBadgePlaceholder(color: color)
+              : _RankBadge(
+                  rank: rank!,
+                  totalParticipants: totalParticipants,
+                  color: color,
+                ),
           const SizedBox(width: AppTheme.spaceM),
           Expanded(
             child: Column(
@@ -1735,21 +1934,25 @@ class _RankBadge extends StatelessWidget {
 // CREATE CHALLENGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class CreateChallengeScreen extends StatefulWidget {
+class CreateChallengeScreen extends ConsumerStatefulWidget {
   const CreateChallengeScreen({super.key});
 
   @override
-  State<CreateChallengeScreen> createState() => _CreateChallengeScreenState();
+  ConsumerState<CreateChallengeScreen> createState() =>
+      _CreateChallengeScreenState();
 }
 
-class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
+class _CreateChallengeScreenState extends ConsumerState<CreateChallengeScreen> {
   static const _durationLabels = ['7 Days', '14 Days', '30 Days', 'Custom'];
+  static const _durationDays = [7, 14, 30];
 
   String _name = '';
+  int? _goalSteps;
   int _durationIndex = 0;
   DateTime? _startDate;
   DateTime? _customEndDate;
   int? _winnerMethod;
+  bool _submitting = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1836,6 +2039,38 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
                             ),
                           ),
                         ),
+                      ),
+                    ),
+
+                    const SizedBox(height: AppTheme.spaceXL),
+                    const _SectionLabel('Goal (Steps)'),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Total steps to reach by the end of the challenge.',
+                      style: AppTypography.bodyS.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spaceM),
+                    TextField(
+                      keyboardType: TextInputType.number,
+                      onChanged: (v) =>
+                          setState(() => _goalSteps = int.tryParse(v)),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(
+                          AppIcons.steps,
+                          color: AppColors.accent,
+                          size: AppTheme.iconS,
+                        ),
+                        hintText: 'e.g., 70000',
+                        hintStyle: AppTypography.bodyM.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.bgSurface,
+                        border: _fieldBorder(),
+                        enabledBorder: _fieldBorder(),
+                        focusedBorder: _fieldBorder(focused: true),
                       ),
                     ),
 
@@ -2024,7 +2259,7 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => _createChallenge(context),
+                  onPressed: _submitting ? null : _createChallenge,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.accent,
                     shape: RoundedRectangleBorder(
@@ -2032,14 +2267,23 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Text(
-                    'Create Challenge',
-                    style: AppTypography.bodyL.copyWith(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Create Challenge',
+                          style: AppTypography.bodyL.copyWith(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -2086,22 +2330,144 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
     ).showSnackBar(SnackBar(content: Text('$feature coming soon')));
   }
 
-  void _createChallenge(BuildContext context) {
+  Future<void> _createChallenge() async {
     if (_name.trim().isEmpty) {
       _showValidationError(context, 'Give your challenge a name first');
+      return;
+    }
+    if (_goalSteps == null || _goalSteps! <= 0) {
+      _showValidationError(context, 'Enter a step goal for the challenge');
       return;
     }
     if (_startDate == null) {
       _showValidationError(context, 'Pick a start date');
       return;
     }
+    if (_durationIndex == 3 && _customEndDate == null) {
+      _showValidationError(context, 'Pick an end date');
+      return;
+    }
     if (_winnerMethod == null) {
       _showValidationError(context, 'Choose how the winner is determined');
       return;
     }
+
+    final endDate = _durationIndex == 3
+        ? _customEndDate!
+        : _startDate!.add(Duration(days: _durationDays[_durationIndex]));
+
     HapticsHelper.lightImpact();
-    Navigator.pop(context);
+    setState(() => _submitting = true);
+    try {
+      final result = await ref
+          .read(myChallengesProvider.notifier)
+          .create(
+            title: _name.trim(),
+            goalSteps: _goalSteps!,
+            startDate: _isoDate(_startDate!),
+            endDate: _isoDate(endDate),
+            isPublic: false,
+            winnerType: _winnerMethod == 1
+                ? WinnerType.goalCompletionPct
+                : WinnerType.mostSteps,
+          );
+      if (!mounted) return;
+      Navigator.pop(context);
+      if (result.inviteCode != null) {
+        _showInviteCodeDialog(context, result.inviteCode!);
+      }
+    } on BackendException catch (e) {
+      if (!mounted) return;
+      _showValidationError(context, e.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showValidationError(
+        context,
+        'Could not create challenge. Please try again.',
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
+
+  void _showInviteCodeDialog(BuildContext context, String inviteCode) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Challenge Created!',
+          style: AppTypography.titleM.copyWith(fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Share this invite code so friends can join:',
+              style: AppTypography.bodyS,
+            ),
+            const SizedBox(height: AppTheme.spaceM),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spaceL,
+                vertical: AppTheme.spaceM,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.bgDeep,
+                borderRadius: BorderRadius.circular(AppTheme.radiusM),
+              ),
+              child: Text(
+                inviteCode,
+                textAlign: TextAlign.center,
+                style: AppTypography.titleL.copyWith(
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(
+              'Close',
+              style: AppTypography.bodyL.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: inviteCode));
+              Navigator.pop(dialogCtx);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Copy Code',
+              style: AppTypography.bodyL.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _isoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   void _showValidationError(BuildContext context, String message) {
     ScaffoldMessenger.of(
@@ -2402,6 +2768,77 @@ class _SectionLabel extends StatelessWidget {
         color: AppColors.textSecondary,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.4,
+      ),
+    );
+  }
+}
+
+/// Shared empty/error state for a tab's real-data list — icon + message,
+/// matching the app's established empty-state visual pattern (see
+/// achievements_screen.dart's `_EmptyBadgeRow`).
+class _TabEmptyMessage extends StatelessWidget {
+  const _TabEmptyMessage({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceXXL),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: AppTheme.iconXL, color: AppColors.textMuted),
+            const SizedBox(height: AppTheme.spaceS),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyS.copyWith(color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Same footprint as [_RankBadge] for while a challenge's leaderboard is
+/// still loading, failed to load, or the caller isn't in it (e.g. just
+/// joined and hasn't synced any steps yet) — an unknown rank isn't the same
+/// as rank 0, so this deliberately doesn't guess a number.
+class _RankBadgePlaceholder extends StatelessWidget {
+  const _RankBadgePlaceholder({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            AppIcons.trophy,
+            color: Colors.white,
+            size: AppTheme.iconS,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '—',
+            style: AppTypography.titleS.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }

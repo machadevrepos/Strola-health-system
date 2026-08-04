@@ -85,7 +85,10 @@ export function AnnouncementFormDialog({
   }, [open, announcement]);
 
   const knownVersions = React.useMemo(
-    () => Array.from(new Set(users.map((u) => u.app_version))).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)),
+    () =>
+      Array.from(new Set(users.map((u) => u.app_version).filter((v): v is string => v !== null))).sort((a, b) =>
+        a < b ? 1 : a > b ? -1 : 0
+      ),
     [users]
   );
 

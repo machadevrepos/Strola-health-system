@@ -1,55 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/pressable_scale.dart';
 
-class InviteFriendsScreen extends StatefulWidget {
+/// No backend supports a generic app-invite link (there's only a private
+/// challenge invite-code system, which is unrelated) and there's no address
+/// book integration, so this screen shares a static, honest promo message —
+/// personalized with the caller's own real display name where available —
+/// rather than a fabricated per-user tracking code or a fake contacts list.
+class InviteFriendsScreen extends ConsumerWidget {
   const InviteFriendsScreen({super.key});
 
-  @override
-  State<InviteFriendsScreen> createState() => _InviteFriendsScreenState();
-}
+  static const _shareDomain = 'strollahealth.com';
 
-class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
-  static const _inviteLink = 'strolla.app/invite/AMARA-WK24';
-
-  static const _contacts = [
-    _Contact('Olivia Bennett', 'olivia.b'),
-    _Contact('Grace Thompson', 'grace.t'),
-    _Contact('Mia Patel', 'mia.patel'),
-    _Contact('Lucy Edwards', 'lucy.e'),
-    _Contact('Sophie Clarke', 'sophie.c'),
-    _Contact('Hannah Wright', 'hannah.w'),
-  ];
-
-  final Set<String> _invited = {};
-
-  void _copyLink() {
+  void _copyLink(BuildContext context, WidgetRef ref) {
     HapticFeedback.selectionClick();
-    Clipboard.setData(const ClipboardData(text: _inviteLink));
+    Clipboard.setData(ClipboardData(text: _shareMessage(ref)));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Invite link copied'),
-        backgroundColor: AppColors.accent,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusM),
-        ),
-      ),
-    );
-  }
-
-  void _invite(String username) {
-    HapticFeedback.selectionClick();
-    setState(() => _invited.add(username));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Invite sent'),
+        content: const Text('Invite message copied'),
         backgroundColor: AppColors.accent,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -60,7 +36,7 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: const BoxDecoration(gradient: AppColors.bgGradient),
       child: Scaffold(
@@ -107,7 +83,10 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                     ),
                     const SizedBox(height: AppTheme.spaceXL),
 
-                    // Invite link card
+                    // Invite message card — there's no generic app-invite
+                    // link or contacts integration on the backend, so this
+                    // shares a static, honest promo message instead of a
+                    // fabricated tracking code.
                     FlatCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,13 +94,13 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                               Row(
                                 children: [
                                   const Icon(
-                                    AppIcons.link,
+                                    AppIcons.share,
                                     color: AppColors.accent,
                                     size: AppTheme.iconS,
                                   ),
                                   const SizedBox(width: AppTheme.spaceS),
                                   Text(
-                                    'Your invite link',
+                                    'Your invite message',
                                     style: AppTypography.titleS,
                                   ),
                                 ],
@@ -147,7 +126,7 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        _inviteLink,
+                                        _shareMessage(ref),
                                         style: AppTypography.bodyS.copyWith(
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -166,7 +145,7 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                               SizedBox(
                                 width: double.infinity,
                                 child: FilledButton(
-                                  onPressed: _copyLink,
+                                  onPressed: () => _copyLink(context, ref),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: AppColors.accent,
                                     shape: RoundedRectangleBorder(
@@ -182,13 +161,13 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       const Icon(
-                                        AppIcons.share,
+                                        AppIcons.copy,
                                         color: Colors.white,
                                         size: AppTheme.iconS,
                                       ),
                                       const SizedBox(width: AppTheme.spaceS),
                                       Text(
-                                        'Copy Invite Link',
+                                        'Copy Invite Message',
                                         style: AppTypography.bodyL.copyWith(
                                           color: Colors.white,
                                           fontWeight: FontWeight.w700,
@@ -204,110 +183,6 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                         .animate()
                         .fadeIn(delay: 60.ms, duration: AppTheme.animSlow)
                         .slideY(begin: 0.12),
-
-                    const SizedBox(height: AppTheme.spaceXXL),
-                    Text('Suggested contacts', style: AppTypography.titleS),
-                    const SizedBox(height: AppTheme.spaceM),
-
-                    ..._contacts.asMap().entries.map((e) {
-                      final contact = e.value;
-                      final invited = _invited.contains(contact.username);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppTheme.spaceM),
-                        child:
-                            FlatCard(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppTheme.spaceM,
-                                    vertical: AppTheme.spaceM,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: AppTheme.statChipCircleSize,
-                                        height: AppTheme.statChipCircleSize,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.accentSecondary
-                                              .withValues(alpha: 0.25),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: AppColors.accentSecondary
-                                                .withValues(alpha: 0.4),
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            contact.name[0],
-                                            style: AppTypography.titleM
-                                                .copyWith(
-                                                  color: AppColors.accent,
-                                                ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: AppTheme.spaceM),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              contact.name,
-                                              style: AppTypography.titleS,
-                                            ),
-                                            const SizedBox(
-                                              height: AppTheme.spaceXS / 2,
-                                            ),
-                                            Text(
-                                              '@${contact.username}',
-                                              style: AppTypography.labelS,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: AppTheme.spaceS),
-                                      PressableScale(
-                                        onTap: invited
-                                            ? null
-                                            : () => _invite(contact.username),
-                                        child: AnimatedContainer(
-                                          duration: AppTheme.animFast,
-                                          curve: Curves.easeOut,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: AppTheme.spaceL,
-                                            vertical: AppTheme.spaceS,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: invited
-                                                ? AppColors.accentSecondary
-                                                      .withValues(alpha: 0.25)
-                                                : AppColors.accent,
-                                            borderRadius: BorderRadius.circular(
-                                              AppTheme.radiusFull,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            invited ? 'Invited' : 'Invite',
-                                            style: AppTypography.labelM
-                                                .copyWith(
-                                                  color: invited
-                                                      ? AppColors.textSecondary
-                                                      : Colors.white,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                                .animate(
-                                  delay: Duration(milliseconds: 60 * e.key),
-                                )
-                                .fadeIn(duration: AppTheme.animSlow)
-                                .slideY(begin: 0.12),
-                      );
-                    }),
                   ],
                 ),
               ),
@@ -317,11 +192,15 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
       ),
     );
   }
-}
 
-class _Contact {
-  const _Contact(this.name, this.username);
-
-  final String name;
-  final String username;
+  /// Personalizes with the caller's own real name (local `userProfileProvider`
+  /// — no backend fabrication) when it's set, otherwise a generic message.
+  String _shareMessage(WidgetRef ref) {
+    final name = ref.watch(userProfileProvider).name;
+    return name.trim().isNotEmpty
+        ? '$name invited you to join Strolla! Walk together, go further. '
+              'Download the app at $_shareDomain'
+        : 'Join me on Strolla! Walk together, go further. '
+              'Download the app at $_shareDomain';
+  }
 }

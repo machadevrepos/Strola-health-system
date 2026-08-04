@@ -21,6 +21,7 @@ import {
 import { BarList } from "@/components/charts/bar-list";
 import { forceLogoutAllUsers, updateAppSettings } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { logAction } from "@/lib/audit-log-store";
 import { appVersionDistribution, usersBelowVersion } from "@/lib/data/queries";
 import { formatNumber, formatRelative } from "@/lib/format";
@@ -41,6 +42,11 @@ const PRIVACY_LABEL: [keyof PrivacySettings, string][] = [
 ];
 
 export function AppSettingsPanel({ settings: initialSettings, users }: { settings: AppSettings; users: UserProfile[] }) {
+  const { role } = useAuth();
+  // Backend-enforced too (updateAppSettings/forceLogoutAllUsers both require
+  // super_admin) — gating it here as well means a regular admin finds out
+  // before filling out the whole form, not after clicking Save.
+  const isSuperAdmin = role === "super_admin";
   const [settings, setSettings] = React.useState(initialSettings);
   const [form, setForm] = React.useState(initialSettings);
   const [saving, setSaving] = React.useState(false);
@@ -96,6 +102,12 @@ export function AppSettingsPanel({ settings: initialSettings, users }: { setting
 
   return (
     <div className="space-y-4">
+      {!isSuperAdmin && (
+        <div className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+          <WarningCircle size={14} className="shrink-0" />
+          Only super admins can change these — you can review them here, but Save and Force logout are disabled for your role.
+        </div>
+      )}
       <Card className="border-border shadow-none">
         <CardHeader>
           <CardTitle>Step goals & challenges</CardTitle>
@@ -271,7 +283,7 @@ export function AppSettingsPanel({ settings: initialSettings, users }: { setting
               <p className="text-sm font-medium text-foreground">Force logout everyone</p>
               <p className="text-xs text-muted-foreground">Signs every user out of every device immediately. They&apos;ll need to sign back in.</p>
             </div>
-            <Button variant="destructive" size="sm" onClick={() => setForceLogoutOpen(true)}>
+            <Button variant="destructive" size="sm" onClick={() => setForceLogoutOpen(true)} disabled={!isSuperAdmin}>
               <SignOut size={14} /> Force logout
             </Button>
           </div>
@@ -280,7 +292,7 @@ export function AppSettingsPanel({ settings: initialSettings, users }: { setting
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">Last saved {formatRelative(settings.updated_at)}</p>
-        <Button size="sm" disabled={!dirty || saving} onClick={save}>
+        <Button size="sm" disabled={!dirty || saving || !isSuperAdmin} onClick={save}>
           {saving && <CircleNotch size={14} className="animate-spin" />}
           Save changes
         </Button>

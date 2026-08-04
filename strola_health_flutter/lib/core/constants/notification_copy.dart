@@ -16,20 +16,20 @@ class NotificationCopy {
   static const String goalReminderTitle = 'Daily Goal';
 
   static String goalReminder({required int remainingSteps}) => _pickRandom([
-        "You're only ${Formatters.stepCount(remainingSteps)} steps away from today's goal.",
-        "A quick walk could get you to today's goal.",
-        "Almost at your goal! Every step counts. You've got this.",
-        "Just a little more movement and today's goal is yours.",
-      ]);
+    "You're only ${Formatters.stepCount(remainingSteps)} steps away from today's goal.",
+    "A quick walk could get you to today's goal.",
+    "Almost at your goal! Every step counts. You've got this.",
+    "Just a little more movement and today's goal is yours.",
+  ]);
 
   // ── Goal Achieved ───────────────────────────────────────────────────────────
   static const String goalAchievedTitle = 'Goal Achieved';
 
   static String goalAchieved() => _pickRandom(const [
-        'Goal achieved! Nice work today.',
-        'You did it! Another goal completed.',
-        'Goal achieved! Way to go!',
-      ]);
+    'Goal achieved! Nice work today.',
+    'You did it! Another goal completed.',
+    'Goal achieved! Way to go!',
+  ]);
 
   // ── Streak ──────────────────────────────────────────────────────────────────
   static const String streakTitle = 'Streak';
@@ -82,9 +82,9 @@ class NotificationCopy {
   static const String lowBatteryTitle = 'Battery';
 
   static String lowBattery() => _pickRandom(const [
-        'Your Strolla battery is running low.',
-        'Time to charge your Strolla.',
-      ]);
+    'Your Strolla battery is running low.',
+    'Time to charge your Strolla.',
+  ]);
 
   // ── Device Disconnected — bonus, reuses bleStatusProvider ────────────────────
   static const String deviceDisconnectedTitle = 'Device';

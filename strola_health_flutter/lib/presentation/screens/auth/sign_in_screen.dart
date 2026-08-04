@@ -5,7 +5,6 @@ import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
-import 'package:strola_health/core/services/account_service.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
 import 'package:strola_health/presentation/providers/auth_providers.dart';
 import 'package:strola_health/presentation/screens/auth/forgot_password_screen.dart';
@@ -53,29 +52,44 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       _loading = true;
       _error = null;
     });
+    // Read everything from `ref` up front. The instant sign-in succeeds,
+    // `isSignedInProvider` flips true and the root gate swaps this screen
+    // straight out of the tree — any `ref.read` after that point throws
+    // ("used after disposed"), even though the notifiers themselves are
+    // plain objects that stay perfectly usable once captured. This bit the
+    // app twice before (sign-up, onboarding's own completion) for the exact
+    // same reason.
+    final firebaseAvailable = ref.read(firebaseAvailableProvider);
+    final authService = ref.read(authServiceProvider);
+    final localSignIn = ref.read(localSignedInProvider.notifier);
+    final rememberMeNotifier = ref.read(rememberMeProvider.notifier);
     try {
-      if (ref.read(firebaseAvailableProvider)) {
-        await ref
-            .read(authServiceProvider)
-            .signIn(email: _emailCtrl.text, password: _passwordCtrl.text);
-        // Restores this account's real onboarding status (and the rest of
-        // its profile) from the backend — without this, a returning user
-        // whose local storage doesn't have it (different device, or a
-        // previous logout wiped it) would incorrectly see onboarding again.
-        await restoreProfileFromBackend(ref);
+      if (firebaseAvailable) {
+        await authService.signIn(
+          email: _emailCtrl.text,
+          password: _passwordCtrl.text,
+        );
+        // Persisted right after the credential check succeeds — it reflects
+        // the choice made for the session that actually started.
+        await rememberMeNotifier.set(_rememberMe);
+        HapticsHelper.lightImpact();
+        // Restoring this account's real profile (in particular, whether
+        // onboarding was already completed elsewhere) from here on would
+        // race the root gate — the instant signIn() above succeeds,
+        // isSignedInProvider flips and the gate swaps this screen straight
+        // out of the tree. `_RootGate` itself owns that restore (triggered
+        // off the same isSignedInProvider transition, with a stable ref
+        // that never gets disposed) — see main.dart.
       } else {
         // No backend yet — there's no account to check against, so this
         // just demonstrates the flow rather than verifying credentials.
-        await ref.read(localSignedInProvider.notifier).signIn();
+        await localSignIn.signIn();
+        await rememberMeNotifier.set(_rememberMe);
+        HapticsHelper.lightImpact();
       }
-      // Persisted only once sign-in actually succeeds, not on every
-      // checkbox tap — it should reflect the choice made for the session
-      // that actually started.
-      await ref.read(rememberMeProvider.notifier).set(_rememberMe);
-      HapticsHelper.lightImpact();
       // No manual navigation — the root gate reacts to isSignedInProvider.
     } on AuthException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

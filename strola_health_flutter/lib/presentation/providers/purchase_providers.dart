@@ -38,9 +38,14 @@ final backendSubscriptionActiveProvider = FutureProvider<bool>((ref) async {
 });
 
 final isPremiumProvider = Provider<bool>((ref) {
-  final fromRevenueCat = ref.watch(customerInfoProvider).value?.entitlements.active.isNotEmpty ?? false;
-  final fromBackend = ref.watch(backendSubscriptionActiveProvider).value ?? false;
+  final fromRevenueCat =
+      ref.watch(customerInfoProvider).value?.entitlements.active.isNotEmpty ??
+      false;
+  final fromBackend =
+      ref.watch(backendSubscriptionActiveProvider).value ?? false;
   return fromRevenueCat || fromBackend;
 });
 
-final offeringsProvider = FutureProvider<Offerings?>((ref) => PurchaseService.getOfferings());
+final offeringsProvider = FutureProvider<Offerings?>(
+  (ref) => PurchaseService.getOfferings(),
+);

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,9 +8,13 @@ import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/services/account_service.dart';
+import 'package:strola_health/data/datasources/backend_api.dart';
+import 'package:strola_health/data/repositories/legal_repository.dart';
+import 'package:strola_health/domain/entities/legal_document.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
 import 'package:strola_health/presentation/providers/auth_providers.dart'
     show AuthException, firebaseAvailableProvider;
+import 'package:strola_health/data/repositories/public_profile_repository.dart';
 import 'package:strola_health/presentation/providers/community_providers.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/screens/integrations_screen.dart';
@@ -17,6 +23,7 @@ import 'package:strola_health/presentation/screens/paywall_screen.dart';
 import 'package:strola_health/presentation/providers/purchase_providers.dart';
 import 'package:strola_health/presentation/widgets/add_widget_sheet.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
+import 'package:strola_health/presentation/widgets/legal_markdown.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -119,14 +126,20 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.document,
               title: 'Terms of Service',
               onTap: () => push(
-                const LegalPage(title: 'Terms of Service', body: _kTermsBody),
+                const LegalPage(
+                  title: 'Terms of Service',
+                  docType: LegalDocType.terms,
+                ),
               ),
             ),
             _SettingsRow(
               icon: AppIcons.shield,
               title: 'Privacy Policy',
               onTap: () => push(
-                const LegalPage(title: 'Privacy Policy', body: _kPrivacyBody),
+                const LegalPage(
+                  title: 'Privacy Policy',
+                  docType: LegalDocType.privacyPolicy,
+                ),
               ),
             ),
             _SettingsRow(
@@ -135,7 +148,7 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => push(
                 const LegalPage(
                   title: 'Community Guidelines',
-                  body: _kCommunityGuidelinesBody,
+                  docType: LegalDocType.communityGuidelines,
                 ),
               ),
             ),
@@ -197,8 +210,8 @@ class SettingsScreen extends ConsumerWidget {
               ? "This clears your profile, weight, goal, streaks, and "
                     "workout history from this device. Signing back in to "
                     "this account will restore it."
-              : "You'll be signed out, and can sign back in any time — "
-                    "your profile stays on this device.",
+              : "You'll be signed out, and can sign back in any time. "
+                    "Your profile stays on this device.",
           style: AppTypography.bodyM,
         ),
         actions: [
@@ -688,6 +701,10 @@ class PrivacySettingsPage extends ConsumerWidget {
     final p = ref.watch(privacySettingsProvider);
     final notifier = ref.read(privacySettingsProvider.notifier);
 
+    // Local state updates instantly below (the toggle shouldn't wait on a
+    // round trip); each backend call is best-effort alongside it, same
+    // pattern OnboardingScreen's profile save uses — a failed sync just
+    // means this setting hasn't reached the server yet, not a blocked UI.
     return _SettingsScaffold(
       title: 'Privacy Settings',
       children: [
@@ -698,8 +715,15 @@ class PrivacySettingsPage extends ConsumerWidget {
             title: 'Public Profile',
             subtitle: 'Anyone can view your activity, achievements, and badges',
             value: p.publicProfile,
-            onChanged: (v) =>
-                notifier.update((s) => s.copyWith(publicProfile: v)),
+            onChanged: (v) {
+              notifier.update((s) => s.copyWith(publicProfile: v));
+              unawaited(
+                ref
+                    .read(backendApiProvider)
+                    .updatePrivacy(publicProfile: v)
+                    .catchError((_) {}),
+              );
+            },
           ),
         ),
         const SizedBox(height: AppTheme.spaceXL),
@@ -712,32 +736,60 @@ class PrivacySettingsPage extends ConsumerWidget {
                 title: 'Hide Activity Data',
                 subtitle: "Don't show steps, distance and calories",
                 value: p.hideActivityData,
-                onChanged: (v) =>
-                    notifier.update((s) => s.copyWith(hideActivityData: v)),
+                onChanged: (v) {
+                  notifier.update((s) => s.copyWith(hideActivityData: v));
+                  unawaited(
+                    ref
+                        .read(backendApiProvider)
+                        .updatePrivacy(hideActivityData: v)
+                        .catchError((_) {}),
+                  );
+                },
               ),
               _div(),
               _ToggleRow(
                 title: 'Hide Achievements',
                 subtitle: "Don't show your earned badges",
                 value: p.hideAchievements,
-                onChanged: (v) =>
-                    notifier.update((s) => s.copyWith(hideAchievements: v)),
+                onChanged: (v) {
+                  notifier.update((s) => s.copyWith(hideAchievements: v));
+                  unawaited(
+                    ref
+                        .read(backendApiProvider)
+                        .updatePrivacy(hideAchievements: v)
+                        .catchError((_) {}),
+                  );
+                },
               ),
               _div(),
               _ToggleRow(
                 title: 'Hide Recent Activity',
                 subtitle: "Don't show your recent steps and challenges",
                 value: p.hideRecentActivity,
-                onChanged: (v) =>
-                    notifier.update((s) => s.copyWith(hideRecentActivity: v)),
+                onChanged: (v) {
+                  notifier.update((s) => s.copyWith(hideRecentActivity: v));
+                  unawaited(
+                    ref
+                        .read(backendApiProvider)
+                        .updatePrivacy(hideRecentActivity: v)
+                        .catchError((_) {}),
+                  );
+                },
               ),
               _div(),
               _ToggleRow(
                 title: 'Hide Location',
                 subtitle: "Don't show your location",
                 value: p.hideLocation,
-                onChanged: (v) =>
-                    notifier.update((s) => s.copyWith(hideLocation: v)),
+                onChanged: (v) {
+                  notifier.update((s) => s.copyWith(hideLocation: v));
+                  unawaited(
+                    ref
+                        .read(backendApiProvider)
+                        .updatePrivacy(hideLocation: v)
+                        .catchError((_) {}),
+                  );
+                },
               ),
             ],
           ),
@@ -765,12 +817,20 @@ class BlockedUsersPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final blocked = ref.watch(blockedUsersProvider).toList();
+    final blockedAsync = ref.watch(blockedUsersProvider);
+    final blocked = blockedAsync.value?.toList() ?? const <String>[];
 
     return _SettingsScaffold(
       title: 'Blocked Users',
       children: [
-        if (blocked.isEmpty)
+        if (blockedAsync.isLoading)
+          const Padding(
+            padding: EdgeInsets.only(top: AppTheme.spaceXXXL),
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            ),
+          )
+        else if (blocked.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: AppTheme.spaceXXXL),
             child: Column(
@@ -804,7 +864,7 @@ class BlockedUsersPage extends ConsumerWidget {
                       indent: AppTheme.spaceL + 46,
                       color: AppColors.accentSecondary.withValues(alpha: 0.16),
                     ),
-                  _BlockedTile(name: blocked[i]),
+                  _BlockedTile(userId: blocked[i]),
                 ],
               ],
             ),
@@ -815,14 +875,14 @@ class BlockedUsersPage extends ConsumerWidget {
 }
 
 class _BlockedTile extends ConsumerWidget {
-  const _BlockedTile({required this.name});
-  final String name;
+  const _BlockedTile({required this.userId});
+  final String userId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final initials = name.trim().isEmpty
-        ? '?'
-        : name.trim().split(' ').map((w) => w[0]).take(2).join().toUpperCase();
+    final profileAsync = ref.watch(publicProfileProvider(userId));
+    final name = profileAsync.value?.displayName ?? 'Strolla User';
+    final initials = profileAsync.value?.initials ?? '?';
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTheme.spaceL,
@@ -850,7 +910,8 @@ class _BlockedTile extends ConsumerWidget {
           const SizedBox(width: AppTheme.spaceM),
           Expanded(child: Text(name, style: AppTypography.bodyL)),
           GestureDetector(
-            onTap: () => ref.read(blockedUsersProvider.notifier).unblock(name),
+            onTap: () =>
+                ref.read(blockedUsersProvider.notifier).unblock(userId),
             child: Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppTheme.spaceM,
@@ -1014,28 +1075,108 @@ class _ContactRow extends StatelessWidget {
 // LEGAL  (Terms / Privacy Policy)
 // ═════════════════════════════════════════════════════════════════════════════
 
-class LegalPage extends StatelessWidget {
-  const LegalPage({super.key, required this.title, required this.body});
+class LegalPage extends ConsumerStatefulWidget {
+  const LegalPage({super.key, required this.title, required this.docType});
 
   final String title;
-  final String body;
+  final LegalDocType docType;
+
+  @override
+  ConsumerState<LegalPage> createState() => _LegalPageState();
+}
+
+class _LegalPageState extends ConsumerState<LegalPage> {
+  late Future<LegalDocument?> _future;
+  bool _recordedView = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = LegalRepository().getPublished(widget.docType);
+  }
 
   @override
   Widget build(BuildContext context) {
     return _SettingsScaffold(
-      title: title,
+      title: widget.title,
       children: [
-        FlatCard(
-          child: Text(body, style: AppTypography.bodyM.copyWith(height: 1.6)),
+        FutureBuilder<LegalDocument?>(
+          future: _future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppTheme.spaceXXXL),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.accent),
+                ),
+              );
+            }
+            final doc = snapshot.data;
+            if (doc == null) {
+              return FlatCard(
+                child: Text(
+                  "This document hasn't been published yet. Check back soon.",
+                  style: AppTypography.bodyM.copyWith(
+                    height: 1.6,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              );
+            }
+            // Viewing the currently published version, while signed in,
+            // counts as having seen it — recorded once per page visit, not
+            // on every rebuild. This is a lightweight "seen" record, not a
+            // blocking consent gate (there's no forced re-accept flow in
+            // this app yet even when a publish sets requires_reaccept —
+            // that's a separate, bigger feature: an app-launch check
+            // against legalAcceptances, out of scope for this pass).
+            if (!_recordedView) {
+              _recordedView = true;
+              unawaited(
+                LegalRepository()
+                    .recordAcceptance(widget.docType, accepted: true)
+                    .catchError((_) {}),
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FlatCard(child: LegalMarkdown(content: doc.content)),
+                const SizedBox(height: AppTheme.spaceL),
+                Center(
+                  child: Text(
+                    doc.effectiveDate == null
+                        ? 'Version ${doc.version}'
+                        : 'Version ${doc.version} · Effective ${_formatDate(doc.effectiveDate!)}',
+                    style: AppTypography.labelS,
+                  ),
+                ),
+                const SizedBox(height: AppTheme.spaceXXXL),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: AppTheme.spaceL),
-        Center(
-          child: Text('Last updated: June 2026', style: AppTypography.labelS),
-        ),
-        const SizedBox(height: AppTheme.spaceXXXL),
       ],
     );
   }
+
+  String _formatDate(DateTime d) =>
+      '${_kMonths[d.month - 1]} ${d.day}, ${d.year}';
+
+  static const _kMonths = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1077,43 +1218,3 @@ class _PrimaryButton extends StatelessWidget {
     );
   }
 }
-
-const String _kTermsBody =
-    'Welcome to Strolla Health. By using this app you agree to use it for '
-    'personal, non-commercial fitness tracking.\n\n'
-    'Strolla provides step, distance and calorie estimates for informational '
-    'purposes only and is not a medical device. Always consult a healthcare '
-    'professional before making significant changes to your activity levels.\n\n'
-    'You are responsible for keeping your account details secure and for the '
-    'content you share in the community. Be kind and respectful to others.\n\n'
-    'We may update these terms from time to time. Continued use of the app '
-    'after changes means you accept the updated terms.';
-
-const String _kPrivacyBody =
-    'Your privacy matters to us. Strolla Health stores your profile and '
-    'activity data on your device and, where you opt in, syncs it to power '
-    'community and challenge features.\n\n'
-    'We never sell your personal data. Activity you choose to share in the '
-    'community is visible to other members according to your privacy settings.\n\n'
-    'You can hide your activity data, achievements and recent activity from your '
-    'profile at any time under Settings → Privacy Settings.\n\n'
-    'You can delete your account and associated data at any time from Settings, '
-    'or by contacting info@strollahealth.com.';
-
-const String _kCommunityGuidelinesBody =
-    "Strolla's community exists to encourage and celebrate every step of "
-    "someone's journey — keep that spirit in everything you post.\n\n"
-    'Be kind and supportive. Comments and posts should build people up, not '
-    'tear them down. Constructive encouragement only — no shaming anyone for '
-    "their pace, weight, or how far they've come.\n\n"
-    "Be honest. Don't fabricate steps, distances, or achievements. "
-    "Misrepresenting your activity undermines challenges and leaderboards "
-    'for everyone else.\n\n'
-    'Respect privacy. Only share photos and details about yourself — not '
-    "other people, without their consent.\n\n"
-    'No harassment, hate speech, or bullying of any kind. No spam, scams, '
-    'or promotional content unrelated to fitness and wellbeing.\n\n'
-    "This isn't medical advice. Strolla is a peer community, not a "
-    'substitute for professional medical guidance.\n\n'
-    "We may remove content or restrict accounts that don't follow these "
-    'guidelines, to keep this a safe space for everyone.';

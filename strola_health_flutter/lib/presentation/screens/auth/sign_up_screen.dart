@@ -67,7 +67,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     }
     if (_passwordCtrl.text != _confirmCtrl.text) {
       setState(
-        () => _error = "Those passwords don't match — give it another try.",
+        () => _error = "Those passwords don't match. Give it another try.",
       );
       return;
     }
@@ -96,11 +96,21 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       // that unchecked it on sign-in.
       await ref.read(rememberMeProvider.notifier).set(true);
       HapticsHelper.lightImpact();
-      // No manual navigation — the root gate reacts to isSignedInProvider and
-      // carries the new (unauthenticated-profile) user into the existing
-      // onboarding wizard next.
+      // The root gate (`_RootGate` in main.dart) reacts to isSignedInProvider
+      // by swapping its OWN internal child — but this screen was reached via
+      // `Navigator.push` from SignInScreen (see sign_in_screen.dart's "Sign
+      // Up" link), so it's sitting on top of that reactive swap, not part of
+      // it. Without popping back down, the swap happens invisibly underneath
+      // and the user is left stranded looking at this now-stale form with no
+      // feedback at all — exactly the "nothing happens" bug this fixes.
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on AuthException catch (e) {
       setState(() => _error = e.message);
+    } catch (e) {
+      setState(
+        () => _error =
+            "Couldn't create your account right now. Please try again.",
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -151,9 +161,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           child: Center(
                             child: Text(
                               'strolla',
-                              style: AppTypography.brand.copyWith(
-                                fontSize: 45,
-                              ),
+                              style: AppTypography.brand.copyWith(fontSize: 45),
                             ),
                           ),
                         ),

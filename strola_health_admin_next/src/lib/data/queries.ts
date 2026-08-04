@@ -49,9 +49,80 @@ export function findUserById(users: UserProfile[], id: string | null | undefined
 // date, so "forever" is modeled as one rather than changing that contract.
 export const LIFETIME_ISO = "2099-12-31T00:00:00.000Z";
 
+/** Mirrors the backend's purgeDeletedAccounts.ts RETENTION_DAYS (90) — a
+ * soft-deleted account's history is hard-purged this many days after
+ * `deleted_at`. Returns null for an account that isn't (or is no longer)
+ * pending purge, so callers can render "—" rather than a negative number. */
+export const ACCOUNT_PURGE_RETENTION_DAYS = 90;
+
+export function daysUntilPurge(deletedAt: string | null): number | null {
+  if (!deletedAt) return null;
+  const purgeAt = new Date(deletedAt).getTime() + ACCOUNT_PURGE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.ceil((purgeAt - Date.now()) / (24 * 60 * 60 * 1000)));
+}
+
 export function hasAdminGrantedPremium(user: UserProfile): boolean {
   const { comp_until, comp_reason } = user.subscription;
   return !!comp_until && new Date(comp_until) > new Date() && comp_reason !== "signup_trial";
+}
+
+export type SubscriptionSegment = "paying" | "comp" | "trial" | "free";
+
+/** Which of the four subscription segments a user is in — the single
+ * classification a user's own profile/history reads from, so "paying" vs
+ * "comp" vs "trial" is never redefined slightly differently in two places. */
+export function classifySubscription(user: UserProfile): SubscriptionSegment {
+  // Mirrors the backend's `Subscription.has_premium_access`: comp access is
+  // an independent OR path, not something layered on top of tier/status —
+  // a comp grant doesn't (and per the backend's own `revoke_comp` comment,
+  // must not) touch tier/status, so it has to be checked first, regardless
+  // of whatever tier/status this user happened to already be on.
+  if (hasAdminGrantedPremium(user)) return "comp";
+  if (user.subscription.status === "trialing") return "trial";
+  if (user.subscription.tier === "premium" && user.subscription.status === "active") return "paying";
+  return "free";
+}
+
+export interface SubscriptionOverviewStats {
+  activePremium: number;
+  mrr: number;
+  trialUsers: number;
+  freeUsers: number;
+  // % of users whose trial has run its course who ended up paying — not a
+  // true cohort conversion rate (the data doesn't retain "was trialing on
+  // date X"), just paying ÷ (paying + lapsed-without-converting). Currently
+  // trialing users are excluded since they haven't had a chance to convert
+  // or lapse yet. Illustrative, like the synthetic MRR price above.
+  conversionRatePct: number | null;
+  // Cancellations in the most recent 30-day window as a % of the current
+  // paying base — a monthly logo-churn proxy, not a cohort-tracked figure.
+  churnRatePct: number | null;
+}
+
+/** Used by the Premium page's overview cards — kept alongside
+ * `premiumAnalyticsStats` (Analytics page) rather than merged into it since
+ * the two pages want slightly different shapes of the same underlying
+ * numbers. `premiumMonthlyFlow` is defined further down this file. */
+export function subscriptionOverviewStats(users: UserProfile[], events: AnalyticsEvent[], monthlyPriceGbp: number): SubscriptionOverviewStats {
+  const real = users.filter((u) => u.role === "user" && !u.deleted);
+  const segments = new Map(real.map((u) => [u.id, classifySubscription(u)] as const));
+
+  const payingCount = real.filter((u) => segments.get(u.id) === "paying").length;
+  const compCount = real.filter((u) => segments.get(u.id) === "comp").length;
+  const trialCount = real.filter((u) => segments.get(u.id) === "trial").length;
+  const freeCount = real.filter((u) => segments.get(u.id) === "free").length;
+  const lapsedCount = real.filter((u) => segments.get(u.id) === "free" && u.subscription.status === "expired").length;
+
+  const flow = premiumMonthlyFlow(events);
+
+  return {
+    activePremium: payingCount + compCount,
+    mrr: premiumRevenueEstimate(users, monthlyPriceGbp),
+    trialUsers: trialCount,
+    freeUsers: freeCount,
+    conversionRatePct: payingCount + lapsedCount > 0 ? (payingCount / (payingCount + lapsedCount)) * 100 : null,
+    churnRatePct: payingCount + flow.cancellations > 0 ? (flow.cancellations / (payingCount + flow.cancellations)) * 100 : null,
+  };
 }
 
 export function userDisplayName(user: UserProfile | undefined | null): string {
@@ -244,18 +315,15 @@ export const TRACKER_STATUS_LABEL: Record<TrackerStatus, string> = {
 
 const TRACKER_OFFLINE_THRESHOLD_MS = 48 * 60 * 60 * 1000;
 
-/** "Connected" needs a device that's checked in recently, "never paired"
- * means no device has ever been assigned to them, and anything paired but
- * stale in between is "offline". Anchored to the latest last_seen_at across
- * all devices, not Date.now() — same frozen-mock-timeline reasoning as the
- * analytics query helpers above. */
+/** "Connected" needs a device that's checked in within the last 48 real
+ * hours, "never paired" means no device has ever been assigned to them, and
+ * anything paired but stale is "offline". */
 export function trackerStatusForUser(userId: string, devices: Device[]): TrackerStatus {
   const owned = devices.filter((d) => d.owner_user_id === userId);
   if (owned.length === 0) return "never_paired";
-  const latestSeenOverall = devices.reduce((max, d) => (d.last_seen_at ? Math.max(max, +new Date(d.last_seen_at)) : max), 0);
   const mostRecentOwnSeen = owned.reduce((max, d) => (d.last_seen_at ? Math.max(max, +new Date(d.last_seen_at)) : max), 0);
   if (mostRecentOwnSeen === 0) return "offline";
-  return latestSeenOverall - mostRecentOwnSeen <= TRACKER_OFFLINE_THRESHOLD_MS ? "connected" : "offline";
+  return Date.now() - mostRecentOwnSeen <= TRACKER_OFFLINE_THRESHOLD_MS ? "connected" : "offline";
 }
 
 export interface LifetimeStats {
@@ -351,10 +419,62 @@ export function accountTimeline(data: {
   return events.sort((a, b) => +new Date(a.date) - +new Date(b.date));
 }
 
+export interface SubscriptionHistoryEntry {
+  id: string;
+  date: string;
+  label: string;
+}
+
+/** Best-effort subscription timeline for one user — there's no persisted
+ * log of past grants (a new grant just overwrites `comp_until`/`comp_reason`),
+ * so this combines whatever the current state and `premium_started`/
+ * `premium_cancelled` analytics events for this user can reconstruct. */
+export function subscriptionHistoryForUser(user: UserProfile, events: AnalyticsEvent[]): SubscriptionHistoryEntry[] {
+  const entries: SubscriptionHistoryEntry[] = [];
+  const segment = classifySubscription(user);
+
+  for (const e of events) {
+    if (e.user_id !== user.id) continue;
+    if (e.event_type === "premium_started") entries.push({ id: `${e.id}`, date: e.created_at, label: "Premium started (RevenueCat)" });
+    if (e.event_type === "premium_cancelled") entries.push({ id: `${e.id}`, date: e.created_at, label: "Premium cancelled (RevenueCat)" });
+  }
+
+  if (user.subscription.started_at) {
+    const label =
+      segment === "trial"
+        ? "Free trial started"
+        : segment === "comp"
+          ? `Comp access granted${user.subscription.comp_reason ? ` — ${user.subscription.comp_reason}` : ""}`
+          : "Premium started";
+    entries.push({ id: `${user.id}_started`, date: user.subscription.started_at, label });
+  }
+  if (user.subscription.cancelled_at) {
+    entries.push({ id: `${user.id}_cancelled`, date: user.subscription.cancelled_at, label: "Subscription cancelled" });
+  }
+
+  return entries.sort((a, b) => +new Date(b.date) - +new Date(a.date));
+}
+
 // --- Analytics aggregation ----------------------------------------------------
 
 function startOfDayKey(iso: string): string {
   return iso.slice(0, 10);
+}
+
+/** The last `days` real calendar days ending today (UTC), inclusive — the
+ * shared trailing window every day-bucketed trend chart below uses, so a
+ * gap in recent data reads as real zeros for those days rather than the
+ * chart silently showing older days instead (which is what a plain
+ * "take the last N buckets that exist" approach does once the data isn't a
+ * frozen, always-fresh mock timeline anymore). */
+function trailingDayKeys(days: number): string[] {
+  const keys: string[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    keys.push(d.toISOString().slice(0, 10));
+  }
+  return keys;
 }
 
 export function dailyActiveUsers(events: AnalyticsEvent[], days = 30): { date: string; count: number }[] {
@@ -365,77 +485,9 @@ export function dailyActiveUsers(events: AnalyticsEvent[], days = 30): { date: s
     if (!byDay.has(key)) byDay.set(key, new Set());
     byDay.get(key)!.add(e.user_id);
   }
-  return Array.from(byDay.entries())
-    .map(([date, users]) => ({ date, count: users.size }))
-    .sort((a, b) => +new Date(a.date) - +new Date(b.date))
-    .slice(-days);
+  return trailingDayKeys(days).map((date) => ({ date, count: byDay.get(date)?.size ?? 0 }));
 }
 
-/**
- * Distinct users active over the most recent `days`-day window — unions the
- * daily-active-user sets already present in the data rather than comparing
- * against wall-clock `Date.now()`. The mock event data is anchored to a
- * frozen `NOW` in mock-data.ts, so a real-time cutoff would silently drift
- * toward zero as real time moves past that anchor; working from the data's
- * own most-recent day instead keeps this correct regardless of when the demo
- * is actually run.
- */
-export function activeUserIdsInWindow(events: AnalyticsEvent[], days: number): Set<string> {
-  const byDay = new Map<string, Set<string>>();
-  for (const e of events) {
-    if (e.event_type !== "app_opened" || !e.user_id) continue;
-    const key = startOfDayKey(e.created_at);
-    if (!byDay.has(key)) byDay.set(key, new Set());
-    byDay.get(key)!.add(e.user_id);
-  }
-  const recentDays = Array.from(byDay.keys()).sort().slice(-days);
-  const union = new Set<string>();
-  for (const day of recentDays) {
-    for (const id of byDay.get(day)!) union.add(id);
-  }
-  return union;
-}
-
-export function activeUsersInWindow(events: AnalyticsEvent[], days: number): number {
-  return activeUserIdsInWindow(events, days).size;
-}
-
-/** New signups within the most recent `days`-day window of the dataset's own
- * timeline — same data-relative reasoning as `activeUsersInWindow`. */
-export function newSignupsCount(users: UserProfile[], days = 7): number {
-  const real = users.filter((u) => u.role === "user" && !u.deleted);
-  if (real.length === 0) return 0;
-  const latest = Math.max(...real.map((u) => +new Date(u.created_at)));
-  const cutoff = latest - days * 86_400_000;
-  return real.filter((u) => +new Date(u.created_at) >= cutoff).length;
-}
-
-/** Posts on the most recent calendar day present in the data — mirrors how
- * `dailyActiveUsers`'s last bucket stands in for "today" elsewhere on this
- * dashboard, for the same frozen-mock-timeline reason. */
-export function postsToday(posts: CommunityPost[]): number {
-  if (posts.length === 0) return 0;
-  const latestDay = posts.reduce((max, p) => (p.timestamp > max ? p.timestamp : max), posts[0].timestamp).slice(0, 10);
-  return posts.filter((p) => p.timestamp.slice(0, 10) === latestDay).length;
-}
-
-export function eventCounts(events: AnalyticsEvent[], sinceDays = 30): Record<AnalyticsEventType, number> {
-  // Anchored to the latest event actually present, not Date.now() — the
-  // mock event set is a frozen timeline (see mock-data.ts's `NOW`), so a
-  // wall-clock cutoff drifts further from it every day this demo runs.
-  const latest = events.reduce((max, e) => Math.max(max, +new Date(e.created_at)), 0);
-  const cutoff = latest - sinceDays * 86_400_000;
-  const counts = {} as Record<AnalyticsEventType, number>;
-  for (const e of events) {
-    if (+new Date(e.created_at) < cutoff) continue;
-    counts[e.event_type] = (counts[e.event_type] ?? 0) + 1;
-  }
-  return counts;
-}
-
-/** { date, count } for every day in `events` between `startDate` and
- * `endDate` (inclusive, "YYYY-MM-DD") — the custom-range counterpart to
- * `dailyActiveUsers`'s last-N-days window. */
 export function dailyActiveUsersInRange(
   events: AnalyticsEvent[],
   startDate: string,
@@ -449,19 +501,63 @@ export function dailyActiveUsersInRange(
     if (!byDay.has(key)) byDay.set(key, new Set());
     byDay.get(key)!.add(e.user_id);
   }
-  return Array.from(byDay.entries())
-    .map(([date, users]) => ({ date, count: users.size }))
-    .sort((a, b) => +new Date(a.date) - +new Date(b.date));
+  const keys: string[] = [];
+  const cursor = new Date(startDate);
+  const end = new Date(endDate);
+  while (cursor <= end) {
+    keys.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return keys.map((date) => ({ date, count: byDay.get(date)?.size ?? 0 }));
 }
 
-/** % change in total (non-deleted) user count vs `days` days ago, anchored
- * on the dataset's own timeline (same reasoning as `newSignupsCount`). Null
- * when there's no prior-period baseline to compare against. */
+/** Distinct users with at least one `app_opened` event in the last `days`
+ * real days ending now. */
+export function activeUserIdsInWindow(events: AnalyticsEvent[], days: number): Set<string> {
+  const cutoff = Date.now() - days * 86_400_000;
+  const union = new Set<string>();
+  for (const e of events) {
+    if (e.event_type !== "app_opened" || !e.user_id) continue;
+    if (+new Date(e.created_at) < cutoff) continue;
+    union.add(e.user_id);
+  }
+  return union;
+}
+
+export function activeUsersInWindow(events: AnalyticsEvent[], days: number): number {
+  return activeUserIdsInWindow(events, days).size;
+}
+
+/** New signups within the most recent real `days`-day window. */
+export function newSignupsCount(users: UserProfile[], days = 7): number {
+  const real = users.filter((u) => u.role === "user" && !u.deleted);
+  const cutoff = Date.now() - days * 86_400_000;
+  return real.filter((u) => +new Date(u.created_at) >= cutoff).length;
+}
+
+/** Posts made today (real wall-clock date). */
+export function postsToday(posts: CommunityPost[]): number {
+  const todayKey = new Date().toISOString().slice(0, 10);
+  return posts.filter((p) => p.timestamp.slice(0, 10) === todayKey).length;
+}
+
+export function eventCounts(events: AnalyticsEvent[], sinceDays = 30): Record<AnalyticsEventType, number> {
+  const cutoff = Date.now() - sinceDays * 86_400_000;
+  const counts = {} as Record<AnalyticsEventType, number>;
+  for (const e of events) {
+    if (+new Date(e.created_at) < cutoff) continue;
+    counts[e.event_type] = (counts[e.event_type] ?? 0) + 1;
+  }
+  return counts;
+}
+
+
+/** % change in total real-user count over the most recent `days`-day window.
+ * Null when the prior window had zero users (percentage change is undefined). */
 export function userGrowthPct(users: UserProfile[], days: number): number | null {
   const real = users.filter((u) => u.role === "user" && !u.deleted);
   if (real.length === 0) return null;
-  const latest = Math.max(...real.map((u) => +new Date(u.created_at)));
-  const cutoff = latest - days * 86_400_000;
+  const cutoff = Date.now() - days * 86_400_000;
   const previousTotal = real.filter((u) => +new Date(u.created_at) < cutoff).length;
   if (previousTotal === 0) return null;
   return ((real.length - previousTotal) / previousTotal) * 100;
@@ -473,9 +569,8 @@ export function userGrowthPct(users: UserProfile[], days: number): number | null
 export function signupGrowthPct(users: UserProfile[], days = 7): number | null {
   const real = users.filter((u) => u.role === "user" && !u.deleted);
   if (real.length === 0) return null;
-  const latest = Math.max(...real.map((u) => +new Date(u.created_at)));
-  const currentCutoff = latest - days * 86_400_000;
-  const previousCutoff = latest - days * 2 * 86_400_000;
+  const currentCutoff = Date.now() - days * 86_400_000;
+  const previousCutoff = Date.now() - days * 2 * 86_400_000;
   const current = real.filter((u) => +new Date(u.created_at) >= currentCutoff).length;
   const previous = real.filter(
     (u) => +new Date(u.created_at) >= previousCutoff && +new Date(u.created_at) < currentCutoff
@@ -648,7 +743,10 @@ export const PUSH_SEGMENT_LABEL: Record<PushSegment, string> = {
 /**
  * Who a segment actually resolves to right now — used both to show a live
  * "~N recipients" estimate before sending, and to record `recipient_count`
- * on the notification once sent.
+ * on the notification once sent. All seeded users are UK-based today, so
+ * "canada"/"usa" legitimately resolve to 0 here — that's the real answer for
+ * this user base, not a bug, and will start returning results the moment
+ * international users sign up.
  */
 export function segmentAudienceIds(
   segment: PushSegment,
@@ -665,9 +763,9 @@ export function segmentAudienceIds(
     case "free":
       return realUsers.filter((u) => !isPremium(u)).map((u) => u.id);
     case "canada":
-      return realUsers.filter((u) => u.country === "Canada").map((u) => u.id);
+      return realUsers.filter((u) => (u.location ?? "").toLowerCase().includes("canada")).map((u) => u.id);
     case "usa":
-      return realUsers.filter((u) => u.country === "United States").map((u) => u.id);
+      return realUsers.filter((u) => /\b(usa|united states)\b/i.test(u.location ?? "")).map((u) => u.id);
     case "inactive_30d": {
       const active = activeUserIdsInWindow(data.events, 30);
       return realUsers.filter((u) => !active.has(u.id)).map((u) => u.id);
@@ -712,8 +810,41 @@ export function pushCTR(n: Pick<PushNotification, "status" | "delivered_count" |
   return (n.opened_count / n.delivered_count) * 100;
 }
 
+export function workoutFunnel(events: AnalyticsEvent[], sinceDays = 30) {
+  const counts = eventCounts(events, sinceDays);
+  return [
+    { stage: "App opened", count: counts.app_opened ?? 0 },
+    { stage: "Workout started", count: counts.workout_started ?? 0 },
+    { stage: "Workout completed", count: counts.workout_completed ?? 0 },
+  ];
+}
+
 // --- Premium overview -----------------------------------------------------------
 
+export interface PremiumSubscriberRow {
+  user: UserProfile;
+  isComp: boolean;
+  // renews_at for a real paying subscriber, comp_until for an admin-granted
+  // one — whichever actually governs when their access lapses.
+  expiresAt: string | null;
+}
+
+export function premiumSubscribers(users: UserProfile[]): PremiumSubscriberRow[] {
+  const rows: PremiumSubscriberRow[] = users
+    .filter((u) => u.role === "user" && !u.deleted && u.subscription.tier === "premium" && u.subscription.status === "active")
+    .map((u) => {
+      const isComp = hasAdminGrantedPremium(u);
+      return { user: u, isComp, expiresAt: isComp ? u.subscription.comp_until : u.subscription.renews_at };
+    });
+  return rows.sort((a, b) => {
+    if (!a.expiresAt && !b.expiresAt) return 0;
+    if (!a.expiresAt) return 1;
+    if (!b.expiresAt) return -1;
+    return +new Date(a.expiresAt) - +new Date(b.expiresAt);
+  });
+}
+
+/** Synthetic MRR — real paying subscribers only, comp'd ones aren't paying. */
 /** Synthetic MRR — real paying subscribers only, comp'd ones aren't paying.
  * `monthlyPriceGbp` comes from `AppSettings.premium_monthly_price_gbp`
  * (Settings > App settings > Premium) — there's no real RevenueCat price
@@ -731,104 +862,12 @@ export function premiumRevenueEstimate(users: UserProfile[], monthlyPriceGbp: nu
   return Math.round(payingCount * monthlyPriceGbp * 100) / 100;
 }
 
-export type SubscriptionSegment = "paying" | "comp" | "trial" | "free";
-
-/** Which of the four subscription segments a user is in — the single
- * classification every filter/stat on the Subscriptions page reads from,
- * so "paying" vs "comp" vs "trial" is never redefined slightly differently
- * in two places. */
-export function classifySubscription(user: UserProfile): SubscriptionSegment {
-  // Mirrors the backend's `Subscription.has_premium_access`: comp access is
-  // an independent OR path, not something layered on top of tier/status —
-  // a comp grant doesn't (and per the backend's own `revoke_comp` comment,
-  // must not) touch tier/status, so it has to be checked first, regardless
-  // of whatever tier/status this user happened to already be on.
-  if (hasAdminGrantedPremium(user)) return "comp";
-  if (user.subscription.status === "trialing") return "trial";
-  if (user.subscription.tier === "premium" && user.subscription.status === "active") return "paying";
-  return "free";
-}
-
-export interface SubscriptionOverviewStats {
-  activePremium: number;
-  mrr: number;
-  trialUsers: number;
-  freeUsers: number;
-  // % of users whose trial has run its course who ended up paying — not a
-  // true cohort conversion rate (the data doesn't retain "was trialing on
-  // date X"), just paying ÷ (paying + lapsed-without-converting). Currently
-  // trialing users are excluded since they haven't had a chance to convert
-  // or lapse yet. Illustrative, like the synthetic MRR price above.
-  conversionRatePct: number | null;
-  // Cancellations in the most recent 30-day window as a % of the current
-  // paying base — a monthly logo-churn proxy, not a cohort-tracked figure.
-  churnRatePct: number | null;
-}
-
-export function subscriptionOverviewStats(users: UserProfile[], events: AnalyticsEvent[], monthlyPriceGbp: number): SubscriptionOverviewStats {
-  const real = users.filter((u) => u.role === "user" && !u.deleted);
-  const segments = new Map(real.map((u) => [u.id, classifySubscription(u)] as const));
-
-  const payingCount = real.filter((u) => segments.get(u.id) === "paying").length;
-  const compCount = real.filter((u) => segments.get(u.id) === "comp").length;
-  const trialCount = real.filter((u) => segments.get(u.id) === "trial").length;
-  const freeCount = real.filter((u) => segments.get(u.id) === "free").length;
-  const lapsedCount = real.filter((u) => segments.get(u.id) === "free" && u.subscription.status === "expired").length;
-
-  const flow = premiumMonthlyFlow(events);
-
-  return {
-    activePremium: payingCount + compCount,
-    mrr: premiumRevenueEstimate(users, monthlyPriceGbp),
-    trialUsers: trialCount,
-    freeUsers: freeCount,
-    conversionRatePct: payingCount + lapsedCount > 0 ? (payingCount / (payingCount + lapsedCount)) * 100 : null,
-    churnRatePct: payingCount + flow.cancellations > 0 ? (flow.cancellations / (payingCount + flow.cancellations)) * 100 : null,
-  };
-}
-
-export interface SubscriptionHistoryEntry {
-  id: string;
-  date: string;
-  label: string;
-}
-
-/** Best-effort subscription timeline for one user — there's no persisted
- * log of past grants (a new grant just overwrites `comp_until`/`comp_reason`),
- * so this combines whatever the current state and `premium_started`/
- * `premium_cancelled` analytics events for this user can reconstruct. */
-export function subscriptionHistoryForUser(user: UserProfile, events: AnalyticsEvent[]): SubscriptionHistoryEntry[] {
-  const entries: SubscriptionHistoryEntry[] = [];
-  const segment = classifySubscription(user);
-
-  for (const e of events) {
-    if (e.user_id !== user.id) continue;
-    if (e.event_type === "premium_started") entries.push({ id: `${e.id}`, date: e.created_at, label: "Premium started (RevenueCat)" });
-    if (e.event_type === "premium_cancelled") entries.push({ id: `${e.id}`, date: e.created_at, label: "Premium cancelled (RevenueCat)" });
-  }
-
-  if (user.subscription.started_at) {
-    const label =
-      segment === "trial"
-        ? "Free trial started"
-        : segment === "comp"
-          ? `Comp access granted${user.subscription.comp_reason ? ` — ${user.subscription.comp_reason}` : ""}`
-          : "Premium started";
-    entries.push({ id: `${user.id}_started`, date: user.subscription.started_at, label });
-  }
-  if (user.subscription.cancelled_at) {
-    entries.push({ id: `${user.id}_cancelled`, date: user.subscription.cancelled_at, label: "Subscription cancelled" });
-  }
-
-  return entries.sort((a, b) => +new Date(b.date) - +new Date(a.date));
-}
-
 // --- Connected apps ---------------------------------------------------------------
 
 // `IntegrationConnection["provider"]` is really the full `DataSource` union
 // (it also covers strolla_app/strolla_device/manual, which aren't "connected
 // apps" in the client's sense) — this is the narrower slice of it we render.
-export type ConnectedAppProvider = "healthkit" | "health_connect" | "oura" | "garmin" | "strava";
+export type ConnectedAppProvider = "healthkit" | "health_connect" | "oura" | "garmin" | "strava" | "myfitnesspal";
 
 export const CONNECTED_APP_LABEL: Record<ConnectedAppProvider, string> = {
   healthkit: "Apple Health",
@@ -836,6 +875,7 @@ export const CONNECTED_APP_LABEL: Record<ConnectedAppProvider, string> = {
   oura: "Oura",
   garmin: "Garmin",
   strava: "Strava",
+  myfitnesspal: "MyFitnessPal",
 };
 
 const CONNECTED_APP_PROVIDERS = Object.keys(CONNECTED_APP_LABEL) as ConnectedAppProvider[];
@@ -861,10 +901,7 @@ export function eventCountsPerDay(events: AnalyticsEvent[], type: AnalyticsEvent
     const key = startOfDayKey(e.created_at);
     byDay.set(key, (byDay.get(key) ?? 0) + 1);
   }
-  return Array.from(byDay.entries())
-    .map(([date, count]) => ({ date, count }))
-    .sort((a, b) => +new Date(a.date) - +new Date(b.date))
-    .slice(-days);
+  return trailingDayKeys(days).map((date) => ({ date, count: byDay.get(date) ?? 0 }));
 }
 
 /** Real post timestamps, not synthetic events — more accurate than deriving
@@ -876,10 +913,7 @@ export function postsPerDay(posts: CommunityPost[], days = 30): { date: string; 
     const key = startOfDayKey(p.timestamp);
     byDay.set(key, (byDay.get(key) ?? 0) + 1);
   }
-  return Array.from(byDay.entries())
-    .map(([date, count]) => ({ date, count }))
-    .sort((a, b) => +new Date(a.date) - +new Date(b.date))
-    .slice(-days);
+  return trailingDayKeys(days).map((date) => ({ date, count: byDay.get(date) ?? 0 }));
 }
 
 /** Same {stage, count} shape FunnelChart renders — a simple ranked bar
@@ -907,10 +941,10 @@ export function avgDailyStepsPerDay(summaries: DailyActivitySummary[], days = 30
     if (!byDay.has(key)) byDay.set(key, []);
     byDay.get(key)!.push(s.steps);
   }
-  return Array.from(byDay.entries())
-    .map(([date, values]) => ({ date, count: Math.round(values.reduce((a, b) => a + b, 0) / values.length) }))
-    .sort((a, b) => +new Date(a.date) - +new Date(b.date))
-    .slice(-days);
+  return trailingDayKeys(days).map((date) => {
+    const values = byDay.get(date);
+    return { date, count: values && values.length > 0 ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0 };
+  });
 }
 
 export interface RetentionPoint {
@@ -987,25 +1021,14 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-/** Data-relative "now" (freshest real user signup) rather than the real wall
- * clock — same reasoning as `activeUserIdsInWindow`: the mock dataset is
- * anchored to a frozen `NOW` in mock-data.ts, so `Date.now()` would silently
- * drift "new users"/reach calculations toward zero as real time moves past
- * that anchor. */
-function mockNow(users: UserProfile[]): number {
-  const real = users.filter((u) => u.role === "user" && !u.deleted);
-  if (real.length === 0) return Date.now();
-  return Math.max(...real.map((u) => +new Date(u.created_at)));
-}
-
-/** Who an announcement's audience actually resolves to right now — same role as `segmentAudienceIds` for push segments. */
+/** Who an announcement's audience actually resolves to right now — same role as `segmentAudienceIds` for push segments. There's no normalized `country` or cohort-tags field on this app's UserProfile yet, so Canada/USA reuse the same free-text `location` match `segmentAudienceIds` already relies on, "beta testers" reuses the ambassador cohort flag (the same one Settings' beta-access overrides treat as the beta cohort), and "Kickstarter backers" reuses the existing `comp_reason` convention. */
 export function announcementAudienceIds(
   announcement: Pick<Announcement, "audience" | "audience_app_version" | "audience_app_version_mode">,
   users: UserProfile[]
 ): string[] {
   const realUsers = users.filter((u) => u.role === "user" && !u.deleted);
   const isPremium = (u: UserProfile) => u.subscription.tier === "premium" && u.subscription.status === "active";
-  const now = mockNow(users);
+  const now = Date.now();
 
   switch (announcement.audience) {
     case "everyone":
@@ -1017,23 +1040,27 @@ export function announcementAudienceIds(
     case "new_users":
       return realUsers.filter((u) => now - +new Date(u.created_at) <= 7 * 86_400_000).map((u) => u.id);
     case "beta_testers":
-      return realUsers.filter((u) => u.tags.includes("beta_tester")).map((u) => u.id);
+      return realUsers.filter((u) => u.is_ambassador).map((u) => u.id);
     case "kickstarter_backers":
-      return realUsers.filter((u) => u.tags.includes("kickstarter")).map((u) => u.id);
+      return realUsers.filter((u) => u.subscription.comp_reason === "kickstarter_backer").map((u) => u.id);
     case "iphone":
       return realUsers.filter((u) => u.platform === "ios").map((u) => u.id);
     case "android":
       return realUsers.filter((u) => u.platform === "android").map((u) => u.id);
     case "canada":
-      return realUsers.filter((u) => u.country === "Canada").map((u) => u.id);
+      return realUsers.filter((u) => (u.location ?? "").toLowerCase().includes("canada")).map((u) => u.id);
     case "usa":
-      return realUsers.filter((u) => u.country === "United States").map((u) => u.id);
+      return realUsers.filter((u) => /\b(usa|united states)\b/i.test(u.location ?? "")).map((u) => u.id);
     case "app_version": {
       const version = announcement.audience_app_version;
       if (!version) return [];
       const mode = announcement.audience_app_version_mode ?? "exact";
+      // A user whose app_version we don't know yet (hasn't reported in)
+      // can't be confirmed to match a version target either way — exclude
+      // rather than guess.
       return realUsers
-        .filter((u) => (mode === "exact" ? u.app_version === version : compareVersions(u.app_version, version) <= 0))
+        .filter((u) => u.app_version !== null)
+        .filter((u) => (mode === "exact" ? u.app_version === version : compareVersions(u.app_version!, version) <= 0))
         .map((u) => u.id);
     }
   }
@@ -1081,7 +1108,7 @@ export interface AnnouncementStats {
  */
 export function announcementStats(announcement: Announcement, users: UserProfile[]): AnnouncementStats {
   const audience = announcementAudienceIds(announcement, users).length;
-  const now = mockNow(users);
+  const now = Date.now();
   const startMs = +new Date(announcement.starts_at);
   const endMs = announcement.ends_at ? +new Date(announcement.ends_at) : now;
   const daysActive = Math.max(0, Math.min(now, endMs) - startMs) / 86_400_000;
@@ -1116,21 +1143,20 @@ export function newSignupsPerDay(users: UserProfile[], days = 30): { date: strin
     const key = startOfDayKey(u.created_at);
     byDay.set(key, (byDay.get(key) ?? 0) + 1);
   }
-  return Array.from(byDay.entries())
-    .map(([date, count]) => ({ date, count }))
-    .sort((a, b) => +new Date(a.date) - +new Date(b.date))
-    .slice(-days);
+  return trailingDayKeys(days).map((date) => ({ date, count: byDay.get(date) ?? 0 }));
 }
 
-/** Users active "today" (the most recent day present in the event log) who
- * didn't sign up that same day — i.e. actually came back, rather than
- * opening the app for the first time ever. */
+/** Users active today (real wall-clock date) who didn't sign up that same
+ * day — i.e. actually came back, rather than opening the app for the first
+ * time ever. */
 export function returningUsersToday(users: UserProfile[], events: AnalyticsEvent[]): number {
-  const opens = events.filter((e) => e.event_type === "app_opened" && e.user_id);
-  if (opens.length === 0) return 0;
-  const latestDay = opens.reduce((max, e) => (e.created_at > max ? e.created_at : max), opens[0].created_at).slice(0, 10);
-  const todayOpeners = new Set(opens.filter((e) => e.created_at.slice(0, 10) === latestDay).map((e) => e.user_id!));
-  const signupsToday = new Set(users.filter((u) => u.created_at.slice(0, 10) === latestDay).map((u) => u.id));
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayOpeners = new Set(
+    events
+      .filter((e) => e.event_type === "app_opened" && e.user_id && e.created_at.slice(0, 10) === todayKey)
+      .map((e) => e.user_id!)
+  );
+  const signupsToday = new Set(users.filter((u) => u.created_at.slice(0, 10) === todayKey).map((u) => u.id));
   let returning = 0;
   for (const id of todayOpeners) if (!signupsToday.has(id)) returning++;
   return returning;
@@ -1175,8 +1201,7 @@ const SCREEN_LABEL: Record<string, string> = {
 
 /** Ranked screen-view counts — same {stage,count} shape as `featureUsageBreakdown`. */
 export function screenViewBreakdown(events: AnalyticsEvent[], sinceDays = 30): { stage: string; count: number }[] {
-  const latest = events.reduce((max, e) => Math.max(max, +new Date(e.created_at)), 0);
-  const cutoff = latest - sinceDays * 86_400_000;
+  const cutoff = Date.now() - sinceDays * 86_400_000;
   const counts = new Map<string, number>();
   for (const e of events) {
     if (e.event_type !== "screen_viewed" || +new Date(e.created_at) < cutoff) continue;
@@ -1219,18 +1244,16 @@ export interface GoalCompletionRates {
 }
 
 /** % of (user, day) rows that met that user's own daily step goal, over
- * three trailing windows anchored to the most recent day present in the
- * summaries — not wall-clock "today", same frozen-mock-timeline reasoning
- * as everywhere else on this dashboard. */
+ * three trailing windows ending today (real wall-clock date). */
 export function goalCompletionRates(users: UserProfile[], summaries: DailyActivitySummary[]): GoalCompletionRates {
   if (summaries.length === 0) return { today: null, week: null, month: null };
   const goalByUser = new Map(users.map((u) => [u.id, u.daily_goal_steps] as const));
-  const latestDate = summaries.reduce((max, s) => (s.date > max ? s.date : max), summaries[0].date);
+  const todayKey = new Date().toISOString().slice(0, 10);
   function rateForWindow(days: number): number | null {
-    const cutoff = new Date(latestDate);
+    const cutoff = new Date();
     cutoff.setUTCDate(cutoff.getUTCDate() - (days - 1));
     const cutoffKey = cutoff.toISOString().slice(0, 10);
-    const rows = summaries.filter((s) => s.date >= cutoffKey && s.date <= latestDate);
+    const rows = summaries.filter((s) => s.date >= cutoffKey && s.date <= todayKey);
     if (rows.length === 0) return null;
     const met = rows.filter((s) => s.steps >= (goalByUser.get(s.user_id) ?? Infinity)).length;
     return Math.round((met / rows.length) * 100);
@@ -1238,26 +1261,25 @@ export function goalCompletionRates(users: UserProfile[], summaries: DailyActivi
   return { today: rateForWindow(1), week: rateForWindow(7), month: rateForWindow(30) };
 }
 
-/** Each user's current consecutive-day streak (ending on the dataset's own
- * most recent day — a lapsed user's old streak doesn't count as current),
+/** Each user's current consecutive-day streak (ending today, real
+ * wall-clock date — a lapsed user's old streak doesn't count as current),
  * averaged across users who have any recorded activity. Derived from real
  * daily summaries, the same signal the app's own client-side streak counter
  * uses — there's no separately stored streak count anywhere server-side. */
 export function averageStreak(summaries: DailyActivitySummary[]): number {
   if (summaries.length === 0) return 0;
   const byUser = new Map<string, Set<string>>();
-  let latestDate = summaries[0].date;
   for (const s of summaries) {
-    if (s.date > latestDate) latestDate = s.date;
     if (s.steps <= 0) continue;
     if (!byUser.has(s.user_id)) byUser.set(s.user_id, new Set());
     byUser.get(s.user_id)!.add(s.date);
   }
+  const todayKey = new Date().toISOString().slice(0, 10);
   const streaks: number[] = [];
   for (const [, days] of byUser) {
-    if (!days.has(latestDate)) continue; // lapsed — not a *current* streak
+    if (!days.has(todayKey)) continue; // lapsed — not a *current* streak
     let streak = 0;
-    const cursor = new Date(latestDate);
+    const cursor = new Date();
     while (days.has(cursor.toISOString().slice(0, 10))) {
       streak++;
       cursor.setUTCDate(cursor.getUTCDate() - 1);
@@ -1274,18 +1296,16 @@ export interface CommunityHealthStats {
   likes: number;
 }
 
-/** Totals over the trailing `days` window, anchored to the latest post
- * timestamp present. Likes aren't individually timestamped in this data
- * model (no per-like log, just a running `likes_count` on the post), so
- * "likes" here sums that count across posts *created* in the window — a
- * reasonable proxy for engagement generated by recent content. There's no
- * "New Friends" figure alongside these: no friend/follow relationship
- * exists anywhere in the data model to count (see `AnalyticsView` for the
- * explicit "not tracked" state shown instead of a fabricated number). */
+/** Totals over the trailing real `days` window ending now. Likes aren't
+ * individually timestamped in this data model (no per-like log, just a
+ * running `likes_count` on the post), so "likes" here sums that count
+ * across posts *created* in the window — a reasonable proxy for engagement
+ * generated by recent content. There's no "New Friends" figure alongside
+ * these: no friend/follow relationship exists anywhere in the data model to
+ * count (see `AnalyticsView` for the explicit "not tracked" state shown
+ * instead of a fabricated number). */
 export function communityHealthStats(posts: CommunityPost[], comments: CommunityComment[], days = 30): CommunityHealthStats {
-  if (posts.length === 0) return { posts: 0, comments: 0, likes: 0 };
-  const latest = posts.reduce((max, p) => (p.timestamp > max ? p.timestamp : max), posts[0].timestamp);
-  const cutoff = +new Date(latest) - days * 86_400_000;
+  const cutoff = Date.now() - days * 86_400_000;
   const recentPosts = posts.filter((p) => +new Date(p.timestamp) >= cutoff);
   const recentComments = comments.filter((c) => +new Date(c.timestamp) >= cutoff);
   return {
@@ -1303,36 +1323,47 @@ export interface PremiumAnalyticsStats {
   arpu: number;
 }
 
-/** Extends `subscriptionOverviewStats` with the SaaS-standard trio, all
- * built from the same synthetic price (see `SYNTHETIC_MONTHLY_PRICE_GBP`):
- * renewal rate is churn's complement, LTV uses the standard
- * ARPU ÷ monthly-churn-rate approximation (falls back to a flat 12-month
- * estimate when churn is 0/unknown, to avoid dividing by zero). All
+/** Self-contained version of the conversion/churn/renewal/LTV/ARPU trio —
+ * this app doesn't have the newer `subscriptionOverviewStats`/
+ * `classifySubscription` helpers, so this recomputes the same segments
+ * directly from `premiumRevenueEstimate`/`hasAdminGrantedPremium`. Renewal
+ * rate is churn's complement, LTV uses the standard ARPU ÷ monthly-churn
+ * approximation (flat 12-month estimate when churn is 0/unknown). All
  * illustrative, not real revenue figures — same caveat as the MRR estimate
  * they're built on. */
 export function premiumAnalyticsStats(users: UserProfile[], events: AnalyticsEvent[], monthlyPriceGbp: number): PremiumAnalyticsStats {
-  const overview = subscriptionOverviewStats(users, events, monthlyPriceGbp);
   const real = users.filter((u) => u.role === "user" && !u.deleted);
-  const arpu = real.length > 0 ? overview.mrr / real.length : 0;
-  const churnFraction = overview.churnRatePct !== null ? overview.churnRatePct / 100 : null;
+  const payingCount = real.filter(
+    (u) => u.subscription.tier === "premium" && u.subscription.status === "active" && !hasAdminGrantedPremium(u)
+  ).length;
+  const lapsedCount = real.filter((u) => u.subscription.tier !== "premium" && u.subscription.status === "expired").length;
+  const cancellations = eventCounts(events, 30).premium_cancelled ?? 0;
+
+  const conversionRatePct = payingCount + lapsedCount > 0 ? (payingCount / (payingCount + lapsedCount)) * 100 : null;
+  const churnRatePct = payingCount + cancellations > 0 ? (cancellations / (payingCount + cancellations)) * 100 : null;
+
+  const mrr = premiumRevenueEstimate(users, monthlyPriceGbp);
+  const arpu = real.length > 0 ? mrr / real.length : 0;
+  const churnFraction = churnRatePct !== null ? churnRatePct / 100 : null;
   const ltv = churnFraction && churnFraction > 0 ? arpu / churnFraction : arpu * 12;
+
   return {
-    conversionRatePct: overview.conversionRatePct,
-    churnRatePct: overview.churnRatePct,
-    renewalRatePct: overview.churnRatePct !== null ? 100 - overview.churnRatePct : null,
+    conversionRatePct,
+    churnRatePct,
+    renewalRatePct: churnRatePct !== null ? 100 - churnRatePct : null,
     ltv: Math.round(ltv * 100) / 100,
     arpu: Math.round(arpu * 100) / 100,
   };
 }
 
-/** Distinct-user funnel — each stage is "has this user EVER done X", not
- * event volume, so counts are monotonically meaningful as a real funnel
- * (unlike raw event counts, which could double-count repeat actions).
- * "Completed Onboarding" and "Started Premium" read straight off real
- * profile fields rather than an event, since both are already tracked
- * durably there; "Connected Apple Health" checks the specific `healthkit`
- * provider rather than the broader health-app-connected event, so the
- * label is literally accurate. */
+/** Distinct-user funnel — each stage is "made it this far, in this exact
+ * order", not five independent adoption rates, so counts are monotonically
+ * meaningful (each step narrows the previous one). "Completed Onboarding"
+ * reads straight off the real profile field; "Started Premium" combines a
+ * `premium_started` event with currently-active premium users (this app has
+ * no `subscription.started_at` to check directly); "Connected Apple Health"
+ * checks the specific `healthkit` provider rather than the broader
+ * health-app-connected event, so the label is literally accurate. */
 export function userFunnel(users: UserProfile[], events: AnalyticsEvent[], connections: IntegrationConnection[]): { stage: string; count: number }[] {
   const real = users.filter((u) => u.role === "user" && !u.deleted);
   const idsWhoEverDid = (type: AnalyticsEventType) =>
@@ -1340,14 +1371,11 @@ export function userFunnel(users: UserProfile[], events: AnalyticsEvent[], conne
   const pairedIds = idsWhoEverDid("tracker_paired");
   const joinedChallengeIds = idsWhoEverDid("challenge_joined");
   const appleHealthIds = new Set(connections.filter((c) => c.provider === "healthkit").map((c) => c.user_id));
+  const startedPremiumIds = new Set([
+    ...idsWhoEverDid("premium_started"),
+    ...real.filter((u) => u.subscription.tier === "premium" && u.subscription.status === "active").map((u) => u.id),
+  ]);
 
-  // A true cumulative funnel — each stage is "made it this far, in this
-  // exact order", not five independent adoption rates. Real usage isn't
-  // strictly nested this way (a user can complete onboarding without ever
-  // pairing a tracker, since the app also supports phone-only tracking),
-  // but a funnel chart's stage-to-stage conversion % is only meaningful
-  // against a monotonically non-increasing cohort, so each step narrows
-  // the previous one rather than being computed independently.
   let cohort = real;
   const stages = [{ stage: "Users", count: cohort.length }];
 
@@ -1363,7 +1391,7 @@ export function userFunnel(users: UserProfile[], events: AnalyticsEvent[], conne
   cohort = cohort.filter((u) => appleHealthIds.has(u.id));
   stages.push({ stage: "Connected Apple Health", count: cohort.length });
 
-  cohort = cohort.filter((u) => u.subscription.started_at !== null);
+  cohort = cohort.filter((u) => startedPremiumIds.has(u.id));
   stages.push({ stage: "Started Premium", count: cohort.length });
 
   return stages;
@@ -1377,26 +1405,23 @@ export interface TrackerUsageStats {
   firmwareVersions: { stage: string; count: number }[];
 }
 
-/** "Today" here is the most recent day any paired device reports a
- * timestamp for — same frozen-mock-timeline anchoring as the rest of this
- * file. A sync failure is a device seen (BLE-connected) today whose last
- * *successful sync* is stale or missing — connected without its data
- * actually making it to the backend. */
+/** "Today" is the real wall-clock date. A sync failure is a device seen
+ * (BLE-connected) today whose last *successful sync* is stale or missing —
+ * connected without its data actually making it to the backend. */
 export function trackerUsageStats(devices: Device[]): TrackerUsageStats {
   const paired = devices.filter((d) => d.owner_user_id && !d.replaced_at);
-  const timestamps = paired.flatMap((d) => [d.last_seen_at, d.last_synced_at]).filter((t): t is string => !!t);
-  if (timestamps.length === 0) {
+  if (paired.length === 0) {
     return { connectedToday: 0, syncedToday: 0, averageBatteryPct: null, syncFailures: 0, firmwareVersions: [] };
   }
-  const latestDay = timestamps.reduce((max, t) => (t.slice(0, 10) > max ? t.slice(0, 10) : max), timestamps[0].slice(0, 10));
-  const connectedToday = paired.filter((d) => d.last_seen_at?.slice(0, 10) === latestDay).length;
-  const syncedToday = paired.filter((d) => d.last_synced_at?.slice(0, 10) === latestDay).length;
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const connectedToday = paired.filter((d) => d.last_seen_at?.slice(0, 10) === todayKey).length;
+  const syncedToday = paired.filter((d) => d.last_synced_at?.slice(0, 10) === todayKey).length;
   const batteries = paired.map((d) => d.battery_level).filter((b): b is number => b !== null);
   const averageBatteryPct = batteries.length > 0 ? Math.round(batteries.reduce((a, b) => a + b, 0) / batteries.length) : null;
   const syncFailures = paired.filter((d) => {
-    if (d.last_seen_at?.slice(0, 10) !== latestDay) return false;
+    if (d.last_seen_at?.slice(0, 10) !== todayKey) return false;
     if (!d.last_synced_at) return true;
-    return +new Date(d.last_seen_at) - +new Date(d.last_synced_at) > 86_400_000;
+    return +new Date(d.last_seen_at!) - +new Date(d.last_synced_at) > 86_400_000;
   }).length;
   const firmwareCounts = new Map<string, number>();
   for (const d of paired) {
@@ -1433,24 +1458,38 @@ export interface AppVersionShare {
   pct: number;
 }
 
-/** Installed-version spread across real users, newest first — the basis
- * for both the "App version stats" display and deciding a sensible
- * `minimum_required_app_version` (see `usersBelowVersion`). */
+const UNKNOWN_APP_VERSION = "Unknown";
+
+/** Installed-version spread across real users, newest first (accounts that
+ * haven't reported an app_version yet — every account starts this way until
+ * the mobile app checks in at least once — group under "Unknown" rather
+ * than being silently dropped). The basis for both the "App version stats"
+ * display and deciding a sensible `minimum_required_app_version` (see
+ * `usersBelowVersion`). */
 export function appVersionDistribution(users: UserProfile[]): AppVersionShare[] {
   const real = users.filter((u) => u.role === "user" && !u.deleted);
   if (real.length === 0) return [];
   const counts = new Map<string, number>();
-  for (const u of real) counts.set(u.app_version, (counts.get(u.app_version) ?? 0) + 1);
+  for (const u of real) {
+    const key = u.app_version ?? UNKNOWN_APP_VERSION;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
   return Array.from(counts.entries())
     .map(([version, count]) => ({ version, count, pct: Math.round((count / real.length) * 100) }))
-    .sort((a, b) => compareVersions(b.version, a.version));
+    .sort((a, b) => {
+      if (a.version === UNKNOWN_APP_VERSION) return 1;
+      if (b.version === UNKNOWN_APP_VERSION) return -1;
+      return compareVersions(b.version, a.version);
+    });
 }
 
 /** How many real users are running an older build than `minVersion` — what
- * a "force app update" gate would actually block right now. */
+ * a "force app update" gate would actually block right now. Users with no
+ * known app_version yet are excluded (can't confirm they're actually
+ * behind, so a hard gate shouldn't block them on a guess). */
 export function usersBelowVersion(users: UserProfile[], minVersion: string): number {
   const real = users.filter((u) => u.role === "user" && !u.deleted);
-  return real.filter((u) => compareVersions(u.app_version, minVersion) < 0).length;
+  return real.filter((u) => u.app_version !== null && compareVersions(u.app_version, minVersion) < 0).length;
 }
 
 // --- Legal document versioning -----------------------------------------------

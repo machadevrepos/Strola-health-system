@@ -18,18 +18,20 @@ enum BrandType {
   strava,
   oura,
   garmin,
+  myFitnessPal,
 }
 
 // ── Brand colors — external identities, NOT part of the app palette ───────────
-const Color kFacebookColor  = Color(0xFF1877F2);
-const Color kWhatsappColor  = Color(0xFF25D366);
-const Color kTiktokColor    = Color(0xFF010101);
+const Color kFacebookColor = Color(0xFF1877F2);
+const Color kWhatsappColor = Color(0xFF25D366);
+const Color kTiktokColor = Color(0xFF010101);
 const Color kInstagramColor = Color(0xFFD62976);
-const Color kAppleHealthColor    = Color(0xFFFF2D55);
-const Color kHealthConnectColor  = Color(0xFF4285F4);
-const Color kStravaColor         = Color(0xFFFC4C02);
-const Color kOuraColor           = Color(0xFF1A1A1A);
-const Color kGarminColor         = Color(0xFF007CC3);
+const Color kAppleHealthColor = Color(0xFFFF2D55);
+const Color kHealthConnectColor = Color(0xFF4285F4);
+const Color kStravaColor = Color(0xFFFC4C02);
+const Color kOuraColor = Color(0xFF1A1A1A);
+const Color kGarminColor = Color(0xFF007CC3);
+const Color kMyFitnessPalColor = Color(0xFF0066CC);
 
 const LinearGradient kInstagramGradient = LinearGradient(
   colors: [
@@ -67,6 +69,8 @@ Color brandColorOf(BrandType type) {
       return kOuraColor;
     case BrandType.garmin:
       return kGarminColor;
+    case BrandType.myFitnessPal:
+      return kMyFitnessPalColor;
   }
 }
 
@@ -115,6 +119,11 @@ class BrandLogo extends StatelessWidget {
           kGarminColor,
           Icon(AppIcons.watch, color: Colors.white, size: size * 0.50),
         );
+      case BrandType.myFitnessPal:
+        return _circle(
+          kMyFitnessPalColor,
+          Icon(AppIcons.calories, color: Colors.white, size: size * 0.50),
+        );
       case BrandType.community:
         return _circle(
           AppColors.accent,
@@ -138,8 +147,11 @@ class BrandLogo extends StatelessWidget {
       case BrandType.whatsapp:
         return _circle(
           kWhatsappColor,
-          FaIcon(AppIcons.brandWhatsapp,
-              color: Colors.white, size: size * 0.58),
+          FaIcon(
+            AppIcons.brandWhatsapp,
+            color: Colors.white,
+            size: size * 0.58,
+          ),
         );
       case BrandType.tiktok:
         return Container(
@@ -150,8 +162,11 @@ class BrandLogo extends StatelessWidget {
             borderRadius: BorderRadius.circular(size * 0.28),
           ),
           child: Center(
-            child: FaIcon(AppIcons.brandTiktok,
-                color: Colors.white, size: size * 0.50),
+            child: FaIcon(
+              AppIcons.brandTiktok,
+              color: Colors.white,
+              size: size * 0.50,
+            ),
           ),
         );
     }

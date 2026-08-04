@@ -2,6 +2,7 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { ChartEmptyState } from "@/components/shell/page-states";
 import { formatNumber } from "@/lib/format";
 
 const COLORS: Record<string, string> = {
@@ -12,6 +13,10 @@ const COLORS: Record<string, string> = {
 
 export function SubscriptionDonut({ data }: { data: { tier: string; count: number }[] }) {
   const total = data.reduce((sum, d) => sum + d.count, 0);
+
+  if (total === 0) {
+    return <ChartEmptyState height={140} message="No accounts yet." />;
+  }
 
   return (
     <div className="flex items-center gap-6">

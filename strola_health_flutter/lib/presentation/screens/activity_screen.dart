@@ -790,14 +790,6 @@ class _MonthTabState extends ConsumerState<_MonthTab> {
   }
 
   Widget _buildCalendar(Map<DateTime, int> stepsMap) {
-    // Add mock data for visual richness during development
-    final enriched = {
-      ...stepsMap,
-      for (var i = 1; i <= 30; i++)
-        DateTime(DateTime.now().year, DateTime.now().month, i):
-            (3000 + i * 300) % 15000,
-    };
-
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -879,7 +871,7 @@ class _MonthTabState extends ConsumerState<_MonthTab> {
                 calendarBuilders: CalendarBuilders(
                   defaultBuilder: (context, day, _) {
                     final dateKey = DateTime(day.year, day.month, day.day);
-                    final steps = enriched[dateKey] ?? 0;
+                    final steps = stepsMap[dateKey] ?? 0;
                     if (steps == 0) return null;
                     final intensity = (steps / StepGoals.defaultDailyGoal)
                         .clamp(0.1, 1.0);
@@ -962,7 +954,7 @@ class _MonthTabState extends ConsumerState<_MonthTab> {
                 builder: (_, ref, __) => _SelectedDayCard(
                   day: _selectedDay!,
                   steps:
-                      enriched[DateTime(
+                      stepsMap[DateTime(
                         _selectedDay!.year,
                         _selectedDay!.month,
                         _selectedDay!.day,

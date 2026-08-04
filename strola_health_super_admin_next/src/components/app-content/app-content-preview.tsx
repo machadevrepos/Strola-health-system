@@ -11,7 +11,14 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { IOSNotificationPreview } from "@/components/notifications/notification-preview";
+import { renderInlineMarkdown } from "@/lib/inline-markdown";
 import type { AppContentCategory } from "@/lib/types";
+
+// Renders the same "**bold**"/"[text](url)" syntax the App Content editor's
+// toolbar produces, so what an admin sees here matches what they styled.
+function Rich({ text }: { text: string }) {
+  return <>{renderInlineMarkdown(text, "app-content-preview")}</>;
+}
 
 // One representative, simplified scene per screen area — not a pixel-exact
 // clone of the Flutter screen, just enough real layout to show an admin
@@ -47,7 +54,7 @@ function OnboardingScene({ text }: { text: string }) {
           <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === 0 ? "bg-primary" : "bg-border"}`} />
         ))}
       </div>
-      <p className="text-center text-base font-semibold text-foreground">{text}</p>
+      <p className="text-center text-base font-semibold text-foreground"><Rich text={text} /></p>
       <div className="mt-6 h-9 rounded-full bg-primary/90" />
     </Screen>
   );
@@ -56,7 +63,7 @@ function OnboardingScene({ text }: { text: string }) {
 function HomeScene({ text }: { text: string }) {
   return (
     <Screen>
-      <p className="text-sm font-semibold text-foreground">{text}</p>
+      <p className="text-sm font-semibold text-foreground"><Rich text={text} /></p>
       <div className="mt-4 flex justify-center">
         <div className="flex h-24 w-24 items-center justify-center rounded-full border-[6px] border-primary/70">
           <ChartBar size={22} className="text-primary" />
@@ -76,7 +83,7 @@ function ChallengesScene({ text }: { text: string }) {
       </div>
       <div className="rounded-xl border border-border bg-secondary/50 p-3">
         <p className="text-lg leading-none">🔥</p>
-        <p className="mt-1.5 text-sm text-foreground">{text}</p>
+        <p className="mt-1.5 text-sm text-foreground"><Rich text={text} /></p>
       </div>
     </Screen>
   );
@@ -90,7 +97,7 @@ function CommunityScene({ text }: { text: string }) {
           <div className="h-6 w-6 rounded-full bg-primary/60" />
           <div className="h-2 w-16 rounded-full bg-border" />
         </div>
-        <p className="mt-2.5 text-sm text-muted-foreground">{text}</p>
+        <p className="mt-2.5 text-sm text-muted-foreground"><Rich text={text} /></p>
       </div>
     </Screen>
   );
@@ -101,7 +108,7 @@ function ErrorsScene({ text }: { text: string }) {
     <Screen>
       <div className="flex items-start gap-2 rounded-xl bg-destructive/10 p-3">
         <WarningCircle size={18} className="mt-0.5 shrink-0 text-destructive" />
-        <p className="text-sm text-destructive">{text}</p>
+        <p className="text-sm text-destructive"><Rich text={text} /></p>
       </div>
     </Screen>
   );
@@ -111,7 +118,7 @@ function ButtonsScene({ text }: { text: string }) {
   return (
     <Screen>
       <div className="flex h-full items-center justify-center">
-        <div className="rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground">{text}</div>
+        <div className="rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground"><Rich text={text} /></div>
       </div>
     </Screen>
   );
@@ -125,7 +132,7 @@ function SettingsScene({ text }: { text: string }) {
           <div key={i} className="h-8 rounded-lg bg-secondary/50" />
         ))}
         <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-2">
-          <span className="text-sm font-medium text-foreground">{text}</span>
+          <span className="text-sm font-medium text-foreground"><Rich text={text} /></span>
           <CaretRight size={14} className="text-muted-foreground" />
         </div>
       </div>
@@ -138,7 +145,7 @@ function PremiumScene({ text }: { text: string }) {
     <Screen>
       <div className="flex flex-col items-center text-center">
         <Crown size={26} className="text-primary" weight="fill" />
-        <p className="mt-2 text-sm font-semibold text-foreground">{text}</p>
+        <p className="mt-2 text-sm font-semibold text-foreground"><Rich text={text} /></p>
         <div className="mt-4 h-9 w-full rounded-full bg-primary" />
       </div>
     </Screen>
@@ -159,7 +166,7 @@ function WidgetScene({ text }: { text: string }) {
       <div className="flex h-full items-center justify-center">
         <div className="flex h-32 w-32 flex-col items-center justify-center gap-1 rounded-[22px] bg-secondary/60 p-3 text-center">
           <GridFour size={16} className="text-primary" />
-          <p className="text-[11px] font-medium leading-tight text-foreground">{text}</p>
+          <p className="text-[11px] font-medium leading-tight text-foreground"><Rich text={text} /></p>
         </div>
       </div>
     </Screen>
@@ -173,7 +180,7 @@ function DevicePairingScene({ text }: { text: string }) {
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
           <BluetoothConnected size={22} className="text-primary" />
         </div>
-        <p className="mt-3 text-sm text-foreground">{text}</p>
+        <p className="mt-3 text-sm text-foreground"><Rich text={text} /></p>
       </div>
     </Screen>
   );
@@ -184,7 +191,7 @@ function FirmwareScene({ text }: { text: string }) {
     <Screen>
       <div className="flex items-start gap-2.5 rounded-xl border border-border bg-secondary/40 p-3">
         <DownloadSimple size={18} className="mt-0.5 shrink-0 text-primary" />
-        <p className="text-sm text-foreground">{text}</p>
+        <p className="text-sm text-foreground"><Rich text={text} /></p>
       </div>
     </Screen>
   );

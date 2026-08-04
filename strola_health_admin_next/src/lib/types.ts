@@ -76,13 +76,15 @@ export interface UserProfile {
   // one at a time.
   is_ambassador: boolean;
   // Phone OS — distinct from the Strolla tracker's own firmware/pairing
-  // state, which lives on `Device`.
-  platform: "ios" | "android";
+  // state, which lives on `Device`. Null until the mobile app reports in at
+  // least once (real accounts start this way, not a bug).
+  platform: "ios" | "android" | null;
   // e.g. "iPhone 16 Pro" — the specific handset, not just the OS.
   device_model: string | null;
   // Last-known installed app version — used for update-nudge announcement
-  // targeting ("2.2.0 or older"), not tied to any single session.
-  app_version: string;
+  // targeting ("2.2.0 or older"), not tied to any single session. Null until
+  // the mobile app reports in at least once.
+  app_version: string | null;
   // Freeform admin cohort labels (e.g. "kickstarter", "beta_tester") — used
   // for filtering and for bulk actions like granting premium to a cohort.
   tags: string[];
@@ -146,6 +148,7 @@ export type DataSource =
   | "oura"
   | "garmin"
   | "strava"
+  | "myfitnesspal"
   | "manual";
 
 export interface RoutePoint {

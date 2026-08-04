@@ -84,6 +84,5 @@ class FitnessCalculator {
     return (totalInches ~/ 12, totalInches % 12);
   }
 
-  static double ftInToCm(int feet, int inches) =>
-      ((feet * 12) + inches) * 2.54;
+  static double ftInToCm(int feet, int inches) => ((feet * 12) + inches) * 2.54;
 }

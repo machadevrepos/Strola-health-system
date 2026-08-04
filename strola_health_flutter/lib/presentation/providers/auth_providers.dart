@@ -105,6 +105,17 @@ final splashResolvedProvider = Provider<bool>((ref) {
   return true;
 });
 
+/// True for the brief window right after sign-in while
+/// `restoreProfileFromBackend` is fetching this account's real profile from
+/// the backend. `_RootGate` treats this the same as "still on splash" —
+/// without it, `isSignedInProvider` flips true (Firebase's own auth stream
+/// fires as soon as the credential is verified) before that fetch has a
+/// chance to run, and the root gate would make its onboarded-vs-not decision
+/// off stale/empty local data, showing a returning user the onboarding
+/// wizard with blank fields for the second or two it takes the real profile
+/// to come back.
+final profileRestoreInProgressProvider = StateProvider<bool>((_) => false);
+
 // ── Remember me ──────────────────────────────────────────────────────────────
 //
 // Firebase Auth always persists the signed-in session natively on mobile —

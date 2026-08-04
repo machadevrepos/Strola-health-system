@@ -104,10 +104,7 @@ class WidgetPreviewSection extends StatelessWidget {
 // Matches the inspiration image: white card, mini ring | step count + bar | motivation
 
 class _LockScreenWidgetPreview extends StatelessWidget {
-  const _LockScreenWidgetPreview({
-    required this.steps,
-    required this.goal,
-  });
+  const _LockScreenWidgetPreview({required this.steps, required this.goal});
 
   final int steps;
   final int goal;
@@ -214,8 +211,9 @@ class _LockScreenWidgetPreview extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: progress,
                           minHeight: 7,
-                          backgroundColor:
-                              AppColors.accentSecondary.withValues(alpha: 0.25),
+                          backgroundColor: AppColors.accentSecondary.withValues(
+                            alpha: 0.25,
+                          ),
                           valueColor: const AlwaysStoppedAnimation<Color>(
                             AppColors.accent,
                           ),
@@ -250,7 +248,11 @@ class _LockScreenWidgetPreview extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 4-point sparkle star (matches inspiration ✦)
-                    const Icon(AppIcons.sparkle, color: AppColors.accent, size: 15),
+                    const Icon(
+                      AppIcons.sparkle,
+                      color: AppColors.accent,
+                      size: 15,
+                    ),
                     const SizedBox(height: 5),
                     Text(
                       'Every step\ncounts!',
@@ -281,10 +283,7 @@ class _LockScreenWidgetPreview extends StatelessWidget {
           ),
         ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.06, curve: Curves.easeOut);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.06, curve: Curves.easeOut);
   }
 }
 
@@ -310,10 +309,10 @@ class _MiniProgressRing extends StatelessWidget {
               value: progress,
               strokeWidth: 5.5,
               strokeCap: StrokeCap.round,
-              backgroundColor:
-                  AppColors.accentSecondary.withValues(alpha: 0.22),
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.accent),
+              backgroundColor: AppColors.accentSecondary.withValues(
+                alpha: 0.22,
+              ),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
             ),
           ),
           // Blush circle + footstep icon inside ring
@@ -355,110 +354,114 @@ class _HomeScreenWidgetPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-      decoration: BoxDecoration(
-        color: AppColors.accent,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.accent.withValues(alpha: 0.45),
-            blurRadius: 22,
-            offset: const Offset(0, 7),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          decoration: BoxDecoration(
+            color: AppColors.accent,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.45),
+                blurRadius: 22,
+                offset: const Offset(0, 7),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Top row: "strolla" logo + shoe icon ──────────────────────────
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Top row: "strolla" logo + shoe icon ──────────────────────────
+              Row(
+                children: [
+                  Text(
+                    'strolla',
+                    style: AppTypography.brand.copyWith(
+                      color: Colors.white,
+                      fontSize: 16,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        AppIcons.steps,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // ── Big step count ────────────────────────────────────────────────
+              TweenAnimationBuilder<int>(
+                tween: IntTween(begin: 0, end: steps),
+                duration: const Duration(milliseconds: 750),
+                curve: Curves.easeOutCubic,
+                builder: (_, v, __) => Text(
+                  Formatters.stepCount(v),
+                  style: AppTypography.displayXL.copyWith(
+                    color: Colors.white,
+                    fontSize: 38,
+                    letterSpacing: -1.8,
+                  ),
+                ),
+              ),
               Text(
-                'strolla',
-                style: AppTypography.brand.copyWith(
-                  color: Colors.white,
-                  fontSize: 16,
-                  letterSpacing: -0.5,
+                'steps today',
+                style: AppTypography.labelM.copyWith(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0.1,
                 ),
               ),
-              const Spacer(),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: Icon(AppIcons.steps, size: 18, color: Colors.white),
-                ),
+              const SizedBox(height: 14),
+
+              // ── Mini 7-bar chart (white bars on coral) ────────────────────────
+              _MiniBarChart(weeklySteps: weeklySteps),
+              const SizedBox(height: 14),
+
+              // ── Stats row: km | kcal | min ────────────────────────────────────
+              Row(
+                children: [
+                  _MiniStat(
+                    icon: StrollaIconType.footstep,
+                    value: distance,
+                    unit: 'km',
+                  ),
+                  // Vertical divider
+                  Container(
+                    width: 1,
+                    height: 28,
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
+                  _MiniStat(
+                    icon: StrollaIconType.flame,
+                    value: '$calories',
+                    unit: 'kcal',
+                  ),
+                  Container(
+                    width: 1,
+                    height: 28,
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
+                  _MiniStat(
+                    icon: StrollaIconType.clock,
+                    value: '$activeMin',
+                    unit: 'min',
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // ── Big step count ────────────────────────────────────────────────
-          TweenAnimationBuilder<int>(
-            tween: IntTween(begin: 0, end: steps),
-            duration: const Duration(milliseconds: 750),
-            curve: Curves.easeOutCubic,
-            builder: (_, v, __) => Text(
-              Formatters.stepCount(v),
-              style: AppTypography.displayXL.copyWith(
-                color: Colors.white,
-                fontSize: 38,
-                letterSpacing: -1.8,
-              ),
-            ),
-          ),
-          Text(
-            'steps today',
-            style: AppTypography.labelM.copyWith(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontWeight: FontWeight.w400,
-              letterSpacing: 0.1,
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // ── Mini 7-bar chart (white bars on coral) ────────────────────────
-          _MiniBarChart(weeklySteps: weeklySteps),
-          const SizedBox(height: 14),
-
-          // ── Stats row: km | kcal | min ────────────────────────────────────
-          Row(
-            children: [
-              _MiniStat(
-                icon: StrollaIconType.footstep,
-                value: distance,
-                unit: 'km',
-              ),
-              // Vertical divider
-              Container(
-                width: 1,
-                height: 28,
-                color: Colors.white.withValues(alpha: 0.25),
-              ),
-              _MiniStat(
-                icon: StrollaIconType.flame,
-                value: '$calories',
-                unit: 'kcal',
-              ),
-              Container(
-                width: 1,
-                height: 28,
-                color: Colors.white.withValues(alpha: 0.25),
-              ),
-              _MiniStat(
-                icon: StrollaIconType.clock,
-                value: '$activeMin',
-                unit: 'min',
-              ),
-            ],
-          ),
-        ],
-      ),
-    )
+        )
         .animate()
         .fadeIn(delay: 80.ms, duration: 400.ms)
         .slideY(begin: 0.06, curve: Curves.easeOut);

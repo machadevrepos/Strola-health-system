@@ -2,9 +2,14 @@
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
+import { ChartEmptyState } from "@/components/shell/page-states";
 import type { RetentionPoint } from "@/lib/data/queries";
 
 export function RetentionCurveChart({ points }: { points: RetentionPoint[] }) {
+  if (points.every((p) => p.eligible === 0)) {
+    return <ChartEmptyState height={220} message="No signup cohort large enough to measure retention yet." />;
+  }
+
   const formatted = points.map((p) => ({
     ...p,
     label: `Day ${p.offsetDays}`,

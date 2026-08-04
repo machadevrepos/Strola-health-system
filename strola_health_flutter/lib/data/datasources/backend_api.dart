@@ -1,9 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:strola_health/core/services/api_client.dart';
+import 'package:strola_health/core/services/firebase_client.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
-import 'package:strola_health/presentation/providers/auth_providers.dart';
 
-// Flutter's enums are camelCase; the backend's Python StrEnums are
+// Flutter's enums are camelCase; the backend's field values are
 // snake_case. Only two enums cross this boundary, so an explicit map is
 // clearer (and safer) here than a generic camel->snake converter.
 const _genderToBackend = {
@@ -38,9 +38,15 @@ const _reasonFromBackend = {
   'other': StrollaReason.other,
 };
 
-/// Mirrors the backend's `DataSource` enum — only the 5 platform-integration
-/// values, not the BLE-device/manual-entry ones the backend also defines.
-enum IntegrationProvider { healthkit, healthConnect, oura, garmin, strava }
+/// Mirrors the backend's `IntegrationProvider` union.
+enum IntegrationProvider {
+  healthkit,
+  healthConnect,
+  oura,
+  garmin,
+  strava,
+  myfitnesspal,
+}
 
 extension IntegrationProviderX on IntegrationProvider {
   String get apiValue => switch (this) {
@@ -49,6 +55,7 @@ extension IntegrationProviderX on IntegrationProvider {
     IntegrationProvider.oura => 'oura',
     IntegrationProvider.garmin => 'garmin',
     IntegrationProvider.strava => 'strava',
+    IntegrationProvider.myfitnesspal => 'myfitnesspal',
   };
 
   /// True for HealthKit/Health Connect — read on-device, no OAuth redirect.
@@ -57,18 +64,41 @@ extension IntegrationProviderX on IntegrationProvider {
       this == IntegrationProvider.healthConnect;
 }
 
-/// Calls the FastAPI backend's `/api/v1` endpoints. Every method here
-/// assumes the caller is signed in — `ApiClient`'s interceptor attaches the
-/// Firebase ID token automatically; there's nothing to pass explicitly.
+/// Calls the real Firebase backend (Cloud Functions + Firestore, project
+/// strolla-health-4c93b) — every method here keeps the exact same signature
+/// it had when this class called the retired FastAPI backend, so none of
+/// this class's call sites (health_service.dart, integrations_screen.dart,
+/// account_service.dart, etc.) needed to change, only these internals did.
 class BackendApi {
-  BackendApi(this._client);
-  final ApiClient _client;
+  /// Takes a thunk rather than a resolved `FirebaseAuth` instance —
+  /// `FirebaseAuth.instance` itself calls `Firebase.app()` under the hood,
+  /// which throws `[core/no-app]` if `Firebase.initializeApp()` hasn't
+  /// succeeded. Deferring that lookup means merely *constructing* a
+  /// `BackendApi` (e.g. via `healthServiceProvider`, which needs one purely
+  /// for dependency wiring and never actually calls into it for on-device
+  /// HealthKit/Health Connect writes) can never crash the app on its own —
+  /// only an actual Firebase-dependent call can, and those already have
+  /// their own error handling at the UI layer.
+  BackendApi(this._authGetter);
+  final FirebaseAuth Function() _authGetter;
+  FirebaseAuth get _auth => _authGetter();
 
-  /// `GET /auth/me` — full profile including `subscription` (tier/status/
-  /// comp_until), unlike the public projection other users see.
+  String get _uid {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw StateError('Not signed in.');
+    return uid;
+  }
+
+  /// The full `users/{uid}` document — includes `subscription`
+  /// (tier/status/comp_until), unlike the public projection other users see.
+  /// Every Timestamp field comes back as an ISO 8601 string.
   Future<Map<String, dynamic>> getMe() async {
-    final response = await _client.dio.get('/auth/me');
-    return response.data as Map<String, dynamic>;
+    final snap = await FirebaseClient.firestore
+        .collection('users')
+        .doc(_uid)
+        .get();
+    if (!snap.exists) throw StateError('User not found.');
+    return convertFirestoreTimestamps(snap.data()) as Map<String, dynamic>;
   }
 
   /// [getMe] parsed into this app's local model shapes — used to restore a
@@ -107,7 +137,7 @@ class BackendApi {
     );
   }
 
-  /// `PATCH /users/me` — pushes the local profile (plus goal/weight, which
+  /// `updateMyProfile` — pushes the local profile (plus goal/weight, which
   /// live in their own providers locally) to the backend. Called once
   /// onboarding finishes, and whenever the profile is edited afterward.
   Future<void> updateProfile(
@@ -115,54 +145,84 @@ class BackendApi {
     required int dailyGoalSteps,
     required double weightKg,
   }) {
-    return _client.dio.patch(
-      '/users/me',
-      data: {
-        'username': profile.username,
-        'name': profile.name,
-        'location': profile.location,
-        'bio': profile.bio,
-        'height_cm': profile.heightCm,
-        'gender': _genderToBackend[profile.gender],
-        'date_of_birth': profile.dateOfBirth
-            ?.toIso8601String()
-            .split('T')
-            .first,
-        'reasons': profile.reasons.map((r) => _reasonToBackend[r]).toList(),
-        'units': profile.units.name,
-        'onboarding_complete': profile.onboardingComplete,
-        'daily_goal_steps': dailyGoalSteps,
-        'weight_kg': weightKg,
-      },
-    );
+    return FirebaseClient.call('updateMyProfile', {
+      'username': profile.username,
+      'name': profile.name,
+      'location': profile.location,
+      'bio': profile.bio,
+      'heightCm': profile.heightCm,
+      'gender': _genderToBackend[profile.gender],
+      'dateOfBirth': profile.dateOfBirth?.toIso8601String().split('T').first,
+      'reasons': profile.reasons.map((r) => _reasonToBackend[r]).toList(),
+      'units': profile.units.name,
+      'onboardingComplete': profile.onboardingComplete,
+      'dailyGoalSteps': dailyGoalSteps,
+      'weightKg': weightKg,
+    });
   }
 
-  /// `GET /integrations` — every provider this user has connected.
+  /// `updateMyPrivacy` — the Privacy Settings screen previously only wrote
+  /// to SharedPreferences and never called anything. `hideLocation` has no
+  /// `shareActivity`/`showInLeaderboards`/`allowFriendRequests` counterpart
+  /// in this app's UI yet, those 3 backend fields are simply never sent.
+  Future<void> updatePrivacy({
+    bool? publicProfile,
+    bool? hideActivityData,
+    bool? hideAchievements,
+    bool? hideRecentActivity,
+    bool? hideLocation,
+  }) {
+    final data = <String, dynamic>{};
+    if (publicProfile != null) data['public_profile'] = publicProfile;
+    if (hideActivityData != null) data['hide_activity_data'] = hideActivityData;
+    if (hideAchievements != null) data['hide_achievements'] = hideAchievements;
+    if (hideRecentActivity != null) {
+      data['hide_recent_activity'] = hideRecentActivity;
+    }
+    if (hideLocation != null) data['hide_location'] = hideLocation;
+    return FirebaseClient.call('updateMyPrivacy', data);
+  }
+
+  /// `listMyIntegrationConnections` — every provider this user has
+  /// connected. `integrationConnections` is entirely Functions-only in
+  /// firestore.rules (holds OAuth tokens), so this can't be a direct
+  /// Firestore read even for the owning user.
   Future<List<Map<String, dynamic>>> getIntegrations() async {
-    final response = await _client.dio.get('/integrations');
-    return (response.data as List).cast<Map<String, dynamic>>();
+    final result = await FirebaseClient.call('listMyIntegrationConnections');
+    return asMapList(result['connections']);
   }
 
-  /// `GET /integrations/{provider}/connect` — for Strava/Oura/Garmin, the
-  /// URL to open in a browser to start the OAuth consent flow. The backend's
-  /// own `/callback` route finishes the exchange once the provider redirects
-  /// back; this app never sees the client secret.
+  /// `startOAuthConnect` — for Strava/Oura/Garmin, the URL to open in a
+  /// browser to start the OAuth consent flow. The backend's own
+  /// `oauthCallback` function finishes the exchange once the provider
+  /// redirects back; this app never sees the client secret.
   Future<String> getOAuthAuthorizationUrl(IntegrationProvider provider) async {
-    final response = await _client.dio.get(
-      '/integrations/${provider.apiValue}/connect',
-    );
-    return (response.data as Map<String, dynamic>)['authorization_url']
-        as String;
+    final result = await FirebaseClient.call('startOAuthConnect', {
+      'provider': provider.apiValue,
+    });
+    return result['authorization_url'] as String;
   }
 
-  /// `POST /integrations/{provider}/connected` — HealthKit/Health Connect
-  /// have no OAuth callback to hang a "connected" event off, so the app
-  /// calls this directly once the user grants on-device permission.
+  /// `markOnDeviceConnected` — HealthKit/Health Connect have no OAuth
+  /// callback to hang a "connected" event off, so the app calls this
+  /// directly once the user grants on-device permission.
   Future<void> markOnDeviceConnected(IntegrationProvider provider) {
-    return _client.dio.post('/integrations/${provider.apiValue}/connected');
+    return FirebaseClient.call('markOnDeviceConnected', {
+      'provider': provider.apiValue,
+    });
   }
 
-  /// `POST /integrations/ingest` — the entire backend integration point for
+  /// `disconnectIntegration` — self-service, the backend checks the
+  /// connection's `user_id` matches the caller (see
+  /// functions/src/integrations/disconnectIntegration.ts), so this can't be
+  /// used to disconnect anyone else's integration.
+  Future<void> disconnectIntegration(String connectionId) {
+    return FirebaseClient.call('disconnectIntegration', {
+      'connectionId': connectionId,
+    });
+  }
+
+  /// `ingestHealthSample` — the entire backend integration point for
   /// HealthKit/Health Connect: read locally, push the result here.
   Future<void> ingestHealthSample({
     required IntegrationProvider provider,
@@ -171,23 +231,36 @@ class BackendApi {
     double? distanceMeters,
     int? calories,
   }) {
-    return _client.dio.post(
-      '/integrations/ingest',
-      data: {
-        'source': provider.apiValue,
-        'date': date.toIso8601String().split('T').first,
-        'steps': steps,
-        'distance_meters': distanceMeters,
-        'calories': calories,
-      },
-    );
+    return FirebaseClient.call('ingestHealthSample', {
+      'source': provider.apiValue,
+      'date': date.toIso8601String().split('T').first,
+      'steps': steps,
+      'distanceMeters': distanceMeters,
+      'calories': calories,
+    });
+  }
+
+  /// `ingestDeviceSteps` — periodic sync of today's running BLE total, the
+  /// counterpart to [ingestHealthSample] for Strolla's own hardware (see
+  /// that callable's own comment: this is what keeps `stats.streak_current`
+  /// — which the admin panel reads directly — actually current for a user
+  /// who's only ever worn the device, never run a GPS session or connected
+  /// a health platform).
+  Future<void> ingestDeviceSteps({
+    required DateTime date,
+    required int steps,
+    double? distanceMeters,
+    int? calories,
+  }) {
+    return FirebaseClient.call('ingestDeviceSteps', {
+      'date': date.toIso8601String().split('T').first,
+      'steps': steps,
+      'distanceMeters': distanceMeters,
+      'calories': calories,
+    });
   }
 }
 
-final apiClientProvider = Provider<ApiClient>(
-  (ref) => ApiClient(ref.watch(firebaseAuthProvider)),
-);
-
 final backendApiProvider = Provider<BackendApi>(
-  (ref) => BackendApi(ref.watch(apiClientProvider)),
+  (ref) => BackendApi(() => FirebaseAuth.instance),
 );

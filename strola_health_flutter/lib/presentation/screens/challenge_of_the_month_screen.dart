@@ -1,25 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/services/firebase_client.dart';
 import 'package:strola_health/core/utils/formatters.dart';
+import 'package:strola_health/core/utils/haptics_helper.dart';
+import 'package:strola_health/domain/entities/challenge.dart';
+import 'package:strola_health/presentation/providers/challenge_providers.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 
-class ChallengeOfTheMonthScreen extends StatefulWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED LEADERBOARD DECORATION — real users don't have a stored "favorite
+// color" in the backend, so podium/leaderboard rows and challenge cards cycle
+// through a small fixed palette by list index. `isMe` always wins and renders
+// as AppColors.accent regardless of position. Reused by
+// private_challenge_detail_screen.dart and challenges_screen.dart.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const List<Color> kChallengeAccentPalette = [
+  AppColors.accent,
+  Color(0xFF0891B2),
+  AppColors.goalAmber,
+  Color(0xFFD97706),
+  AppColors.success,
+  Color(0xFF7C3AED),
+];
+
+Color challengeColorFor(int index, {required bool isMe}) => isMe
+    ? AppColors.accent
+    : kChallengeAccentPalette[index % kChallengeAccentPalette.length];
+
+/// Formats a challenge's date range, e.g. "May 1 – May 31" (or with a year
+/// suffix for challenges that may span/reference a different year, e.g.
+/// "May 11 – May 17, 2024").
+String formatChallengeDateRange(
+  DateTime start,
+  DateTime end, {
+  bool withYear = false,
+}) {
+  final startLabel = Formatters.fullDate(start);
+  final endLabel = Formatters.fullDate(end);
+  return withYear
+      ? '$startLabel – $endLabel, ${end.year}'
+      : '$startLabel – $endLabel';
+}
+
+/// "3 days left" / "Ends today" — shared across the challenge screens.
+String daysLeftLabel(Challenge challenge) {
+  final days = challenge.daysLeft;
+  if (days <= 0) return 'Ends today';
+  if (days == 1) return '1 day left';
+  return '$days days left';
+}
+
+class ChallengeOfTheMonthScreen extends ConsumerStatefulWidget {
   const ChallengeOfTheMonthScreen({super.key});
 
   @override
-  State<ChallengeOfTheMonthScreen> createState() =>
+  ConsumerState<ChallengeOfTheMonthScreen> createState() =>
       _ChallengeOfTheMonthScreenState();
 }
 
-class _ChallengeOfTheMonthScreenState extends State<ChallengeOfTheMonthScreen> {
+class _ChallengeOfTheMonthScreenState
+    extends ConsumerState<ChallengeOfTheMonthScreen> {
   int _tab = 0;
 
-  List<(int rank, ChallengeParticipant p)> get _ranked {
-    final sorted = [..._participants]
+  List<(int rank, ChallengeLeaderboardEntry p)> _rank(
+    List<ChallengeLeaderboardEntry> entries,
+  ) {
+    final sorted = [...entries]
       ..sort(
         (a, b) => _tab == 0
             ? b.steps.compareTo(a.steps)
@@ -30,9 +82,7 @@ class _ChallengeOfTheMonthScreenState extends State<ChallengeOfTheMonthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ranked = _ranked;
-    final top3 = ranked.take(3).toList();
-    final rest = ranked.skip(3).toList();
+    final challengeAsync = ref.watch(officialChallengeProvider);
 
     return Container(
       decoration: const BoxDecoration(gradient: AppColors.bgGradient),
@@ -74,93 +124,30 @@ class _ChallengeOfTheMonthScreenState extends State<ChallengeOfTheMonthScreen> {
             ),
           ),
         ),
-        body: ListView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            AppTheme.screenPaddingH,
-            AppTheme.spaceL,
-            AppTheme.screenPaddingH,
-            AppTheme.spaceXXL,
+        body: challengeAsync.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: AppColors.accent),
           ),
-          children: [
-            const _HeroCard()
-                .animate()
-                .fadeIn(duration: AppTheme.animSlow)
-                .slideY(begin: 0.08),
-            const SizedBox(height: AppTheme.sectionGap),
-            const _HowItWorksCard()
-                .animate()
-                .fadeIn(delay: 100.ms, duration: AppTheme.animSlow)
-                .slideY(begin: 0.08),
-            const SizedBox(height: AppTheme.sectionGap + 8),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Leaderboard', style: AppTypography.titleL),
-                GestureDetector(
-                  onTap: () => _showComingSoon(context, 'Full leaderboard'),
-                  child: Text(
-                    'View all',
-                    style: AppTypography.bodyM.copyWith(
-                      color: AppColors.accent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.spaceM),
-            _LeaderboardTabSwitch(
-              selected: _tab,
-              onChanged: (i) => setState(() => _tab = i),
-            ),
-            const SizedBox(height: AppTheme.spaceXL),
-
-            ChallengePodiumRow(
-              top3: top3,
-              showPercent: _tab == 1,
-            ).animate().fadeIn(delay: 150.ms, duration: AppTheme.animSlow),
-            const SizedBox(height: AppTheme.spaceXL),
-
-            for (final entry in rest)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppTheme.spaceS),
-                child:
-                    ChallengeLeaderboardRow(
-                          rank: entry.$1,
-                          participant: entry.$2,
-                          showPercent: _tab == 1,
-                        )
-                        .animate()
-                        .fadeIn(
-                          delay: (200 + entry.$1 * 40).ms,
-                          duration: AppTheme.animSlow,
-                        )
-                        .slideX(begin: 0.04),
-              ),
-
-            const SizedBox(height: AppTheme.spaceL),
-            Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    AppIcons.steps,
-                    color: AppColors.accent,
-                    size: AppTheme.iconS,
-                  ),
-                  const SizedBox(width: AppTheme.spaceXS),
-                  Text(
-                    'Keep it up! Every step brings you closer to the top.',
-                    style: AppTypography.bodyS.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          error: (_, __) => _MessageState(
+            icon: AppIcons.error,
+            message: 'Could not load this challenge. Please try again.',
+          ),
+          data: (challenge) {
+            if (challenge == null) {
+              return const _MessageState(
+                icon: AppIcons.trophy,
+                message:
+                    "There's no official challenge running right now. "
+                    'Check back soon!',
+              );
+            }
+            return _ChallengeOfTheMonthBody(
+              challenge: challenge,
+              tab: _tab,
+              onTabChanged: (i) => setState(() => _tab = i),
+              rank: _rank,
+            );
+          },
         ),
       ),
     );
@@ -173,167 +160,426 @@ class _ChallengeOfTheMonthScreenState extends State<ChallengeOfTheMonthScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HERO CARD
-// ─────────────────────────────────────────────────────────────────────────────
+/// Centered icon + message — used for the loading-error and no-challenge
+/// states, matching the tone of other empty states in this codebase (e.g.
+/// achievements_screen.dart's `_EmptyBadgeRow`).
+class _MessageState extends StatelessWidget {
+  const _MessageState({required this.icon, required this.message});
 
-class _HeroCard extends StatelessWidget {
-  const _HeroCard();
+  final IconData icon;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppTheme.spaceL),
-      decoration: BoxDecoration(
-        color: AppColors.accentSecondary.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-        border: Border.all(
-          color: AppColors.accentSecondary.withValues(alpha: 0.30),
-        ),
-      ),
-      child: Stack(
-        children: [
-          const Positioned(top: 0, right: 0, child: _ImagePlaceholder()),
-          Padding(
-            padding: const EdgeInsets.only(right: 96),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'May Walking Challenge',
-                        style: AppTypography.titleL.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppTheme.spaceXS),
-                    const Icon(
-                      AppIcons.run,
-                      color: AppColors.accent,
-                      size: AppTheme.iconM,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppTheme.spaceS),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Step into a healthier, happier you this May!',
-                        style: AppTypography.bodyS.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppTheme.spaceXS),
-                    const Icon(
-                      AppIcons.sun,
-                      color: AppColors.goalAmber,
-                      size: AppTheme.iconS,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppTheme.spaceM),
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: AppTheme.spaceS,
-                  runSpacing: AppTheme.spaceXS,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          AppIcons.calendar,
-                          color: AppColors.textMuted,
-                          size: AppTheme.iconXS,
-                        ),
-                        const SizedBox(width: AppTheme.spaceXS),
-                        Text('May 1 - May 31', style: AppTypography.labelM),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTheme.spaceS,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.radiusFull,
-                        ),
-                      ),
-                      child: Text(
-                        '19 days left',
-                        style: AppTypography.labelS.copyWith(
-                          color: AppColors.accent,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppTheme.spaceL),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        AppIcons.goalReached,
-                        color: Colors.white,
-                        size: AppTheme.iconS,
-                      ),
-                      const SizedBox(width: AppTheme.spaceXS),
-                      Text(
-                        "You're In!",
-                        style: AppTypography.bodyL.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceXXL),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: AppTheme.iconXXL, color: AppColors.textMuted),
+            const SizedBox(height: AppTheme.spaceM),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyM.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ImagePlaceholder extends StatelessWidget {
-  const _ImagePlaceholder();
+class _ChallengeOfTheMonthBody extends ConsumerStatefulWidget {
+  const _ChallengeOfTheMonthBody({
+    required this.challenge,
+    required this.tab,
+    required this.onTabChanged,
+    required this.rank,
+  });
+
+  final Challenge challenge;
+  final int tab;
+  final ValueChanged<int> onTabChanged;
+  final List<(int rank, ChallengeLeaderboardEntry p)> Function(
+    List<ChallengeLeaderboardEntry>,
+  )
+  rank;
+
+  @override
+  ConsumerState<_ChallengeOfTheMonthBody> createState() =>
+      _ChallengeOfTheMonthBodyState();
+}
+
+class _ChallengeOfTheMonthBodyState
+    extends ConsumerState<_ChallengeOfTheMonthBody> {
+  bool _joining = false;
+
+  Future<void> _join() async {
+    setState(() => _joining = true);
+    try {
+      await ref
+          .read(myChallengesProvider.notifier)
+          .join(challengeId: widget.challenge.id);
+      ref.invalidate(officialChallengeProvider);
+      HapticsHelper.lightImpact();
+    } on BackendException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not join. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 88,
-      height: 112,
-      decoration: BoxDecoration(
-        color: AppColors.accentSecondary.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(AppTheme.radiusL),
-        border: Border.all(
-          color: AppColors.accentSecondary.withValues(alpha: 0.5),
+    final challenge = widget.challenge;
+    final leaderboardAsync = ref.watch(
+      challengeLeaderboardProvider(challenge.id),
+    );
+
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.screenPaddingH,
+        AppTheme.spaceL,
+        AppTheme.screenPaddingH,
+        AppTheme.spaceXXL,
+      ),
+      children: [
+        _HeroCard(
+          challenge: challenge,
+          joining: _joining,
+          onJoin: _join,
+        ).animate().fadeIn(duration: AppTheme.animSlow).slideY(begin: 0.08),
+        const SizedBox(height: AppTheme.sectionGap),
+        const _HowItWorksCard()
+            .animate()
+            .fadeIn(delay: 100.ms, duration: AppTheme.animSlow)
+            .slideY(begin: 0.08),
+        const SizedBox(height: AppTheme.sectionGap + 8),
+
+        Text('Leaderboard', style: AppTypography.titleL),
+        const SizedBox(height: AppTheme.spaceM),
+        _LeaderboardTabSwitch(
+          selected: widget.tab,
+          onChanged: widget.onTabChanged,
+        ),
+        const SizedBox(height: AppTheme.spaceXL),
+
+        leaderboardAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppTheme.spaceXXL),
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            ),
+          ),
+          error: (_, __) => const _MessageState(
+            icon: AppIcons.error,
+            message: 'Could not load the leaderboard.',
+          ),
+          data: (entries) {
+            if (entries.isEmpty) {
+              return const _MessageState(
+                icon: AppIcons.groups,
+                message: "No one's joined yet. Be the first!",
+              );
+            }
+            final ranked = widget.rank(entries);
+            final top3 = ranked.take(3).toList();
+            final rest = ranked.skip(3).toList();
+            return Column(
+              children: [
+                ChallengePodiumRow(
+                  top3: top3,
+                  showPercent: widget.tab == 1,
+                ).animate().fadeIn(delay: 150.ms, duration: AppTheme.animSlow),
+                const SizedBox(height: AppTheme.spaceXL),
+                for (final entry in rest)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppTheme.spaceS),
+                    child:
+                        ChallengeLeaderboardRow(
+                              rank: entry.$1,
+                              participant: entry.$2,
+                              showPercent: widget.tab == 1,
+                            )
+                            .animate()
+                            .fadeIn(
+                              delay: (200 + entry.$1 * 40).ms,
+                              duration: AppTheme.animSlow,
+                            )
+                            .slideX(begin: 0.04),
+                  ),
+              ],
+            );
+          },
+        ),
+
+        const SizedBox(height: AppTheme.spaceL),
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                AppIcons.steps,
+                color: AppColors.accent,
+                size: AppTheme.iconS,
+              ),
+              const SizedBox(width: AppTheme.spaceXS),
+              Text(
+                'Keep it up! Every step brings you closer to the top.',
+                style: AppTypography.bodyS.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HERO CARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({
+    required this.challenge,
+    required this.joining,
+    required this.onJoin,
+  });
+
+  final Challenge challenge;
+  final bool joining;
+  final VoidCallback onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = challenge.imageUrl;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.accentSecondary.withValues(alpha: 0.18),
+          border: Border.all(
+            color: AppColors.accentSecondary.withValues(alpha: 0.30),
+          ),
+        ),
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: [
+            // Landscape challenge photo, full-bleed behind everything —
+            // falls back to the plain tinted background above when no
+            // image has been uploaded (admin-only, see updateChallenge.ts).
+            if (hasImage)
+              Positioned.fill(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
+                ),
+              ),
+            // Dark scrim so title/description/button stay legible over any
+            // photo, regardless of how bright or busy it is.
+            if (hasImage)
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.black45, Colors.black38, Colors.black87],
+                    ),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(AppTheme.spaceL),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          challenge.title,
+                          style: AppTypography.titleL.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: hasImage
+                                ? Colors.white
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppTheme.spaceXS),
+                      Icon(
+                        AppIcons.run,
+                        color: hasImage ? Colors.white : AppColors.accent,
+                        size: AppTheme.iconM,
+                      ),
+                    ],
+                  ),
+                  if (challenge.description.trim().isNotEmpty) ...[
+                    const SizedBox(height: AppTheme.spaceS),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            challenge.description,
+                            style: AppTypography.bodyS.copyWith(
+                              color: hasImage
+                                  ? Colors.white.withValues(alpha: 0.85)
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppTheme.spaceXS),
+                        const Icon(
+                          AppIcons.sun,
+                          color: AppColors.goalAmber,
+                          size: AppTheme.iconS,
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: AppTheme.spaceM),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: AppTheme.spaceS,
+                    runSpacing: AppTheme.spaceXS,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            AppIcons.calendar,
+                            color: hasImage
+                                ? Colors.white70
+                                : AppColors.textMuted,
+                            size: AppTheme.iconXS,
+                          ),
+                          const SizedBox(width: AppTheme.spaceXS),
+                          Text(
+                            formatChallengeDateRange(
+                              challenge.startDate,
+                              challenge.endDate,
+                            ),
+                            style: AppTypography.labelM.copyWith(
+                              color: hasImage ? Colors.white70 : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spaceS,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: hasImage
+                              ? Colors.white.withValues(alpha: 0.92)
+                              : AppColors.accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusFull,
+                          ),
+                        ),
+                        child: Text(
+                          daysLeftLabel(challenge),
+                          style: AppTypography.labelS.copyWith(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppTheme.spaceL),
+                  _JoinButton(
+                    joined: challenge.isJoined,
+                    joining: joining,
+                    onTap: onJoin,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      child: const Center(
-        child: Icon(
-          AppIcons.image,
-          color: AppColors.accent,
-          size: AppTheme.iconL,
+    );
+  }
+}
+
+class _JoinButton extends StatelessWidget {
+  const _JoinButton({
+    required this.joined,
+    required this.joining,
+    required this.onTap,
+  });
+
+  final bool joined;
+  final bool joining;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: joined || joining ? null : onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: joined ? AppColors.success : AppColors.accent,
+          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (joining)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            else ...[
+              Icon(
+                joined ? AppIcons.goalReached : AppIcons.add,
+                color: Colors.white,
+                size: AppTheme.iconS,
+              ),
+              const SizedBox(width: AppTheme.spaceXS),
+              Text(
+                joined ? "You're In!" : 'Join Challenge',
+                style: AppTypography.bodyL.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -365,8 +611,8 @@ class _HowItWorksCard extends StatelessWidget {
                     Text('How it works', style: AppTypography.titleS),
                     const SizedBox(height: 2),
                     Text(
-                      "Track your steps all month long. At the end of "
-                      "May, we'll crown 2 winners!",
+                      'Track your steps for the whole challenge. When it '
+                      "ends, we'll crown 2 winners!",
                       style: AppTypography.bodyS.copyWith(
                         color: AppColors.textSecondary,
                         height: 1.4,
@@ -521,7 +767,7 @@ class ChallengePodiumRow extends StatelessWidget {
     required this.top3,
     required this.showPercent,
   });
-  final List<(int rank, ChallengeParticipant p)> top3;
+  final List<(int rank, ChallengeLeaderboardEntry p)> top3;
   final bool showPercent;
 
   @override
@@ -566,7 +812,7 @@ class _PodiumAvatar extends StatelessWidget {
   });
 
   final int rank;
-  final ChallengeParticipant participant;
+  final ChallengeLeaderboardEntry participant;
   final double size;
   final bool showPercent;
 
@@ -578,6 +824,7 @@ class _PodiumAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = challengeColorFor(rank - 1, isMe: participant.isMe);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -589,11 +836,11 @@ class _PodiumAvatar extends StatelessWidget {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: participant.color.withValues(alpha: 0.18),
+                color: color.withValues(alpha: 0.18),
                 border: Border.all(
                   color: rank == 1
                       ? AppColors.goalAmber
-                      : participant.color.withValues(alpha: 0.4),
+                      : color.withValues(alpha: 0.4),
                   width: rank == 1 ? 2.5 : 1.5,
                 ),
                 boxShadow: rank == 1 ? AppTheme.glowShadow : null,
@@ -602,7 +849,7 @@ class _PodiumAvatar extends StatelessWidget {
                 child: Text(
                   participant.initials,
                   style: AppTypography.titleM.copyWith(
-                    color: participant.color,
+                    color: color,
                     fontWeight: FontWeight.w700,
                     fontSize: rank == 1 ? 22 : 18,
                   ),
@@ -665,12 +912,13 @@ class ChallengeLeaderboardRow extends StatelessWidget {
   });
 
   final int rank;
-  final ChallengeParticipant participant;
+  final ChallengeLeaderboardEntry participant;
   final bool showPercent;
 
   @override
   Widget build(BuildContext context) {
     final highlight = participant.isMe;
+    final color = challengeColorFor(rank - 1, isMe: participant.isMe);
     return FlatCard(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTheme.spaceL,
@@ -694,9 +942,9 @@ class ChallengeLeaderboardRow extends StatelessWidget {
             height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: participant.color.withValues(alpha: 0.18),
+              color: color.withValues(alpha: 0.18),
               border: Border.all(
-                color: participant.color.withValues(alpha: 0.4),
+                color: color.withValues(alpha: 0.4),
                 width: 1.5,
               ),
             ),
@@ -704,7 +952,7 @@ class ChallengeLeaderboardRow extends StatelessWidget {
               child: Text(
                 participant.initials,
                 style: AppTypography.bodyS.copyWith(
-                  color: participant.color,
+                  color: color,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -740,72 +988,3 @@ class ChallengeLeaderboardRow extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PARTICIPANT DATA
-// ─────────────────────────────────────────────────────────────────────────────
-
-class ChallengeParticipant {
-  const ChallengeParticipant({
-    required this.name,
-    required this.steps,
-    required this.goalCompletionPct,
-    this.colorValue,
-    this.isMe = false,
-  });
-
-  final String name;
-  final int steps;
-  final int goalCompletionPct;
-  final int? colorValue;
-  final bool isMe;
-
-  Color get color => isMe ? AppColors.accent : Color(colorValue!);
-
-  String get initials {
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2 && parts[1].isNotEmpty) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name.substring(0, name.length >= 2 ? 2 : 1).toUpperCase();
-  }
-}
-
-const _participants = [
-  ChallengeParticipant(
-    name: 'Jessica M.',
-    steps: 412389,
-    goalCompletionPct: 142,
-    colorValue: 0xFF7C3AED,
-  ),
-  ChallengeParticipant(
-    name: 'Sarah T.',
-    steps: 378221,
-    goalCompletionPct: 127,
-    colorValue: 0xFFDB2777,
-  ),
-  ChallengeParticipant(
-    name: 'Amanda K.',
-    steps: 334125,
-    goalCompletionPct: 148,
-    colorValue: 0xFFD97706,
-  ),
-  ChallengeParticipant(
-    name: 'Emily R.',
-    steps: 298743,
-    goalCompletionPct: 119,
-    colorValue: 0xFF0891B2,
-  ),
-  ChallengeParticipant(
-    name: 'You',
-    steps: 265410,
-    goalCompletionPct: 131,
-    isMe: true,
-  ),
-  ChallengeParticipant(
-    name: 'Megan L.',
-    steps: 243876,
-    goalCompletionPct: 139,
-    colorValue: 0xFF059669,
-  ),
-];

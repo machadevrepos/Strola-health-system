@@ -1,0 +1,272 @@
+rules_version = '2';
+
+// Design reference: Firebase-Backend-Audit-And-Design.md, Part 2.3.
+//
+// Default posture: almost everything is written by Cloud Functions only
+// (the Admin SDK bypasses these rules entirely), so mutating rules below are
+// deliberately narrow. Reads are scoped by ownership/role. The two
+// deliberate direct-client-write exceptions (post likes, FCM token
+// registration) are called out explicitly where they appear.
+
+function isSignedIn() {
+  return request.auth != null;
+}
+
+function uid() {
+  return request.auth.uid;
+}
+
+function role() {
+  return isSignedIn() ? request.auth.token.role : null;
+}
+
+function isAdmin() {
+  return role() == 'admin' || role() == 'super_admin';
+}
+
+function isSuperAdmin() {
+  return role() == 'super_admin';
+}
+
+function isOwner(ownerId) {
+  return isSignedIn() && uid() == ownerId;
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- collection-group reads ----
+    // A rule nested under a specific parent (e.g. /challenges/{id}/participants)
+    // only governs a direct query against THAT parent's subcollection. It does
+    // NOT cover a collectionGroup() query spanning every parent (getCollectionGroupData
+    // in firestore-helpers.ts) — Firestore requires that declared separately with
+    // the {path=**} wildcard, or the collectionGroup list is denied outright with
+    // permission-denied regardless of what the nested rule below says.
+    match /{path=**}/comments/{commentId} {
+      allow read: if isAdmin();
+    }
+
+    match /{path=**}/participants/{userId} {
+      allow read: if isSignedIn();
+    }
+
+    // ---- users ----
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false; // profile edits/role changes/bans go through callables
+
+      match /notes/{noteId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+
+      match /deviceTokens/{tokenId} {
+        // Direct-write exception: a signed-in user registers/removes their
+        // own FCM token without needing a round trip through a callable.
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // ---- health data: never client-writable, always validated server-side ----
+    match /workoutSessions/{sessionId} {
+      allow read: if isSignedIn() && (resource.data.user_id == uid() || isAdmin());
+      allow write: if false;
+    }
+
+    match /dailyActivity/{docId} {
+      allow read: if isSignedIn() && (resource.data.user_id == uid() || isAdmin());
+      allow write: if false;
+    }
+
+    match /personalRecords/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false;
+    }
+
+    // ---- challenges ----
+    match /challenges/{challengeId} {
+      allow read: if isSignedIn();
+      allow write: if false; // create/join/leave/admin edits all via callables
+
+      match /participants/{userId} {
+        allow read: if isSignedIn();
+        allow write: if false;
+      }
+    }
+
+    // ---- badges / achievements ----
+    match /badges/{badgeId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /userBadges/{docId} {
+      allow read: if isSignedIn() && (resource.data.user_id == uid() || isAdmin());
+      allow write: if false;
+    }
+
+    // ---- community ----
+    match /communityPosts/{postId} {
+      allow read: if isSignedIn() && (resource.data.moderation.hidden == false || isAdmin());
+      allow write: if false; // create/edit/delete/hide/pin all via callables
+
+      match /comments/{commentId} {
+        // Split rather than a single "isSignedIn() && (resource.data.hidden
+        // == false || isAdmin())" — that shape works for a normal collection
+        // read but Firestore rejects it for a collectionGroup list query
+        // (fetchComments(), used by the admin panel), since it can't prove
+        // the rule without inspecting resource.data per document across every
+        // parent. An unconditional isAdmin() branch has no resource.data
+        // dependency, so it's provable and the collectionGroup query works.
+        allow read: if isAdmin();
+        allow read: if isSignedIn() && resource.data.hidden == false;
+        allow write: if false;
+      }
+
+      match /likes/{userId} {
+        // Direct-write exception: idempotent like/unlike toggle, low risk,
+        // doc id == liker's uid so a user can only ever touch their own like.
+        allow read: if isSignedIn();
+        allow create: if isOwner(userId);
+        allow delete: if isOwner(userId);
+        allow update: if false;
+      }
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.reporter_id == uid());
+      allow write: if false; // create via reportContent callable, resolve via resolveReport
+    }
+
+    match /friendships/{pairId} {
+      // Two conditions, not one: a single-doc get() (Feed's own request
+      // status check, etc.) only has the doc id to go on, so it needs the
+      // id-pattern match. A list query (getFriendships(), filtered with
+      // `.where('uids', arrayContains: uid)`) can't be proven against an
+      // id-pattern rule at all — Firestore only proves a query against a
+      // rule condition phrased in terms of the same field the query
+      // filters on, so that path needs the `uid() in resource.data.uids`
+      // condition instead. Without both, the list query form was being
+      // denied outright for every caller, regardless of account state.
+      allow read: if isSignedIn() &&
+        (pairId.matches('.*' + uid() + '.*') || uid() in resource.data.uids);
+      allow write: if false;
+    }
+
+    match /blockedUsers/{pairId} {
+      // Same reasoning as friendships above: the id-pattern condition
+      // covers a single-doc get(), the resource.data condition covers
+      // getBlockedUserIds()'s `.where('blocker_id', isEqualTo: uid)` list
+      // query, which the id-pattern alone can't prove.
+      allow read: if isSignedIn() &&
+        (pairId.matches('^' + uid() + '_.*') ||
+          resource.data.blocker_id == uid());
+      allow write: if false;
+    }
+
+    match /inviteReferrals/{code} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- devices / fleet ----
+    match /devices/{deviceId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.owner_user_id == uid());
+      allow write: if false;
+    }
+
+    match /devicePairingEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /firmwareUpdateFailures/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ---- integrations: tokens live here, never client-readable ----
+    match /integrationConnections/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // ---- content / config ----
+    match /announcements/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /appContent/{key} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /featureFlags/{key} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /betaOverrides/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /legalDocumentVersions/{docId} {
+      allow read: if isSignedIn() && (resource.data.status == 'published' || isAdmin());
+      allow write: if false;
+    }
+
+    match /legalAcceptances/{docId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.user_id == uid());
+      allow write: if false;
+    }
+
+    match /appSettings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- admin-only surfaces ----
+    match /pushNotifications/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /auditLog/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /analyticsEvents/{docId} {
+      allow read: if isAdmin();
+      allow write: if false; // written only via the logAnalyticsEvent callable
+    }
+
+    match /dailyStatsRollups/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /retentionCohorts/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /supportTickets/{docId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.user_id == uid());
+      allow write: if false;
+    }
+
+    match /accountDeletionRequests/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /revenueCatEvents/{docId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+  }
+}

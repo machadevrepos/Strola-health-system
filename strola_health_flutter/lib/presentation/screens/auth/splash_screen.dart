@@ -34,10 +34,10 @@ class SplashScreen extends StatelessWidget {
                   size: AppTheme.iconXXL,
                 ),
               ).animate().scale(
-                    begin: const Offset(0.85, 0.85),
-                    curve: Curves.easeOutBack,
-                    duration: AppTheme.animSpring,
-                  ),
+                begin: const Offset(0.85, 0.85),
+                curve: Curves.easeOutBack,
+                duration: AppTheme.animSpring,
+              ),
               const SizedBox(height: AppTheme.spaceXL),
               Text(
                 'strolla',

@@ -8,11 +8,15 @@ import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/utils/fitness_calculator.dart';
 import 'package:strola_health/core/utils/formatters.dart';
+import 'package:strola_health/core/utils/rolling_week.dart';
+import 'package:strola_health/core/utils/streak.dart';
 import 'package:strola_health/domain/entities/user_profile.dart';
 import 'package:strola_health/presentation/providers/profile_providers.dart';
 import 'package:strola_health/presentation/providers/session_providers.dart';
 import 'package:strola_health/presentation/providers/step_providers.dart';
 import 'package:strola_health/presentation/screens/activity_screen.dart';
+import 'package:strola_health/presentation/screens/session_screen.dart'
+    show ActivityTypeUI;
 import 'package:strola_health/presentation/screens/share_steps_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/header_actions.dart';
@@ -235,6 +239,28 @@ class _OverviewTab extends ConsumerWidget {
     final calories = ref.watch(caloriesProvider);
     final weekly = ref.watch(weeklyStepsProvider);
     final units = ref.watch(userProfileProvider).units;
+
+    // Real, not mock — the 7 days directly before this rolling week, from
+    // the same 60-day cache weeklyStepsProvider itself draws from. Calories/
+    // distance/active-time below are each a fixed multiple of steps, so one
+    // real week-over-week step trend is the real trend for all four —
+    // multiplying both sides of a ratio by the same constant doesn't change
+    // the percentage.
+    final dailyMap = ref.watch(dailyStepsMapProvider).value ?? const {};
+    final todayKey = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    final previousWeekTotal = [
+      for (var offset = 13; offset >= 7; offset--)
+        dailyMap[todayKey.subtract(Duration(days: offset))] ?? 0,
+    ].fold<int>(0, (a, b) => a + b);
+    final currentWeekTotal = weekly.reduce((a, b) => a + b);
+    final weekTrendPct = previousWeekTotal <= 0
+        ? (currentWeekTotal > 0 ? 100 : 0)
+        : ((currentWeekTotal - previousWeekTotal) / previousWeekTotal * 100)
+              .round();
     // `progress` stays clamped — it only ever feeds the ring's fill, which
     // can't visually exceed full. `progressPct` is the displayed text and
     // should reflect steps actually going over goal rather than capping at
@@ -249,7 +275,7 @@ class _OverviewTab extends ConsumerWidget {
     final vsYesterday = yesterday > 0
         ? ((steps - yesterday) / yesterday * 100).round()
         : 0;
-    final streakDays = _calcStreak(weekly, goal);
+    final streakDays = calcStreak(weekly, goal);
 
     return ListView(
       physics: const BouncingScrollPhysics(),
@@ -467,7 +493,6 @@ class _OverviewTab extends ConsumerWidget {
                     height: 132,
                     child: _LabeledWeekBars(
                       values: weekly.map((s) => s.toDouble()).toList(),
-                      todayIndex: DateTime.now().weekday - 1,
                       barLabel: (v) => Formatters.stepCount(v.toInt()),
                       axisLabel: (v) => v >= 1000
                           ? '${(v / 1000).round()}K'
@@ -522,7 +547,6 @@ class _OverviewTab extends ConsumerWidget {
                             ),
                           )
                           .toList(),
-                      todayIndex: DateTime.now().weekday - 1,
                       barLabel: (v) => v.toStringAsFixed(1),
                       axisLabel: (v) => v.round().toString(),
                     ),
@@ -561,8 +585,8 @@ class _OverviewTab extends ConsumerWidget {
                         weekly.reduce((a, b) => a + b) ~/ weekly.length,
                       ),
                       label: 'Avg. Steps / Day',
-                      trend: '+8%',
-                      positive: true,
+                      trend: '${weekTrendPct >= 0 ? '+' : ''}$weekTrendPct%',
+                      positive: weekTrendPct >= 0,
                     ),
                     const SizedBox(width: 10),
                     _AvgBox(
@@ -570,8 +594,8 @@ class _OverviewTab extends ConsumerWidget {
                       value:
                           '${(weekly.reduce((a, b) => a + b) * 0.04 ~/ weekly.length)}',
                       label: 'Avg. Active Calories',
-                      trend: '+6%',
-                      positive: true,
+                      trend: '${weekTrendPct >= 0 ? '+' : ''}$weekTrendPct%',
+                      positive: weekTrendPct >= 0,
                     ),
                   ],
                 ),
@@ -588,8 +612,8 @@ class _OverviewTab extends ConsumerWidget {
                         units,
                       ),
                       label: 'Avg. Distance / Day',
-                      trend: '+7%',
-                      positive: true,
+                      trend: '${weekTrendPct >= 0 ? '+' : ''}$weekTrendPct%',
+                      positive: weekTrendPct >= 0,
                     ),
                     const SizedBox(width: 10),
                     _AvgBox(
@@ -597,8 +621,8 @@ class _OverviewTab extends ConsumerWidget {
                       value:
                           '${(weekly.reduce((a, b) => a + b) ~/ weekly.length ~/ 88 ~/ 60)}h ${(weekly.reduce((a, b) => a + b) ~/ weekly.length ~/ 88 % 60)}m',
                       label: 'Avg. Active Time / Day',
-                      trend: '+9%',
-                      positive: true,
+                      trend: '${weekTrendPct >= 0 ? '+' : ''}$weekTrendPct%',
+                      positive: weekTrendPct >= 0,
                     ),
                   ],
                 ),
@@ -666,6 +690,11 @@ class _OverviewTab extends ConsumerWidget {
                   Row(
                     children: List.generate(7, (i) {
                       final met = i < weekly.length && weekly[i] >= goal;
+                      // weekly is a rolling window (today last, index 6) —
+                      // each dot's letter is that entry's own real calendar
+                      // day, not a fixed Mon-first week (which only matched
+                      // reality on Sundays).
+                      final dayLetter = RollingWeek.letterForIndex(i, 7);
                       return Padding(
                         padding: const EdgeInsets.only(left: AppTheme.spaceXS),
                         child: Column(
@@ -698,7 +727,7 @@ class _OverviewTab extends ConsumerWidget {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i],
+                              dayLetter,
                               style: AppTypography.labelS.copyWith(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w400,
@@ -718,18 +747,6 @@ class _OverviewTab extends ConsumerWidget {
             .slideY(begin: 0.12),
       ],
     );
-  }
-
-  int _calcStreak(List<int> weekly, int goal) {
-    int streak = 0;
-    for (int i = weekly.length - 2; i >= 0; i--) {
-      if (weekly[i] >= goal) {
-        streak++;
-      } else {
-        break;
-      }
-    }
-    return streak;
   }
 
   String _todayDate() {
@@ -768,40 +785,6 @@ class _StepsTab extends ConsumerStatefulWidget {
 }
 
 class _StepsTabState extends ConsumerState<_StepsTab> {
-  // Mock 30-day data (in prod, pull from SQLite session_repository)
-  static const _mockMonthly = [
-    8200,
-    11300,
-    9800,
-    7400,
-    10200,
-    12100,
-    9600,
-    8900,
-    15842,
-    11200,
-    10500,
-    6800,
-    9300,
-    10800,
-    11500,
-    8700,
-    9200,
-    10100,
-    7600,
-    9800,
-    11000,
-    8400,
-    10300,
-    9700,
-    11800,
-    12300,
-    8900,
-    10400,
-    9100,
-    0,
-  ];
-
   late DateTime _selectedMonth = DateTime(
     DateTime.now().year,
     DateTime.now().month,
@@ -822,22 +805,33 @@ class _StepsTabState extends ConsumerState<_StepsTab> {
     final steps = ref.watch(stepCountProvider);
     final goal = ref.watch(dailyGoalProvider);
 
-    // The mock chart only ever represents the current month (it's not
-    // backed by real history) — browsing to a past month still shows it,
-    // since there's nothing real yet to show in its place.
-    final data = [..._mockMonthly];
-    if (_isCurrentMonth) data[data.length - 1] = steps;
-
-    final total = data.reduce((a, b) => a + b);
-    final prevTotal = 183520; // mock previous month
-    final pct = ((total - prevTotal) / prevTotal * 100).round();
-
     // Real, not mock — each day is compared against whatever goal was
     // active when it was recorded, so raising the goal later doesn't
     // retroactively un-meet an earlier day that hit its own, lower goal.
     final monthGoalData =
         ref.watch(stepsForMonthWithGoalProvider(_selectedMonth)).value ??
         const [];
+    final stepsByDay = {for (final d in monthGoalData) d.date.day: d.steps};
+    final today = DateTime.now();
+    // Real per-day steps for the whole month — a day with nothing recorded
+    // is 0, not filler. Today (when browsing the current month) always
+    // reflects the live count, even before it's been written to SQLite.
+    final data = [
+      for (var day = 1; day <= _daysInMonth(_selectedMonth); day++)
+        _isCurrentMonth && day == today.day ? steps : (stepsByDay[day] ?? 0),
+    ];
+
+    final total = data.reduce((a, b) => a + b);
+    final previousMonthData =
+        ref
+            .watch(stepsForMonthWithGoalProvider(_monthBefore(_selectedMonth)))
+            .value ??
+        const [];
+    final prevTotal = previousMonthData.fold<int>(0, (sum, d) => sum + d.steps);
+    final pct = prevTotal == 0
+        ? (total > 0 ? 100 : 0)
+        : ((total - prevTotal) / prevTotal * 100).round();
+
     final daysMetGoal = monthGoalData.where((d) => d.steps >= d.goal).length;
     final daysElapsed = _daysElapsedIn(_selectedMonth);
     final allTimeSteps = ref.watch(allTimeStepsProvider).value ?? 0;
@@ -866,7 +860,8 @@ class _StepsTabState extends ConsumerState<_StepsTab> {
     final progressPct = ((total / monthlyGoalTarget) * 100).toInt();
     final bestDay = data.reduce((a, b) => a > b ? a : b);
     final bestDayIndex = data.indexOf(bestDay);
-    final avgPerDay = total ~/ data.where((d) => d > 0).length;
+    final recordedDays = data.where((d) => d > 0).length;
+    final avgPerDay = recordedDays == 0 ? 0 : total ~/ recordedDays;
 
     final weeklySteps = ref
         .watch(weeklyStepsProvider)
@@ -1244,16 +1239,17 @@ class _StepsTabState extends ConsumerState<_StepsTab> {
                 icon: AppIcons.calendarMonth,
                 title: 'Average This Month',
                 subtitle: '${Formatters.stepCount(avgPerDay)} steps / day',
-                value: '+10%\nvs ${_lastMonthLabel()}',
-                valueColor: AppColors.success,
+                value: '${pct >= 0 ? '+' : ''}$pct%\nvs ${_lastMonthLabel()}',
+                valueColor: pct >= 0 ? AppColors.success : AppColors.error,
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.calendarMonth,
                   title: 'Average This Month',
                   headline: '${Formatters.stepCount(avgPerDay)} / day',
-                  subtitle: '+10% vs ${_lastMonthLabel()}',
+                  subtitle:
+                      '${pct >= 0 ? '+' : ''}$pct% vs ${_lastMonthLabel()}',
                   body:
-                      'Your average daily step count this month. Consistency is key - keep going!',
+                      'Your average daily step count this month. Consistency is key, keep going!',
                 ),
               ),
               Divider(
@@ -1365,39 +1361,6 @@ class _DistanceTab extends ConsumerStatefulWidget {
 }
 
 class _DistanceTabState extends ConsumerState<_DistanceTab> {
-  static const _mockMonthly = [
-    6.25,
-    8.61,
-    7.47,
-    5.64,
-    7.77,
-    9.22,
-    7.32,
-    6.78,
-    12.6,
-    8.54,
-    8.0,
-    5.18,
-    7.09,
-    8.23,
-    8.77,
-    6.63,
-    7.01,
-    7.7,
-    5.79,
-    7.47,
-    8.38,
-    6.4,
-    7.85,
-    7.39,
-    8.99,
-    9.37,
-    6.78,
-    7.93,
-    6.93,
-    0.0,
-  ];
-
   /// A live "roughly the distance from X to Y" reference isn't feasible for
   /// every person's exact all-time distance — there's no live geo API wired
   /// in, and even if there were, picking a *good* real-world comparison for
@@ -1453,11 +1416,19 @@ class _DistanceTabState extends ConsumerState<_DistanceTab> {
     final allTimeSteps = ref.watch(allTimeStepsProvider).value ?? 0;
     final allTimeDistanceKm = allTimeSteps * 0.762 / 1000;
 
-    // The mock chart only ever represents the current month (it's not
-    // backed by real history) — browsing to a past month still shows it,
-    // since there's nothing real yet to show in its place.
-    final kmData = [..._mockMonthly];
-    if (_isCurrentMonth) kmData[kmData.length - 1] = todayKm;
+    // Real, not mock — same per-day step history the Steps tab uses, run
+    // through the same step-to-km factor used everywhere else in this app.
+    final monthGoalData =
+        ref.watch(stepsForMonthWithGoalProvider(_selectedMonth)).value ??
+        const [];
+    final stepsByDay = {for (final d in monthGoalData) d.date.day: d.steps};
+    final today = DateTime.now();
+    final kmData = [
+      for (var day = 1; day <= _daysInMonth(_selectedMonth); day++)
+        _isCurrentMonth && day == today.day
+            ? todayKm
+            : (stepsByDay[day] ?? 0) * 0.762 / 1000,
+    ];
 
     final data = kmData
         .map((km) => Formatters.distanceFromKm(km, units))
@@ -1465,7 +1436,21 @@ class _DistanceTabState extends ConsumerState<_DistanceTab> {
     final total = data.fold(0.0, (a, b) => a + b);
     final bestDay = data.reduce((a, b) => a > b ? a : b);
     final bestDayIndex = data.indexOf(bestDay);
-    final avgPerDay = total / data.where((d) => d > 0).length;
+    final recordedDays = data.where((d) => d > 0).length;
+    final avgPerDay = recordedDays == 0 ? 0.0 : total / recordedDays;
+
+    final previousMonthData =
+        ref
+            .watch(stepsForMonthWithGoalProvider(_monthBefore(_selectedMonth)))
+            .value ??
+        const [];
+    final prevTotalKm =
+        previousMonthData.fold<int>(0, (sum, d) => sum + d.steps) *
+        0.762 /
+        1000;
+    final pct = prevTotalKm <= 0
+        ? (total > 0 ? 100 : 0)
+        : ((total - prevTotalKm) / prevTotalKm * 100).round();
 
     final weeklyDistance = ref
         .watch(weeklyStepsProvider)
@@ -1572,16 +1557,22 @@ class _DistanceTabState extends ConsumerState<_DistanceTab> {
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                const Icon(
-                                  AppIcons.trendUp,
-                                  color: AppColors.success,
+                                Icon(
+                                  pct >= 0
+                                      ? AppIcons.trendUp
+                                      : AppIcons.trendDown,
+                                  color: pct >= 0
+                                      ? AppColors.success
+                                      : AppColors.error,
                                   size: AppTheme.iconXS,
                                 ),
                                 const SizedBox(width: 3),
                                 Text(
-                                  '10% vs ${_lastMonthLabel()}',
+                                  '${pct.abs()}% vs ${_lastMonthLabel()}',
                                   style: AppTypography.labelM.copyWith(
-                                    color: AppColors.success,
+                                    color: pct >= 0
+                                        ? AppColors.success
+                                        : AppColors.error,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0,
                                   ),
@@ -1790,14 +1781,15 @@ class _DistanceTabState extends ConsumerState<_DistanceTab> {
                 icon: AppIcons.calendar,
                 title: 'Average Per Day',
                 subtitle: '${avgPerDay.toStringAsFixed(1)} $unitLabel',
-                value: '+10%\nvs ${_lastMonthLabel()}',
-                valueColor: AppColors.success,
+                value: '${pct >= 0 ? '+' : ''}$pct%\nvs ${_lastMonthLabel()}',
+                valueColor: pct >= 0 ? AppColors.success : AppColors.error,
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.calendar,
                   title: 'Average Per Day',
                   headline: '${avgPerDay.toStringAsFixed(1)} $unitLabel / day',
-                  subtitle: '+10% vs ${_lastMonthLabel()}',
+                  subtitle:
+                      '${pct >= 0 ? '+' : ''}$pct% vs ${_lastMonthLabel()}',
                   body: 'Your average distance travelled per day this month.',
                 ),
               ),
@@ -1857,72 +1849,98 @@ class _DistanceTabState extends ConsumerState<_DistanceTab> {
 class _ActivityTab extends ConsumerWidget {
   const _ActivityTab();
 
-  static const _mockWorkouts = [
-    ('Outdoor Walk', 45, 312, AppIcons.steps, 'May 19, 2024'),
-    ('Outdoor Run', 32, 284, AppIcons.run, 'May 18, 2024'),
-    ('Yoga', 50, 156, AppIcons.yoga, 'May 17, 2024'),
-    ('Treadmill', 40, 245, AppIcons.treadmill, 'May 16, 2024'),
-    ('Cardio', 35, 310, AppIcons.heart, 'May 15, 2024'),
-  ];
-
-  static const _weeklyKcal = [356, 289, 412, 325, 298, 215, 167];
-
-  // Last 30 days of active calories (most recent = today).
-  static const _monthlyKcal = [
-    245,
-    312,
-    198,
-    356,
-    289,
-    412,
-    325,
-    276,
-    301,
-    188,
-    264,
-    398,
-    342,
-    215,
-    356,
-    187,
-    298,
-    245,
-    388,
-    312,
-    205,
-    289,
-    401,
-    318,
-    276,
-    412,
-    234,
-    345,
-    298,
-    256,
-  ];
+  static String _formatWorkoutDate(DateTime d) =>
+      '${_kShortMonthNames[d.month - 1]} ${d.day}, ${d.year}';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final avgKcal = _monthlyKcal.reduce((a, b) => a + b) ~/ _monthlyKcal.length;
-    final totalKcal30 = _monthlyKcal.reduce((a, b) => a + b);
-    final bestKcalIndex = _monthlyKcal.indexOf(
-      _monthlyKcal.reduce((a, b) => a > b ? a : b),
+    final dailyMap = ref.watch(dailyStepsMapProvider).value ?? const {};
+    final profile = ref.watch(userProfileProvider);
+    final weightKg = ref.watch(userWeightKgProvider);
+    final liveTodaySteps = ref.watch(stepCountProvider);
+    final today = DateTime.now();
+    final todayKey = DateTime(today.year, today.month, today.day);
+
+    int kcalForOffset(int offset) {
+      final daySteps = offset == 0
+          ? liveTodaySteps
+          : (dailyMap[todayKey.subtract(Duration(days: offset))] ?? 0);
+      return FitnessCalculator.activeCalories(
+        steps: daySteps,
+        weightKg: weightKg,
+        heightCm: profile.heightCm,
+        gender: profile.gender,
+      );
+    }
+
+    // Real, not mock — each day's real steps run through the same calorie
+    // formula as the all-time total below. Oldest first, today last (index
+    // 29 / 6) — same convention as weeklyStepsProvider.
+    final monthlyKcal = [
+      for (var offset = 29; offset >= 0; offset--) kcalForOffset(offset),
+    ];
+    final weeklyKcal = [
+      for (var offset = 6; offset >= 0; offset--) kcalForOffset(offset),
+    ];
+    final previousMonthKcalTotal = [
+      for (var offset = 59; offset >= 30; offset--) kcalForOffset(offset),
+    ].fold<int>(0, (a, b) => a + b);
+
+    final avgKcal = monthlyKcal.reduce((a, b) => a + b) ~/ monthlyKcal.length;
+    final totalKcal30 = monthlyKcal.reduce((a, b) => a + b);
+    final bestKcalIndex = monthlyKcal.indexOf(
+      monthlyKcal.reduce((a, b) => a > b ? a : b),
     );
-    final weeklyBestKcalIndex = _weeklyKcal.indexOf(
-      _weeklyKcal.reduce((a, b) => a > b ? a : b),
+    final weeklyBestKcalIndex = weeklyKcal.indexOf(
+      weeklyKcal.reduce((a, b) => a > b ? a : b),
     );
+    final kcalTrendPct = previousMonthKcalTotal <= 0
+        ? (totalKcal30 > 0 ? 100 : 0)
+        : ((totalKcal30 - previousMonthKcalTotal) /
+                  previousMonthKcalTotal *
+                  100)
+              .round();
 
     // Real, not mock — same all-time step total Steps/Distance use, run
     // through the same calorie formula the rest of the app already uses.
     final allTimeSteps = ref.watch(allTimeStepsProvider).value ?? 0;
-    final profile = ref.watch(userProfileProvider);
-    final weightKg = ref.watch(userWeightKgProvider);
     final allTimeCalories = FitnessCalculator.activeCalories(
       steps: allTimeSteps,
       weightKg: weightKg,
       heightCm: profile.heightCm,
       gender: profile.gender,
     );
+
+    // Real workout counts and recent list from the local session log.
+    final sessions = ref.watch(sessionHistoryProvider).value ?? const [];
+    final cutoff30 = todayKey.subtract(const Duration(days: 30));
+    final cutoff60 = todayKey.subtract(const Duration(days: 60));
+    final workoutsLast30 = sessions
+        .where((s) => !s.startTime.isBefore(cutoff30))
+        .length;
+    final workoutsPrevious30 = sessions
+        .where(
+          (s) =>
+              s.startTime.isBefore(cutoff30) && !s.startTime.isBefore(cutoff60),
+        )
+        .length;
+    final workoutsTrendPct = workoutsPrevious30 <= 0
+        ? (workoutsLast30 > 0 ? 100 : 0)
+        : ((workoutsLast30 - workoutsPrevious30) / workoutsPrevious30 * 100)
+              .round();
+    final avgWorkoutsPerDay = workoutsLast30 / 30;
+    final recentWorkouts = sessions
+        .take(5)
+        .map(
+          (s) => (
+            s.displayName,
+            (s.durationSeconds / 60).round(),
+            s.calories,
+            s.activityType.icon,
+            _formatWorkoutDate(s.startTime),
+          ),
+        )
+        .toList();
 
     return ListView(
       physics: const BouncingScrollPhysics(),
@@ -1960,7 +1978,8 @@ class _ActivityTab extends ConsumerWidget {
                         value: Formatters.stepCount(totalKcal30),
                         label: 'Active Calories',
                         avg: 'Avg $avgKcal kcal / day',
-                        trend: '6% vs previous 30 days',
+                        trend: '${kcalTrendPct.abs()}% vs previous 30 days',
+                        positive: kcalTrendPct >= 0,
                       ),
                       const SizedBox(width: 10),
                       _ActivitySummaryBox(
@@ -1969,10 +1988,12 @@ class _ActivityTab extends ConsumerWidget {
                         bgColor: AppColors.accentSecondary.withValues(
                           alpha: 0.08,
                         ),
-                        value: '12',
+                        value: '$workoutsLast30',
                         label: 'Workouts',
-                        avg: 'Avg 0.4 / day',
-                        trend: '20% vs previous 30 days',
+                        avg:
+                            'Avg ${avgWorkoutsPerDay.toStringAsFixed(1)} / day',
+                        trend: '${workoutsTrendPct.abs()}% vs previous 30 days',
+                        positive: workoutsTrendPct >= 0,
                       ),
                     ],
                   ),
@@ -2005,9 +2026,7 @@ class _ActivityTab extends ConsumerWidget {
                         onTap: () => _openMonthSheet(
                           context,
                           title: 'Active Calories',
-                          values: _monthlyKcal
-                              .map((e) => e.toDouble())
-                              .toList(),
+                          values: monthlyKcal.map((e) => e.toDouble()).toList(),
                           valueLabel: (v) => v.round().toString(),
                           unitLabel: 'kcal',
                           highlightIndex: bestKcalIndex,
@@ -2024,9 +2043,11 @@ class _ActivityTab extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    '↑ 6% vs previous 30 days',
+                    '${kcalTrendPct >= 0 ? '↑' : '↓'} ${kcalTrendPct.abs()}% vs previous 30 days',
                     style: AppTypography.labelS.copyWith(
-                      color: AppColors.success,
+                      color: kcalTrendPct >= 0
+                          ? AppColors.success
+                          : AppColors.error,
                       fontWeight: FontWeight.w400,
                       letterSpacing: 0,
                     ),
@@ -2035,7 +2056,7 @@ class _ActivityTab extends ConsumerWidget {
                   SizedBox(
                     height: 170,
                     child: _MonthlyBarsChart(
-                      data: _monthlyKcal.map((e) => e.toDouble()).toList(),
+                      data: monthlyKcal.map((e) => e.toDouble()).toList(),
                       maxY: 600,
                       interval: 200,
                       leftReserved: 30,
@@ -2076,9 +2097,7 @@ class _ActivityTab extends ConsumerWidget {
                         onTap: () => _openMonthSheet(
                           context,
                           title: 'Activity by Day',
-                          values: _monthlyKcal
-                              .map((e) => e.toDouble())
-                              .toList(),
+                          values: monthlyKcal.map((e) => e.toDouble()).toList(),
                           valueLabel: (v) => v.round().toString(),
                           unitLabel: 'kcal',
                           highlightIndex: bestKcalIndex,
@@ -2088,7 +2107,7 @@ class _ActivityTab extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppTheme.sectionGap),
                   _WeekCircleRow(
-                    values: _weeklyKcal.map((e) => e.toDouble()).toList(),
+                    values: weeklyKcal.map((e) => e.toDouble()).toList(),
                     valueLabel: (v) => v.round().toString(),
                     unitLabel: 'kcal',
                     highlightIndex: weeklyBestKcalIndex,
@@ -2125,12 +2144,12 @@ class _ActivityTab extends ConsumerWidget {
                 icon: AppIcons.trophy,
                 title: 'Most Active Day',
                 subtitle: 'in the last 30 days',
-                value: '${_monthlyKcal[bestKcalIndex]}\nkcal',
+                value: '${monthlyKcal[bestKcalIndex]}\nkcal',
                 onTap: () => _openInsight(
                   context,
                   icon: AppIcons.trophy,
                   title: 'Most Active Day',
-                  headline: '${_monthlyKcal[bestKcalIndex]} kcal',
+                  headline: '${monthlyKcal[bestKcalIndex]} kcal',
                   subtitle: 'in the last 30 days',
                   body:
                       "The most active calories you've burned in a single day this month.",
@@ -2203,7 +2222,15 @@ class _ActivityTab extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: AppTheme.spaceM),
-                  ..._mockWorkouts.asMap().entries.map(
+                  if (recentWorkouts.isEmpty)
+                    Text(
+                      'No workouts yet. Start a walk or run to see it here.',
+                      style: AppTypography.bodyS.copyWith(
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ...recentWorkouts.asMap().entries.map(
                     (e) => Padding(
                       padding: const EdgeInsets.only(bottom: AppTheme.spaceM),
                       child:
@@ -2569,23 +2596,26 @@ class _WeekCircleRow extends StatelessWidget {
     required this.highlightIndex,
   });
 
-  final List<double> values; // 7 entries, Mon→Sun
+  // Rolling window, oldest first, today last — matches weeklyStepsProvider's
+  // own indexing (see session_providers.dart), not a fixed Mon-first
+  // calendar week. Day letters below are computed from each entry's real
+  // calendar date for that reason.
+  final List<double> values;
   final String Function(double) valueLabel;
   final String unitLabel;
   final int highlightIndex;
-
-  static const _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: List.generate(values.length, (i) {
         final isHi = i == highlightIndex;
+        final dayLetter = RollingWeek.letterForIndex(i, values.length);
         return Expanded(
           child: Column(
             children: [
               Text(
-                _days[i],
+                dayLetter,
                 style: AppTypography.labelS.copyWith(
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
@@ -2805,19 +2835,28 @@ class _SubDivider extends StatelessWidget {
 class _LabeledWeekBars extends StatelessWidget {
   const _LabeledWeekBars({
     required this.values,
-    required this.todayIndex,
     required this.barLabel,
     required this.axisLabel,
   });
 
-  final List<double> values; // 7 entries, Mon→Sun
-  final int todayIndex;
+  // Rolling window, oldest first, today last — matches weeklyStepsProvider's
+  // own indexing exactly (see session_providers.dart). NOT a fixed Mon-first
+  // calendar week: on any day other than Sunday, "today" doesn't fall on the
+  // last day of a Mon-Sun week, so day labels below are computed from each
+  // entry's real calendar date rather than a fixed ['Mon',...,'Sun'] array —
+  // that fixed-array version only ever looked correct by coincidence, on
+  // Sundays.
+  final List<double> values;
   final String Function(double) barLabel;
   final String Function(double) axisLabel;
 
   @override
   Widget build(BuildContext context) {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final days = [
+      for (var i = 0; i < values.length; i++)
+        RollingWeek.shortLabelForIndex(i, values.length),
+    ];
+    final todayIndex = values.length - 1;
     final rawMax = values.fold<double>(0, (m, v) => v > m ? v : m);
     final niceMax = rawMax <= 0 ? 1.0 : rawMax * 1.28;
 
@@ -3120,6 +3159,7 @@ class _ActivitySummaryBox extends StatelessWidget {
     required this.label,
     required this.avg,
     required this.trend,
+    this.positive = true,
   });
 
   final IconData icon;
@@ -3129,6 +3169,7 @@ class _ActivitySummaryBox extends StatelessWidget {
   final String label;
   final String avg;
   final String trend;
+  final bool positive;
 
   @override
   Widget build(BuildContext context) {
@@ -3182,8 +3223,8 @@ class _ActivitySummaryBox extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 1),
                         child: Icon(
-                          AppIcons.trendUp,
-                          color: AppColors.success,
+                          positive ? AppIcons.trendUp : AppIcons.trendDown,
+                          color: positive ? AppColors.success : AppColors.error,
                           size: 11,
                         ),
                       ),
@@ -3193,7 +3234,9 @@ class _ActivitySummaryBox extends StatelessWidget {
                           trend,
                           maxLines: 2,
                           style: AppTypography.labelS.copyWith(
-                            color: AppColors.success,
+                            color: positive
+                                ? AppColors.success
+                                : AppColors.error,
                             fontSize: 10,
                             fontWeight: FontWeight.w400,
                             letterSpacing: 0,

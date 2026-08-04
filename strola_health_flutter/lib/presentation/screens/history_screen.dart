@@ -8,7 +8,7 @@ import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/constants/step_goals.dart';
 import 'package:strola_health/core/utils/formatters.dart';
-import 'package:strola_health/presentation/providers/step_providers.dart';
+import 'package:strola_health/presentation/providers/session_providers.dart';
 import 'package:strola_health/presentation/widgets/glass_card.dart';
 
 class HistoryScreen extends ConsumerWidget {
@@ -33,14 +33,18 @@ class HistoryScreen extends ConsumerWidget {
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Text(
-                  'History',
-                  style: AppTypography.displayL.copyWith(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -1.0,
-                  ),
-                ).animate().fadeIn(duration: AppTheme.animSlow).slideX(begin: 0.12),
+                child:
+                    Text(
+                          'History',
+                          style: AppTypography.displayL.copyWith(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1.0,
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: AppTheme.animSlow)
+                        .slideX(begin: 0.12),
               ),
             ),
           ),
@@ -171,9 +175,7 @@ class HistoryScreen extends ConsumerWidget {
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(
-                                  goalMet
-                                      ? AppIcons.trophy
-                                      : AppIcons.steps,
+                                  goalMet ? AppIcons.trophy : AppIcons.steps,
                                   color: goalMet
                                       ? AppColors.goalAmber
                                       : AppColors.accent,

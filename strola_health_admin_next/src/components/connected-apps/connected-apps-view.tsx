@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FunnelChart } from "@/components/charts/funnel-chart";
 import { CONNECTED_APP_LABEL, type ConnectedAppProvider, connectedAppsBreakdown, findUserById, userDisplayName } from "@/lib/data/queries";
+import { INTEGRATION_CATALOG, INTEGRATION_STATUS_LABEL, type IntegrationStatus } from "@/components/connected-apps/integration-catalog";
 import { disconnectIntegration, resyncIntegration } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
 import { logAction } from "@/lib/audit-log-store";
@@ -30,6 +31,14 @@ import type { IntegrationConnection, UserProfile } from "@/lib/types";
 function apiErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
+
+const INTEGRATION_STATUS_BADGE_CLASS: Record<IntegrationStatus, string> = {
+  live: "bg-success/15 text-success",
+  pending_credentials: "bg-brand-accent/20 text-brand-accent-strong",
+  pending_approval: "bg-secondary text-secondary-foreground",
+  deferred: "bg-secondary text-secondary-foreground",
+  needs_partnership: "bg-secondary text-secondary-foreground",
+};
 
 // Every connection this page's own error-state examples ever seed is a real
 // health-app provider — this is just the type-safe fallback for the wider
@@ -89,6 +98,31 @@ export function ConnectedAppsView({
 
   return (
     <div>
+      <Card className="mb-4 border-border shadow-none">
+        <CardHeader>
+          <CardTitle>Available integrations</CardTitle>
+          <CardDescription>Every app the mobile app offers a user to connect, whether or not anyone has yet.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {INTEGRATION_CATALOG.map((entry) => (
+              <div key={entry.provider} className="rounded-md border border-border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{entry.label}</p>
+                    <p className="text-xs text-muted-foreground">{entry.platform}</p>
+                  </div>
+                  <Badge className={`shrink-0 text-[11px] ${INTEGRATION_STATUS_BADGE_CLASS[entry.status]}`}>
+                    {INTEGRATION_STATUS_LABEL[entry.status]}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">{entry.note}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Users with a connected app" value={formatNumber(connectedUserCount)} icon={<LinkSimple size={16} />} />
         <StatCard label="Total connections" value={formatNumber(connections.length)} icon={<LinkSimple size={16} />} />

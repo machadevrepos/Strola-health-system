@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_animate/flutter_animate.dart' hide ShimmerEffect;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/domain/entities/app_badge.dart';
+import 'package:strola_health/presentation/providers/badge_providers.dart';
 import 'package:strola_health/presentation/widgets/hex_badge.dart';
 import 'package:strola_health/presentation/widgets/pressable_scale.dart';
 
-class AchievementsScreen extends StatelessWidget {
+class AchievementsScreen extends ConsumerWidget {
   const AchievementsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: const BoxDecoration(gradient: AppColors.bgGradient),
       child: Scaffold(
@@ -63,9 +67,9 @@ class AchievementsScreen extends StatelessWidget {
                         color: AppColors.textSecondary,
                       ),
                     ).animate().fadeIn(
-                          delay: 80.ms,
-                          duration: AppTheme.animSlow,
-                        ),
+                      delay: 80.ms,
+                      duration: AppTheme.animSlow,
+                    ),
                     const SizedBox(height: AppTheme.spaceXXL),
 
                     _AchievementSection(
@@ -73,7 +77,11 @@ class AchievementsScreen extends StatelessWidget {
                       title: 'Steps',
                       description:
                           'Earn badges by reaching total step milestones.',
-                      badges: _stepBadges,
+                      badgesAsync: ref.watch(stepBadgesProvider),
+                      gradient: const [
+                        AppColors.accent,
+                        AppColors.accentSecondary,
+                      ],
                       delay: 120,
                     ),
                     const SizedBox(height: AppTheme.spaceXXL),
@@ -83,7 +91,8 @@ class AchievementsScreen extends StatelessWidget {
                       description:
                           'Earn badges by meeting your daily step goal '
                           'multiple days in a row.',
-                      badges: _streakBadges,
+                      badgesAsync: ref.watch(streakBadgesProvider),
+                      gradient: const [AppColors.accent, AppColors.error],
                       delay: 200,
                     ),
                     const SizedBox(height: AppTheme.spaceXXL),
@@ -91,7 +100,8 @@ class AchievementsScreen extends StatelessWidget {
                       icon: AppIcons.trophy,
                       title: 'Challenges',
                       description: 'Earn badges by completing challenges.',
-                      badges: _challengeBadges,
+                      badgesAsync: ref.watch(challengeBadgesProvider),
+                      gradient: const [AppColors.goalAmber, AppColors.accent],
                       delay: 280,
                     ),
 
@@ -115,9 +125,9 @@ class AchievementsScreen extends StatelessWidget {
                         ],
                       ),
                     ).animate().fadeIn(
-                          delay: 360.ms,
-                          duration: AppTheme.animSlow,
-                        ),
+                      delay: 360.ms,
+                      duration: AppTheme.animSlow,
+                    ),
                     const SizedBox(height: AppTheme.spaceXXL),
                   ],
                 ),
@@ -134,9 +144,7 @@ class AchievementsScreen extends StatelessWidget {
       context: context,
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.bgSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('About Achievements', style: AppTypography.titleM),
         content: Text(
           'Badges unlock automatically as you hit step, streak, and '
@@ -164,178 +172,150 @@ class _AchievementSection extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.description,
-    required this.badges,
+    required this.badgesAsync,
+    required this.gradient,
     required this.delay,
   });
 
   final IconData icon;
   final String title;
   final String description;
-  final List<_BadgeInfo> badges;
+  final AsyncValue<List<AppBadge>> badgesAsync;
+  final List<Color> gradient;
   final int delay;
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: AppColors.accent, size: AppTheme.iconM),
-            const SizedBox(width: AppTheme.spaceS),
-            Text(title, style: AppTypography.titleL),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          description,
-          style: AppTypography.bodyS.copyWith(color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: AppTheme.spaceL),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            for (final b in badges)
-              HexBadge(
-                big: b.big,
-                icon: b.icon,
-                small: b.small,
-                label: b.label,
-                description: b.description,
-                earned: b.earned,
-                gradient: b.gradient,
-                width: 64,
+            Row(
+              children: [
+                Icon(icon, color: AppColors.accent, size: AppTheme.iconM),
+                const SizedBox(width: AppTheme.spaceS),
+                Text(title, style: AppTypography.titleL),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: AppTypography.bodyS.copyWith(
+                color: AppColors.textSecondary,
               ),
+            ),
+            const SizedBox(height: AppTheme.spaceL),
+            badgesAsync.when(
+              loading: () => const _BadgeRowSkeleton(),
+              error: (_, __) => const Center(
+                child: Text(
+                  'Could not load badges.',
+                  style: AppTypography.bodyM,
+                ),
+              ),
+              data: (badges) {
+                if (badges.isEmpty) return const _EmptyBadgeRow();
+                return Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  runSpacing: AppTheme.spaceL,
+                  children: [
+                    for (final b in badges)
+                      HexBadge(
+                        big: b.emoji,
+                        small: _smallLabel(b.requirementMetric),
+                        label: b.name,
+                        description: b.description,
+                        earned: b.earned,
+                        gradient: gradient,
+                        width: 64,
+                      ),
+                  ],
+                );
+              },
+            ),
           ],
-        ),
-      ],
-    ).animate().fadeIn(delay: delay.ms, duration: AppTheme.animSlow).slideY(begin: 0.1);
+        )
+        .animate()
+        .fadeIn(delay: delay.ms, duration: AppTheme.animSlow)
+        .slideY(begin: 0.1);
   }
 }
 
-// ── Badge catalog ──────────────────────────────────────────────────────────────
-
-class _BadgeInfo {
-  const _BadgeInfo({
-    required this.small,
-    required this.label,
-    required this.description,
-    required this.earned,
-    required this.gradient,
-    this.big,
-    this.icon,
-  });
-
-  final String small;
-  final String label;
-  final String description;
-  final bool earned;
-  final List<Color> gradient;
-  final String? big;
-  final IconData? icon;
+/// Short caption shown under the badge's emoji on the hexagon face — matches
+/// the requirement this section's badges track.
+String _smallLabel(BadgeRequirementMetric metric) {
+  switch (metric) {
+    case BadgeRequirementMetric.totalSteps:
+    case BadgeRequirementMetric.sessionSteps:
+      return 'STEPS';
+    case BadgeRequirementMetric.streakDays:
+      return 'DAY STREAK';
+    case BadgeRequirementMetric.challengesCompleted:
+      return 'CHALLENGES';
+    case BadgeRequirementMetric.unknown:
+      return '';
+  }
 }
 
-const _stepBadges = [
-  _BadgeInfo(
-    big: '50K',
-    small: 'STEPS',
-    label: '50,000 Steps',
-    description: 'Take 50,000 total steps',
-    earned: true,
-    gradient: [AppColors.success, AppColors.success],
-  ),
-  _BadgeInfo(
-    big: '100K',
-    small: 'STEPS',
-    label: '100,000 Steps',
-    description: 'Take 100,000 total steps',
-    earned: true,
-    gradient: [AppColors.accent, AppColors.accentSecondary],
-  ),
-  _BadgeInfo(
-    big: '250K',
-    small: 'STEPS',
-    label: '250,000 Steps',
-    description: 'Take 250,000 total steps',
-    earned: true,
-    gradient: [AppColors.goalAmber, AppColors.accent],
-  ),
-  _BadgeInfo(
-    big: '500K',
-    small: 'STEPS',
-    label: '500,000 Steps',
-    description: 'Take 500,000 total steps',
-    earned: false,
-    gradient: [AppColors.textMuted, AppColors.textMuted],
-  ),
-];
+// ── Loading / empty states ──────────────────────────────────────────────────
 
-const _streakBadges = [
-  _BadgeInfo(
-    big: '3',
-    small: 'DAY STREAK',
-    label: '3 Day Streak',
-    description: 'Meet your daily step goal 3 days in a row',
-    earned: true,
-    gradient: [AppColors.accent, AppColors.error],
-  ),
-  _BadgeInfo(
-    big: '7',
-    small: 'DAY STREAK',
-    label: '7 Day Streak',
-    description: 'Meet your daily step goal 7 days in a row',
-    earned: true,
-    gradient: [AppColors.goalAmber, AppColors.goalAmber],
-  ),
-  _BadgeInfo(
-    big: '14',
-    small: 'DAY STREAK',
-    label: '14 Day Streak',
-    description: 'Meet your daily step goal 14 days in a row',
-    earned: true,
-    gradient: [AppColors.goalAmber, AppColors.accent],
-  ),
-  _BadgeInfo(
-    big: '30',
-    small: 'DAY STREAK',
-    label: '30 Day Streak',
-    description: 'Meet your daily step goal 30 days in a row',
-    earned: false,
-    gradient: [AppColors.textMuted, AppColors.textMuted],
-  ),
-];
+class _BadgeRowSkeleton extends StatelessWidget {
+  const _BadgeRowSkeleton();
 
-const _challengeBadges = [
-  _BadgeInfo(
-    icon: AppIcons.star,
-    small: 'FINISHER',
-    label: 'Challenge Finisher',
-    description: 'Complete your first challenge',
-    earned: true,
-    gradient: [AppColors.accent, AppColors.accentSecondary],
-  ),
-  _BadgeInfo(
-    big: '5',
-    small: 'CHALLENGES',
-    label: 'Challenge Pro',
-    description: 'Complete 5 challenges',
-    earned: true,
-    gradient: [AppColors.goalAmber, AppColors.accent],
-  ),
-  _BadgeInfo(
-    big: '10',
-    small: 'CHALLENGES',
-    label: 'Challenge Master',
-    description: 'Complete 10 challenges',
-    earned: false,
-    gradient: [AppColors.textMuted, AppColors.textMuted],
-  ),
-  _BadgeInfo(
-    big: '25',
-    small: 'CHALLENGES',
-    label: 'Challenge Legend',
-    description: 'Complete 25 challenges',
-    earned: false,
-    gradient: [AppColors.textMuted, AppColors.textMuted],
-  ),
-];
+  @override
+  Widget build(BuildContext context) {
+    return Skeletonizer(
+      enabled: true,
+      effect: ShimmerEffect(
+        baseColor: AppColors.accentSecondary.withValues(alpha: 0.15),
+        highlightColor: AppColors.accentSecondary.withValues(alpha: 0.35),
+        duration: const Duration(milliseconds: 1200),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        runSpacing: AppTheme.spaceL,
+        children: List.generate(
+          4,
+          (_) => const HexBadge(
+            gradient: [AppColors.textMuted, AppColors.textMuted],
+            small: 'LOADING',
+            label: 'Loading badge name',
+            description: 'Loading badge description here',
+            big: '00',
+            earned: false,
+            width: 64,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown for a section whose category has zero enabled/visible badges yet in
+/// Firestore — sparse real data shouldn't render as a broken empty row.
+class _EmptyBadgeRow extends StatelessWidget {
+  const _EmptyBadgeRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceM),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              AppIcons.trophy,
+              size: AppTheme.iconL,
+              color: AppColors.textMuted,
+            ),
+            const SizedBox(height: AppTheme.spaceXS),
+            Text(
+              'No badges here yet. Check back soon.',
+              style: AppTypography.bodyS.copyWith(color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

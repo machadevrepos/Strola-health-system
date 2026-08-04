@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:strola_health/core/services/firebase_client.dart';
+import 'package:strola_health/core/utils/polyline_encoder.dart';
 import 'package:strola_health/data/datasources/local_database.dart';
 import 'package:strola_health/domain/entities/personal_record.dart';
 import 'package:strola_health/domain/entities/workout_session.dart';
@@ -34,6 +36,44 @@ class SessionRepository {
       );
     }
   }
+
+  /// Best-effort backend sync — the local SQLite save (above) is already
+  /// the source of truth for the on-device experience, so a sync failure
+  /// (no connectivity, transient error) must never surface to the user or
+  /// block the session-complete flow. `id` doubles as the server-side
+  /// idempotency key (ingestWorkoutSession.ts), so a retried/duplicate call
+  /// is always safe.
+  Future<void> syncToBackend(WorkoutSession session) async {
+    await FirebaseClient.call('ingestWorkoutSession', {
+      'id': session.id,
+      'startTimeMillis': session.startTime.millisecondsSinceEpoch,
+      'endTimeMillis': session.endTime.millisecondsSinceEpoch,
+      'steps': session.steps,
+      'distanceMeters': session.distanceMeters,
+      'durationSeconds': session.durationSeconds,
+      'activityType': _activityTypeApiValue(session.activityType),
+      if (session.customActivityName?.isNotEmpty == true)
+        'customActivityName': session.customActivityName,
+      if (session.routePoints.isNotEmpty)
+        'routePolyline': encodePolyline(
+          session.routePoints.map((p) => p.position).toList(),
+        ),
+      if (session.avgPaceSecPerKm != null)
+        'avgPaceSecPerKm': session.avgPaceSecPerKm,
+      if (session.caloriesBurned != null)
+        'caloriesBurned': session.caloriesBurned,
+      'source': 'strolla_app',
+    });
+  }
+
+  /// `ActivityType.name` is camelCase (`outdoorWalk`); the backend's
+  /// `ActivityType` union is snake_case (`outdoor_walk`) — this converts
+  /// generically rather than a hand-written per-value map since the two
+  /// naming schemes already line up 1:1.
+  String _activityTypeApiValue(ActivityType type) => type.name.replaceAllMapped(
+    RegExp('[A-Z]'),
+    (m) => '_${m.group(0)!.toLowerCase()}',
+  );
 
   Future<List<WorkoutSession>> getSessions({int limit = 50}) async {
     final db = await LocalDatabase.instance;

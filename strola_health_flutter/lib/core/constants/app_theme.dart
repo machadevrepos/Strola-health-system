@@ -15,11 +15,11 @@ class AppTheme {
   // Use these for padding, gaps, and margins — never raw numbers.
   // ─────────────────────────────────────────────────────────────────────────
 
-  static const double spaceXS  = 4.0;
-  static const double spaceS   = 8.0;
-  static const double spaceM   = 12.0;
-  static const double spaceL   = 16.0;
-  static const double spaceXL  = 20.0;
+  static const double spaceXS = 4.0;
+  static const double spaceS = 8.0;
+  static const double spaceM = 12.0;
+  static const double spaceL = 16.0;
+  static const double spaceXL = 20.0;
   static const double spaceXXL = 24.0;
   static const double spaceXXXL = 32.0;
 
@@ -33,34 +33,34 @@ class AppTheme {
   // BORDER RADII
   // ─────────────────────────────────────────────────────────────────────────
 
-  static const double radiusXS   = 6.0;   // small tags, badges
-  static const double radiusS    = 10.0;  // chips, compact pill buttons
-  static const double radiusM    = 14.0;  // buttons, small cards
-  static const double radiusL    = 18.0;  // standard cards
-  static const double radiusXL   = 22.0;  // large content cards
+  static const double radiusXS = 6.0; // small tags, badges
+  static const double radiusS = 10.0; // chips, compact pill buttons
+  static const double radiusM = 14.0; // buttons, small cards
+  static const double radiusL = 18.0; // standard cards
+  static const double radiusXL = 22.0; // large content cards
   static const double radiusSheet = 28.0; // bottom sheets, modals
-  static const double radiusFull  = 999.0; // circular pills
+  static const double radiusFull = 999.0; // circular pills
 
   // ─────────────────────────────────────────────────────────────────────────
   // ICON SIZES
   // ─────────────────────────────────────────────────────────────────────────
 
-  static const double iconXS  = 14.0; // inline text icons
-  static const double iconS   = 16.0; // chip icons, small indicators
-  static const double iconM   = 20.0; // nav bar, standard UI icons
-  static const double iconL   = 24.0; // primary action icons
-  static const double iconXL  = 28.0; // session / hero icons
+  static const double iconXS = 14.0; // inline text icons
+  static const double iconS = 16.0; // chip icons, small indicators
+  static const double iconM = 20.0; // nav bar, standard UI icons
+  static const double iconL = 24.0; // primary action icons
+  static const double iconXL = 28.0; // session / hero icons
   static const double iconXXL = 36.0; // step ring center icon
 
   // ─────────────────────────────────────────────────────────────────────────
   // NAVIGATION BAR
   // ─────────────────────────────────────────────────────────────────────────
 
-  static const double navBarHeight  = 64.0;
-  static const double navFabSize    = 52.0; // coral circle FAB diameter
-  static const double navFabIconSize = 24.0;
-  static const double navIconSize   = 22.0;
-  static const double navLabelSize  = 10.0;
+  static const double navBarHeight = 64.0;
+  static const double navFabSize = 57.2; // coral circle FAB diameter (+10%)
+  static const double navFabIconSize = 30.0;
+  static const double navIconSize = 22.0;
+  static const double navLabelSize = 10.0;
 
   // ─────────────────────────────────────────────────────────────────────────
   // SHADOWS
@@ -101,18 +101,18 @@ class AppTheme {
   // ANIMATION DURATIONS
   // ─────────────────────────────────────────────────────────────────────────
 
-  static const Duration animXS     = Duration(milliseconds: 150);
-  static const Duration animFast   = Duration(milliseconds: 200);
+  static const Duration animXS = Duration(milliseconds: 150);
+  static const Duration animFast = Duration(milliseconds: 200);
   static const Duration animNormal = Duration(milliseconds: 300);
-  static const Duration animSlow   = Duration(milliseconds: 500);
+  static const Duration animSlow = Duration(milliseconds: 500);
   static const Duration animSpring = Duration(milliseconds: 700);
-  static const Duration animCrawl  = Duration(milliseconds: 900);
+  static const Duration animCrawl = Duration(milliseconds: 900);
 
   // ─────────────────────────────────────────────────────────────────────────
   // STEP RING
   // ─────────────────────────────────────────────────────────────────────────
 
-  static const double stepRingSize     = 280.0;
+  static const double stepRingSize = 280.0;
   static const double stepRingThickness = 0.13; // as factor of radius
 
   // ─────────────────────────────────────────────────────────────────────────

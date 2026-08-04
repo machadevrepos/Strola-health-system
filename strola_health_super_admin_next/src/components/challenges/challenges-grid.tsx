@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, DotsThree, PencilSimple, Trash, Star, Lock, Globe, CircleNotch, PaperPlaneTilt } from "@phosphor-icons/react";
+import { Plus, DotsThree, PencilSimple, Trash, Star, Lock, Globe, CircleNotch } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,15 +44,6 @@ function apiErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
-// A draft only counts as "the next official challenge in the works" if an
-// admin authored it — a member's own draft-ish challenge (there's no draft
-// concept for member-created ones in practice) never qualifies.
-function isOfficialTrackDraft(c: Challenge, users: UserProfile[]): boolean {
-  if (c.is_official || c.status !== "draft") return false;
-  if (!c.created_by) return true;
-  return findUserById(users, c.created_by)?.role !== "user";
-}
-
 export function ChallengesGrid({
   challenges: initialChallenges,
   participantCounts,
@@ -73,8 +64,7 @@ export function ChallengesGrid({
   React.useEffect(() => setChallenges(initialChallenges), [initialChallenges]);
 
   const official = challenges.find((c) => c.is_official);
-  const officialDrafts = challenges.filter((c) => isOfficialTrackDraft(c, users));
-  const community = challenges.filter((c) => c.id !== official?.id && !officialDrafts.some((d) => d.id === c.id));
+  const community = challenges.filter((c) => c.id !== official?.id);
 
   function openCreateOfficial() {
     setOfficialEditTarget(null);
@@ -99,29 +89,20 @@ export function ChallengesGrid({
           visibility: "public",
           winner_type: "most_steps",
           created_by: currentUser?.uid,
-          status: "draft",
         });
-        setChallenges((prev) => [created, ...prev]);
-        toast.success("Draft created — publish it when it's ready to go live");
-        logAction("Created official challenge draft", values.title);
+        // Goes live immediately — there's no separate draft/publish step for
+        // the official challenge, this replaces whichever one was official
+        // before it.
+        await setOfficialMonthly(created.id);
+        setChallenges((prev) => [{ ...created, is_official: true }, ...prev.map((c) => ({ ...c, is_official: false }))]);
+        toast.success(`"${created.title}" is now the official monthly challenge`);
+        logAction("Created official challenge", values.title);
       }
     } catch (err) {
       toast.error(apiErrorMessage(err, "Couldn't save this challenge"));
     } finally {
       setOfficialFormOpen(false);
       setOfficialEditTarget(null);
-    }
-  }
-
-  async function publishAsOfficial(challenge: Challenge) {
-    try {
-      await setOfficialMonthly(challenge.id);
-      const updated = await updateChallenge(challenge.id, { status: "published" });
-      setChallenges((prev) => prev.map((c) => (c.id === challenge.id ? { ...updated, is_official: true } : { ...c, is_official: false })));
-      toast.success(`"${challenge.title}" is now the official monthly challenge`);
-      logAction("Published official challenge", challenge.title);
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "Couldn't publish this challenge"));
     }
   }
 
@@ -203,44 +184,6 @@ export function ChallengesGrid({
           <p className="py-6 text-sm text-muted-foreground">No official challenge set yet.</p>
         )}
       </section>
-
-      {officialDrafts.length > 0 && (
-        <section>
-          <h3 className="mb-2 text-sm font-medium text-foreground">Next month (draft)</h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {officialDrafts.map((c) => (
-              <Card key={c.id} className="border-border shadow-none">
-                <CardContent>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{c.badge_emoji}</span>
-                      <div>
-                        <span className="text-sm font-medium text-foreground">{c.title}</span>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(c.start_date)} - {formatDate(c.end_date)}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant="outline">Draft</Badge>
-                  </div>
-                  <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
-                  <div className="mt-3 flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openEditOfficial(c)}>
-                      <PencilSimple size={14} /> Edit
-                    </Button>
-                    <Button size="sm" onClick={() => publishAsOfficial(c)}>
-                      <PaperPlaneTilt size={14} /> Publish as official
-                    </Button>
-                    <Button variant="ghost" size="icon-sm" aria-label="Delete draft" onClick={() => setDeleteTarget(c)}>
-                      <Trash size={14} />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
 
       <section>
         <h3 className="mb-1 text-sm font-medium text-foreground">Community challenges ({community.length})</h3>
