@@ -229,3 +229,13 @@ just watching them fire naturally on their real schedule and checking `functions
   rather than computing on demand.
 - **Service account is still on `Owner`** — fine for now, worth scoping down once no more fresh
   IAM bootstrapping is needed (see "Authenticating" above).
+- **Challenge invite deep links** (`link.strollahealth.com/join/{code}` → `joinPage` function,
+  `strola_health_flutter`'s `deep_link_listener.dart`) are wired end-to-end but two pieces are
+  still placeholders: `public/.well-known/apple-app-site-association`'s `appID` has
+  `TEAMID_PLACEHOLDER` in place of the real Apple Developer Team ID, and
+  `public/.well-known/assetlinks.json`'s `sha256_cert_fingerprints` has
+  `SHA256_FINGERPRINT_PLACEHOLDER_...` in place of the real value (only obtainable once a Google
+  Play Console listing exists and a build has been uploaded — deliberately deferred, see the
+  Play Store item above). Until both are filled in and redeployed, iOS/Android fall back to the
+  `strolahealthlink://join/{code}` custom-scheme link instead of the domain opening the app
+  directly — still functional, just not a true Universal/App Link yet.

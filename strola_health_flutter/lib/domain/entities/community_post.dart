@@ -109,8 +109,8 @@ class CommunityComment {
   final DateTime timestamp;
   final bool isMine;
 
-  String get authorName => author.displayName;
-  String get initials => author.initials;
+  String get authorName => author.communityDisplayName;
+  String get initials => author.communityInitials;
 
   factory CommunityComment.fromFirestore(
     Map<String, dynamic> data,

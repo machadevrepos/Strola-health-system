@@ -4,6 +4,7 @@
 // same ApiError shape the real client throws, so callers' try/catch blocks
 // behave identically in either mode.
 import { ApiError } from "@/lib/api-client";
+import { readMockSession } from "@/lib/mock-auth";
 import { segmentAudienceIds } from "@/lib/data/queries";
 import {
   mockAccountDeletionRequests,
@@ -257,6 +258,42 @@ export async function deleteComment(id: string) {
   if (post) post.comments_count = Math.max(0, post.comments_count - 1);
   return ok(undefined);
 }
+export async function addComment(postId: string, content: string) {
+  const post = mockPosts.find((p) => p.id === postId);
+  if (!post) notFound("Post");
+  const authorId = readMockSession()?.user.uid ?? "usr_demo";
+  const comment = {
+    id: nextId("comment"),
+    post_id: postId,
+    author_id: authorId,
+    content,
+    timestamp: new Date().toISOString(),
+    hidden: false,
+  };
+  mockComments.unshift(comment);
+  post.comments_count += 1;
+  return ok(comment);
+}
+
+// No persisted mock-likes list — deterministically derives who "liked" a
+// post from its likes_count so the admin UI has something to render,
+// without a whole parallel likes dataset to keep in sync in mock mode.
+export async function fetchPostLikes(postId: string) {
+  const post = mockPosts.find((p) => p.id === postId);
+  if (!post) notFound("Post");
+  let seed = 0;
+  for (let i = 0; i < postId.length; i++) seed = (seed * 31 + postId.charCodeAt(i)) >>> 0;
+  const pool = mockUsers.filter((u) => u.id !== post.author_id);
+  const offset = pool.length > 0 ? seed % pool.length : 0;
+  const rotated = [...pool.slice(offset), ...pool.slice(0, offset)];
+  const likers = rotated.slice(0, Math.min(post.likes_count, rotated.length));
+  return ok(
+    likers.map((u) => ({
+      user_id: u.id,
+      created_at: post.timestamp,
+    }))
+  );
+}
 
 // Lighter than banUser/unbanUser below — leaves the account itself active,
 // only blocks new posts/comments. See `posting_banned` on UserProfile.
@@ -346,7 +383,18 @@ export async function removeParticipant(challengeId: string, userId: string) {
   return ok(undefined);
 }
 export async function setOfficialMonthly(id: string) {
-  mockChallenges.forEach((c) => (c.is_official = c.id === id));
+  // Mirrors setOfficialMonthlyChallenge.ts — flips status to published too,
+  // not just the is_official flag, so a prepared draft promoted via
+  // "Publish now" (or the mock stand-in for onChallengeStart) actually
+  // shows as published in the mock UI instead of staying stuck as "Draft".
+  mockChallenges.forEach((c) => {
+    if (c.id === id) {
+      c.is_official = true;
+      c.status = "published";
+    } else if (c.is_official) {
+      c.is_official = false;
+    }
+  });
   return ok(undefined);
 }
 export async function fetchLeaderboard(challengeId: string) {

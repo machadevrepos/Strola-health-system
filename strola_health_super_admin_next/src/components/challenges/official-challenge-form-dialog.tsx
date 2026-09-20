@@ -63,11 +63,17 @@ export function OfficialChallengeFormDialog({
   onOpenChange,
   challenge,
   onSave,
+  mode = "official",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   challenge?: Challenge | null;
   onSave: (values: OfficialChallengeFormValues) => void | Promise<void>;
+  // "prepare" is the same form used to create/edit next month's challenge
+  // ahead of time — it doesn't touch the current official challenge or go
+  // live immediately, so it gets its own title/description rather than
+  // reusing "Edit official challenge" on something that isn't official yet.
+  mode?: "official" | "prepare";
 }) {
   const { user: authUser } = useAuth();
   const [values, setValues] = React.useState<OfficialChallengeFormValues>(EMPTY);
@@ -136,9 +142,19 @@ export function OfficialChallengeFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{challenge ? "Edit official challenge" : "Set up official challenge"}</DialogTitle>
+          <DialogTitle>
+            {mode === "prepare"
+              ? challenge
+                ? "Edit prepared challenge"
+                : "Prepare next month's challenge"
+              : challenge
+                ? "Edit official challenge"
+                : "Set up official challenge"}
+          </DialogTitle>
           <DialogDescription>
-            The one recurring public challenge everyone sees — winner is whoever logs the most steps toward the goal below.
+            {mode === "prepare"
+              ? "Doesn't go live or touch the current official challenge — it publishes automatically on its start date, or you can publish it early from the list below."
+              : "The one recurring public challenge everyone sees — winner is whoever logs the most steps toward the goal below."}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">

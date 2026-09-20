@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Crown, CurrencyGbp, Clock, Plus, X } from "@phosphor-icons/react";
+import { Crown, CurrencyDollar, Clock, Plus, X } from "@phosphor-icons/react";
 import { StatCard } from "@/components/shell/stat-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -93,9 +93,9 @@ export function PremiumView({ users: initialUsers, appSettings }: { users: UserP
           <StatCard label="Subscribers" value={formatNumber(subscribers.length)} icon={<Crown size={16} />} />
           <StatCard
             label="Est. monthly revenue"
-            value={`£${revenue.toFixed(2)}`}
+            value={`$${revenue.toFixed(2)}`}
             hint="Paying subscribers only — synthetic price"
-            icon={<CurrencyGbp size={16} />}
+            icon={<CurrencyDollar size={16} />}
           />
           <StatCard label="Admin-comp'd" value={formatNumber(compCount)} icon={<Crown size={16} />} />
           <StatCard

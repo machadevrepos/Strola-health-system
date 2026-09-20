@@ -1,3 +1,4 @@
+import { Crown, SealCheck } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { ROLE_LABEL } from "@/lib/format";
 import type { Role, UserProfile } from "@/lib/types";
@@ -12,6 +13,17 @@ export function RoleBadge({ role }: { role: Role }) {
   if (role === "super_admin") return <Badge className="bg-primary/12 text-primary">{ROLE_LABEL[role]}</Badge>;
   if (role === "admin") return <Badge className="bg-secondary text-foreground">{ROLE_LABEL[role]}</Badge>;
   return <Badge variant="outline">{ROLE_LABEL[role]}</Badge>;
+}
+
+// Inline icon (not a pill) next to a comment/post author's name in the
+// community — mirrors the mobile app's treatment (see
+// PublicProfile.communityDisplayName in strola_health_flutter). Super admin
+// gets the brand-gold crown for a "more legendary" presence than a regular
+// admin's checkmark, same amber token the Premium/Trial badges already use.
+export function CommunityAuthorBadge({ role }: { role: Role | undefined }) {
+  if (role === "super_admin") return <Crown size={13} weight="fill" className="text-brand-accent-strong" aria-label="Super admin" />;
+  if (role === "admin") return <SealCheck size={13} weight="fill" className="text-primary" aria-label="Admin" />;
+  return null;
 }
 
 export function SubscriptionBadge({ subscription }: { subscription: UserProfile["subscription"] }) {

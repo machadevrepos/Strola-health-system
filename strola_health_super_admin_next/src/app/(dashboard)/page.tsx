@@ -9,7 +9,7 @@ import {
   Trophy,
   ChatCircleText,
   Warning,
-  CurrencyGbp,
+  CurrencyDollar,
   UserPlus,
   UserMinus,
   Headset,
@@ -39,7 +39,7 @@ import {
 import { NEEDS_ATTENTION_LABEL, needsAttentionItems, overviewTotals, subscriptionMix } from "@/lib/data/queries";
 import type { NeedsAttentionCategory, NeedsAttentionItem } from "@/lib/data/queries";
 import { useApiData } from "@/lib/use-api-data";
-import { formatCurrencyGBP, formatNumber, formatRelative, formatSignedPercent } from "@/lib/format";
+import { formatCurrencyUSD, formatNumber, formatRelative, formatSignedPercent } from "@/lib/format";
 import type { CrashReport } from "@/lib/types";
 
 async function loadOverview() {
@@ -141,7 +141,7 @@ function OverviewContent({
           tone={totals.openReports > 0 ? "danger" : "default"}
           icon={<ShieldWarning size={16} />}
         />
-        <StatCard label="Monthly recurring revenue" value={formatCurrencyGBP(totals.mrr)} icon={<CurrencyGbp size={16} />} />
+        <StatCard label="Monthly recurring revenue" value={formatCurrencyUSD(totals.mrr)} icon={<CurrencyDollar size={16} />} />
         <StatCard label="New premium subs" value={formatNumber(totals.newPremiumThisMonth)} hint="this month" icon={<UserPlus size={16} />} />
         <StatCard label="Cancelled subs" value={formatNumber(totals.cancelledPremiumThisMonth)} hint="this month" icon={<UserMinus size={16} />} />
       </div>

@@ -11,8 +11,8 @@ export function formatCompact(n: number): string {
   return compactFormatter.format(n);
 }
 
-export function formatCurrencyGBP(n: number): string {
-  return `£${numberFormatter.format(Math.round(n))}`;
+export function formatCurrencyUSD(n: number): string {
+  return `$${numberFormatter.format(Math.round(n))}`;
 }
 
 /** "+12.4%" / "-3.1%" — signed, one decimal place, for period-over-period
@@ -81,6 +81,14 @@ export const ROLE_LABEL = {
   admin: "Admin",
   super_admin: "Super admin",
 } as const;
+
+// Shared with users-table.tsx (filtering/display) and user-detail-view.tsx
+// (the Tags section) so the two stay in sync — a single source of truth for
+// which cohort tags exist and what they're called.
+export const TAG_LABEL: Record<string, string> = {
+  kickstarter: "Kickstarter",
+  beta_tester: "Beta tester",
+};
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/);

@@ -152,7 +152,7 @@ export function AppSettingsPanel({ settings: initialSettings, users }: { setting
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="monthly-price">Monthly price (£)</Label>
+            <Label htmlFor="monthly-price">Monthly price ($)</Label>
             <Input
               id="monthly-price"
               type="number"
@@ -162,7 +162,7 @@ export function AppSettingsPanel({ settings: initialSettings, users }: { setting
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="annual-price">Annual price (£)</Label>
+            <Label htmlFor="annual-price">Annual price ($)</Label>
             <Input
               id="annual-price"
               type="number"

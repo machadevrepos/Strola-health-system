@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/constants/invite_link.dart';
 import 'package:strola_health/core/services/firebase_client.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/core/utils/haptics_helper.dart';
@@ -15,6 +17,7 @@ import 'package:strola_health/presentation/screens/challenge_of_the_month_screen
 import 'package:strola_health/presentation/screens/private_challenge_detail_screen.dart';
 import 'package:strola_health/presentation/widgets/flat_card.dart';
 import 'package:strola_health/presentation/widgets/header_actions.dart';
+import 'package:strola_health/presentation/widgets/select_friends_sheet.dart';
 
 /// Standalone Challenges screen (pushed, e.g. from the profile stats).
 /// The actual content lives in [ChallengesView] so it can also be embedded as
@@ -1953,6 +1956,7 @@ class _CreateChallengeScreenState extends ConsumerState<CreateChallengeScreen> {
   DateTime? _customEndDate;
   int? _winnerMethod;
   bool _submitting = false;
+  Set<String> _selectedFriendIds = {};
 
   @override
   Widget build(BuildContext context) {
@@ -2232,9 +2236,11 @@ class _CreateChallengeScreenState extends ConsumerState<CreateChallengeScreen> {
                           child: _InviteOptionCard(
                             icon: AppIcons.people,
                             title: 'Select Friends',
-                            description: 'Choose from your connections',
-                            onTap: () =>
-                                _showComingSoon(context, 'Selecting friends'),
+                            description: _selectedFriendIds.isEmpty
+                                ? 'Choose from your connections'
+                                : '${_selectedFriendIds.length} friend'
+                                      '${_selectedFriendIds.length == 1 ? '' : 's'} selected',
+                            onTap: () => _pickFriends(context),
                           ),
                         ),
                         const SizedBox(width: AppTheme.spaceM),
@@ -2243,8 +2249,7 @@ class _CreateChallengeScreenState extends ConsumerState<CreateChallengeScreen> {
                             icon: AppIcons.link,
                             title: 'Share Invite Link',
                             description: 'Anyone with the link can join',
-                            onTap: () =>
-                                _showComingSoon(context, 'Invite links'),
+                            onTap: () => _createAndShareInviteLink(),
                           ),
                         ),
                       ],
@@ -2324,33 +2329,51 @@ class _CreateChallengeScreenState extends ConsumerState<CreateChallengeScreen> {
     if (picked != null) setState(() => _customEndDate = picked);
   }
 
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(
+  Future<void> _pickFriends(BuildContext context) async {
+    final picked = await showSelectFriendsSheet(
       context,
-    ).showSnackBar(SnackBar(content: Text('$feature coming soon')));
+      initiallySelected: _selectedFriendIds,
+    );
+    if (picked != null && mounted) {
+      setState(
+        () => _selectedFriendIds = picked.map((f) => f.profile.id).toSet(),
+      );
+    }
   }
 
-  Future<void> _createChallenge() async {
+  /// True when every required field is filled — shared by both submit
+  /// paths ([_createChallenge] and [_createAndShareInviteLink]) so "Share
+  /// Invite Link" enforces the exact same rules as the main Create button
+  /// rather than silently skipping them.
+  bool _validate() {
     if (_name.trim().isEmpty) {
       _showValidationError(context, 'Give your challenge a name first');
-      return;
+      return false;
     }
     if (_goalSteps == null || _goalSteps! <= 0) {
       _showValidationError(context, 'Enter a step goal for the challenge');
-      return;
+      return false;
     }
     if (_startDate == null) {
       _showValidationError(context, 'Pick a start date');
-      return;
+      return false;
     }
     if (_durationIndex == 3 && _customEndDate == null) {
       _showValidationError(context, 'Pick an end date');
-      return;
+      return false;
     }
     if (_winnerMethod == null) {
       _showValidationError(context, 'Choose how the winner is determined');
-      return;
+      return false;
     }
+    return true;
+  }
+
+  /// Creates the challenge and returns its id/invite code, or null if
+  /// validation or the backend call failed (an error has already been
+  /// shown in that case).
+  Future<({String id, String? inviteCode})?> _submitChallenge() async {
+    if (!_validate()) return null;
 
     final endDate = _durationIndex == 3
         ? _customEndDate!
@@ -2359,7 +2382,7 @@ class _CreateChallengeScreenState extends ConsumerState<CreateChallengeScreen> {
     HapticsHelper.lightImpact();
     setState(() => _submitting = true);
     try {
-      final result = await ref
+      return await ref
           .read(myChallengesProvider.notifier)
           .create(
             title: _name.trim(),
@@ -2371,26 +2394,61 @@ class _CreateChallengeScreenState extends ConsumerState<CreateChallengeScreen> {
                 ? WinnerType.goalCompletionPct
                 : WinnerType.mostSteps,
           );
-      if (!mounted) return;
-      Navigator.pop(context);
-      if (result.inviteCode != null) {
-        _showInviteCodeDialog(context, result.inviteCode!);
-      }
     } on BackendException catch (e) {
-      if (!mounted) return;
-      _showValidationError(context, e.message);
+      if (mounted) _showValidationError(context, e.message);
+      return null;
     } catch (_) {
-      if (!mounted) return;
-      _showValidationError(
-        context,
-        'Could not create challenge. Please try again.',
-      );
+      if (mounted) {
+        _showValidationError(
+          context,
+          'Could not create challenge. Please try again.',
+        );
+      }
+      return null;
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
 
-  void _showInviteCodeDialog(BuildContext context, String inviteCode) {
+  Future<void> _createChallenge() async {
+    final result = await _submitChallenge();
+    if (result == null || !mounted) return;
+    Navigator.pop(context);
+    if (result.inviteCode != null) {
+      _showInviteCodeDialog(context, _name.trim(), result.inviteCode!);
+    }
+  }
+
+  /// "Share Invite Link" doubles as a submit action — there's no invite
+  /// link to share until the challenge exists, so tapping it validates and
+  /// creates the challenge exactly like the main button, then opens the
+  /// share sheet directly instead of the copy-code dialog.
+  Future<void> _createAndShareInviteLink() async {
+    final result = await _submitChallenge();
+    if (result == null || !mounted) return;
+    final title = _name.trim();
+    Navigator.pop(context);
+    if (result.inviteCode != null) {
+      await _shareInvite(title, result.inviteCode!);
+    }
+  }
+
+  Future<void> _shareInvite(String title, String inviteCode) {
+    return SharePlus.instance.share(
+      ShareParams(
+        text:
+            'Join my challenge "$title" on Strolla Health!\n'
+            '${InviteLink.forCode(inviteCode)}\n'
+            'Or enter code $inviteCode in the app.',
+      ),
+    );
+  }
+
+  void _showInviteCodeDialog(
+    BuildContext context,
+    String title,
+    String inviteCode,
+  ) {
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
@@ -2442,10 +2500,23 @@ class _CreateChallengeScreenState extends ConsumerState<CreateChallengeScreen> {
               ),
             ),
           ),
-          FilledButton(
+          TextButton(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: inviteCode));
               Navigator.pop(dialogCtx);
+            },
+            child: Text(
+              'Copy Code',
+              style: AppTypography.bodyL.copyWith(
+                color: AppColors.accent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              _shareInvite(title, inviteCode);
             },
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.accent,
@@ -2454,7 +2525,7 @@ class _CreateChallengeScreenState extends ConsumerState<CreateChallengeScreen> {
               ),
             ),
             child: Text(
-              'Copy Code',
+              'Share',
               style: AppTypography.bodyL.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,

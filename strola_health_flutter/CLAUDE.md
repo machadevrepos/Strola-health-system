@@ -74,25 +74,29 @@ Light only. Never add dark mode branches. `FlexThemeData.light()` is the only th
 
 ### Color Palette — `lib/core/constants/app_colors.dart`
 
-Exactly 5 base colors. All usage must derive from these.
+Warm cream / mocha-rose palette (replaced the old coral/blush palette on
+2026-09-14). All usage must derive from these tokens.
 
 | Token | Hex | Usage |
 |---|---|---|
-| `AppColors.accent` | `#E07A7A` | Primary — ring fill, active nav, buttons, links, FAB |
-| `AppColors.accentSecondary` | `#F6B1B1` | Secondary — blush tints, inactive borders, icon bg |
-| `AppColors.bgDeep` | `#FFF2F2` | Deepest background (bottom of gradient) |
-| `AppColors.bgSurface` | `#FFFFFF` | Card surfaces, nav bar, screen background |
-| `AppColors.textPrimary` | `#333333` | All primary text |
-| `AppColors.textSecondary` | `#B3333333` | 70 % opacity — secondary / supporting text |
-| `AppColors.textMuted` | `#66333333` | 40 % opacity — labels, units, muted metadata |
-| `AppColors.goalAmber` | `#E9B44C` | Goal-reached state only (ring + confetti) |
-| `AppColors.success` | `#55A56B` | BLE connected status only |
-| `AppColors.error` | `#E25858` | Error states only |
+| `AppColors.bgSurface` | `#FFFFFF` | Main app background |
+| `AppColors.bgCard` | `#FFFCFA` | Card surfaces (`FlatCard`) — distinct from the main background |
+| `AppColors.cardBorder` / `accentSecondary` | `#F3E9E5` | Card borders, incomplete progress ring track, inactive borders/tints |
+| `AppColors.accent` | `#C38381` | Primary accent — buttons, active nav/icons, completed progress ring |
+| `AppColors.supporting` / `goalAmber` | `#D9B6A0` | Soft peach — used **selectively** (goal-reached states, trophies, achievement badges), never as a primary UI color |
+| `AppColors.textPrimary` | `#4B342C` | Headings, body text, numbers / key data (step count etc.) |
+| `AppColors.textSecondary` | `#9C7063` | Secondary / less important text |
+| `AppColors.textMuted` | `#9C7063` @ 60 % alpha | Not in the brief — derived third tier for labels/units; flag if design wants a dedicated hex |
+| `AppColors.success` / `bleConnected` | `#55A56B` | BLE connected status only — left unchanged, functional not brand |
+| `AppColors.error` | `#E25858` | Error states only — left unchanged, functional not brand |
 
 **Rules**:
 - No other colors. Do not introduce purple, blue, green, grey, or any new hex value.
-- Opacity variants must use `withValues(alpha: x)` on the 5 base colors — never new hex.
-- `AppColors.bgGradient` (surface → deep → mid) is the full-screen background drawn by `MainShell`.
+- Opacity variants must use `withValues(alpha: x)` on these tokens — never a new hex.
+- `AppColors.cardBorder`/`accentSecondary` and `AppColors.bgDeep` are the same
+  literal value reused across roles — see the doc comments in `app_colors.dart`
+  before repointing just one of them.
+- `AppColors.bgGradient` (surface → deep → mid) is the full-screen background drawn by `MainShell`; it's now tuned to read as essentially flat white per the brief, with only a whisper of warmth at the edge.
 - Scaffold background is always `Colors.transparent` — the gradient is on the parent container.
 
 ---
@@ -100,6 +104,16 @@ Exactly 5 base colors. All usage must derive from these.
 ### Typography — `lib/core/constants/app_typography.dart`
 
 Always use `AppTypography.*` constants. **Never write an inline `TextStyle` in a widget.**
+
+Two font families, set per style via `fontFamily`, not applied globally:
+- `AppTypography.fontFamilyBook` ("ArboriaBook") — headings (`title*`, `brand`)
+- `AppTypography.fontFamilyMedium` ("ArboriaMedium") — body copy and key
+  numerical data (`display*`, `body*`, `label*`)
+
+Both are licensed files, not yet in the repo — `pubspec.yaml` has the
+`fonts:` block commented out until `assets/fonts/Arboria-Book.otf` and
+`assets/fonts/Arboria-Medium.otf` exist. Until then every style falls back
+to the platform default silently.
 
 | Constant | Size | Weight | Letter Spacing | Use case |
 |---|---|---|---|---|

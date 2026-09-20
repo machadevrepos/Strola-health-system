@@ -5,3 +5,4 @@ export {
   toggleAnnouncement,
   deleteAnnouncement,
 } from "./announcementCrud";
+export { trackAnnouncementEvent } from "./trackAnnouncementEvent";

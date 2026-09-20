@@ -11,6 +11,7 @@ import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/services/push_token_service.dart';
 import 'package:strola_health/core/utils/formatters.dart';
 import 'package:strola_health/data/datasources/backend_api.dart';
+import 'package:strola_health/data/repositories/app_content_repository.dart';
 import 'package:strola_health/data/repositories/device_repository.dart';
 import 'package:strola_health/domain/entities/app_notification.dart';
 import 'package:strola_health/domain/entities/challenge.dart';
@@ -264,15 +265,21 @@ class _MainShellState extends ConsumerState<MainShell>
 // White surface · warm coral shadow upward · 5-item layout with center FAB
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _StrollaNavBar extends StatelessWidget {
+class _StrollaNavBar extends ConsumerWidget {
   const _StrollaNavBar({required this.currentIndex, required this.onTap});
 
   final int currentIndex;
   final void Function(int) onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    // Only these two nav labels have an admin-editable appContent entry
+    // today (challenges.nav_label / community.nav_label) — Home and Stats
+    // stay hardcoded because there's nothing in the admin panel to source
+    // them from yet, not because this lookup doesn't work for them too.
+    final communityLabel = appContentText(ref, 'community.nav_label', 'Community');
+    final challengesLabel = appContentText(ref, 'challenges.nav_label', 'Challenges');
 
     return Container(
       decoration: BoxDecoration(
@@ -313,13 +320,13 @@ class _StrollaNavBar extends StatelessWidget {
                 _StartWorkoutFab(onTap: () => onTap(2)),
                 _NavItem(
                   icon: AppIcons.community,
-                  label: 'Community',
+                  label: communityLabel,
                   isActive: currentIndex == 2,
                   onTap: () => onTap(3),
                 ),
                 _NavItem(
                   icon: AppIcons.challenge,
-                  label: 'Challenges',
+                  label: challengesLabel,
                   isActive: currentIndex == 3,
                   onTap: () => onTap(4),
                 ),

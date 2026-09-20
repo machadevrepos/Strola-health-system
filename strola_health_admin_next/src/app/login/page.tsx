@@ -16,8 +16,13 @@ import { useAuth } from "@/lib/auth-context";
 export default function LoginPage() {
   const router = useRouter();
   const { mockSignIn } = useAuth();
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
+  // Prefilled with a working dummy login — only meaningful while
+  // IS_MOCK_MODE is on (see .env.local): mock sign-in matches this against
+  // no one in particular and falls back to the "admin" role, so Sign In
+  // just works on click. Once mock mode is off these do nothing special —
+  // clear them and enter real credentials.
+  const [email, setEmail] = React.useState(IS_MOCK_MODE ? "admin@strollahealth.com" : "");
+  const [password, setPassword] = React.useState(IS_MOCK_MODE ? "demo1234" : "");
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);

@@ -5,17 +5,19 @@ import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_icons.dart';
 import 'package:strola_health/core/constants/app_theme.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/core/utils/push_routing.dart';
 import 'package:strola_health/data/repositories/announcement_repository.dart';
+import 'package:strola_health/presentation/providers/navigation_providers.dart';
 import 'package:strola_health/presentation/widgets/pressable_scale.dart';
 
 /// Real Firestore-backed announcement banner (`announcements` collection,
 /// admin-authored). Renders nothing when there's no active/matching,
 /// not-yet-dismissed announcement — a real empty state, not a placeholder.
 ///
-/// `link_target` isn't wired to in-app navigation — there's no established
-/// deep-link routing convention elsewhere in the app to hook into yet, so
-/// this deliberately doesn't guess at one; the banner is dismiss-only for
-/// now.
+/// `link_target` uses the same tab mapping push notifications do
+/// (push_routing.dart) — tapping the message content (not the dismiss X)
+/// switches MainShell to that tab and reports a "clicked" event. No target
+/// means the banner stays dismiss-only, same as before.
 class AnnouncementBanner extends ConsumerWidget {
   const AnnouncementBanner({super.key});
 
@@ -51,9 +53,26 @@ class AnnouncementBanner extends ConsumerWidget {
                 Text(announcement.emoji, style: const TextStyle(fontSize: 20)),
                 const SizedBox(width: AppTheme.spaceM),
                 Expanded(
-                  child: Text(
-                    announcement.message,
-                    style: AppTypography.bodyS.copyWith(height: 1.4),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: announcement.linkTarget == null
+                        ? null
+                        : () {
+                            final tabIndex = tabIndexForLinkTarget(
+                              announcement.linkTarget,
+                            );
+                            ref
+                                .read(announcementRepositoryProvider)
+                                .trackClicked(announcement.id);
+                            if (tabIndex != null) {
+                              ref.read(mainTabIndexProvider.notifier).state =
+                                  tabIndex;
+                            }
+                          },
+                    child: Text(
+                      announcement.message,
+                      style: AppTypography.bodyS.copyWith(height: 1.4),
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppTheme.spaceS),

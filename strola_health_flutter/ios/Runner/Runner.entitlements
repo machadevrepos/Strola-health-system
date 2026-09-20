@@ -6,5 +6,16 @@
 	<true/>
 	<key>com.apple.developer.healthkit.access</key>
 	<array/>
+	<!-- Lets a link.strollahealth.com/join/{code} tap open this app directly
+	     instead of Safari — requires the matching apple-app-site-association
+	     file to be live at https://link.strollahealth.com/.well-known/
+	     (see strola_health_firebase/public/.well-known/) and "Associated
+	     Domains" enabled for this app's identifier under the Apple Developer
+	     account's Team (Signing & Capabilities in Xcode, or the developer
+	     portal). Until then this key is inert — it won't break anything. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:link.strollahealth.com</string>
+	</array>
 </dict>
 </plist>

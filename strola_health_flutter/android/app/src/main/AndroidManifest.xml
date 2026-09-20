@@ -90,6 +90,36 @@
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
+
+            <!-- ── Challenge invite deep links (app_links) ─────────────────── -->
+            <!-- strolahealthlink://join/{code} — deliberately a DIFFERENT
+                 scheme from strolahealth:// (used above for the OAuth
+                 callback): Android matches intent-filters by scheme
+                 statically, with no runtime session-scoping the way iOS's
+                 ASWebAuthenticationSession has, so reusing strolahealth://
+                 here would make every strolahealth:// open — including a
+                 real OAuth callback — show a disambiguation dialog between
+                 this activity and CallbackActivity below. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="strolahealthlink" android:host="join" />
+            </intent-filter>
+            <!-- https://link.strollahealth.com/join/{code} — the real App
+                 Link. Needs .well-known/assetlinks.json live at that domain
+                 (see strola_health_firebase/public/.well-known/) carrying
+                 this app's release signing certificate fingerprint before
+                 autoVerify actually succeeds; until then Android falls back
+                 to a chooser or the browser instead of opening this app
+                 directly. Safe to declare now regardless — no future app
+                 update needed once the asset-links file exists. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="link.strollahealth.com" android:pathPrefix="/join" />
+            </intent-filter>
         </activity>
         <activity-alias
             android:name="ViewPermissionUsageActivity"

@@ -87,6 +87,7 @@ dependencies:
   firebase_analytics: ^11.6.0
   firebase_app_check: ^0.3.2+10
   firebase_storage: ^12.4.10
+  app_links: ^7.2.1
 
 dev_dependencies:
   flutter_test:
@@ -97,3 +98,16 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/onboarding/
+    - assets/images/branding/
+  # Arboria (Book + Medium) — drop the two licensed font files at the paths
+  # below, then uncomment. AppTypography already references these family
+  # names (fontFamilyBook / fontFamilyMedium); until they're registered here
+  # every style just falls back to the platform default, so leaving this
+  # commented out doesn't break the current build.
+  # fonts:
+  #   - family: ArboriaBook
+  #     fonts:
+  #       - asset: assets/fonts/Arboria-Book.otf
+  #   - family: ArboriaMedium
+  #     fonts:
+  #       - asset: assets/fonts/Arboria-Medium.otf

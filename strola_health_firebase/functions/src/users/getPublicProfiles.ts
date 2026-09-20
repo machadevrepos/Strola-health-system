@@ -2,7 +2,7 @@ import { onCall } from "firebase-functions/v2/https";
 import { db } from "../lib/admin";
 import { Collections } from "../lib/constants";
 import { requireAuth, invalidArgument } from "../lib/auth-helpers";
-import type { UserProfile } from "../lib/types";
+import type { Role, UserProfile } from "../lib/types";
 
 const MAX_IDS = 100;
 
@@ -15,6 +15,10 @@ export interface PublicProfile {
   streak_current: number | null;
   streak_longest: number | null;
   lifetime_steps: number | null;
+  // "user" for everyone except staff — lets the client give an
+  // admin/super_admin's community posts and comments an official look
+  // (see community_post.dart's PublicProfile.communityDisplayName).
+  role: Role;
 }
 
 /**
@@ -34,7 +38,15 @@ export const getPublicProfiles = onCall(async (request) => {
   if (!Array.isArray(userIds) || userIds.length === 0) invalidArgument("userIds is required.");
 
   const ids = [...new Set(userIds)].slice(0, MAX_IDS);
-  const snaps = await Promise.all(ids.map((id) => db.collection(Collections.users).doc(id).get()));
+  // A single batched multi-get (one round trip to Firestore) rather than
+  // `Promise.all(ids.map(id => ref.get()))` — that looked batched from the
+  // caller's side (one callable invocation) but was actually up to
+  // MAX_IDS separate document reads fired in parallel under the hood. Every
+  // feed page, friend list, and comment thread funnels through this
+  // function, so that was the real first-load cost the client-side
+  // batching/caching in PublicProfileRepository couldn't see or fix.
+  const refs = ids.map((id) => db.collection(Collections.users).doc(id));
+  const snaps = refs.length > 0 ? await db.getAll(...refs) : [];
 
   const profiles: PublicProfile[] = [];
   for (const snap of snaps) {
@@ -51,6 +63,7 @@ export const getPublicProfiles = onCall(async (request) => {
       streak_current: showStats ? user.stats.streak_current : null,
       streak_longest: showStats ? user.stats.streak_longest : null,
       lifetime_steps: showStats ? user.stats.lifetime_steps : null,
+      role: user.role,
     });
   }
 

@@ -26,6 +26,12 @@ export async function deliverPushNotification(notificationId: string): Promise<v
       link_target: notification.link_target ?? "",
       link_challenge_id: notification.link_challenge_id ?? "",
       link_custom_path: notification.link_custom_path ?? "",
+      // Round-trips back via trackPushOpened when the client actually opens
+      // this send (push_message_listener.dart's tap handler) — this is what
+      // `opened_count`/CTR was missing: delivered_count comes straight from
+      // FCM's own accepted-for-delivery count above, but nothing ever told
+      // this specific notification doc that someone opened it.
+      notification_id: notification.id,
     },
   });
 

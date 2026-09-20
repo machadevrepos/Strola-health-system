@@ -221,7 +221,7 @@ class _AchievementSection extends StatelessWidget {
                     for (final b in badges)
                       HexBadge(
                         big: b.emoji,
-                        small: _smallLabel(b.requirementMetric),
+                        small: badgeSmallLabel(b.requirementMetric),
                         label: b.name,
                         description: b.description,
                         earned: b.earned,
@@ -237,22 +237,6 @@ class _AchievementSection extends StatelessWidget {
         .animate()
         .fadeIn(delay: delay.ms, duration: AppTheme.animSlow)
         .slideY(begin: 0.1);
-  }
-}
-
-/// Short caption shown under the badge's emoji on the hexagon face — matches
-/// the requirement this section's badges track.
-String _smallLabel(BadgeRequirementMetric metric) {
-  switch (metric) {
-    case BadgeRequirementMetric.totalSteps:
-    case BadgeRequirementMetric.sessionSteps:
-      return 'STEPS';
-    case BadgeRequirementMetric.streakDays:
-      return 'DAY STREAK';
-    case BadgeRequirementMetric.challengesCompleted:
-      return 'CHALLENGES';
-    case BadgeRequirementMetric.unknown:
-      return '';
   }
 }
 

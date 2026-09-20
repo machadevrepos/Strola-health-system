@@ -13,6 +13,7 @@ import { CreatePostDialog, type NewPostValues } from "@/components/community/cre
 import { logAction } from "@/lib/audit-log-store";
 import { ApiError } from "@/lib/api-client";
 import {
+  addComment as apiAddComment,
   banUserFromPosting,
   createPost as apiCreatePost,
   deleteComment as apiDeleteComment,
@@ -156,6 +157,18 @@ export function CommunityView({
     }
   }
 
+  async function replyToPost(postId: string, content: string) {
+    try {
+      const created = await apiAddComment(postId, content);
+      setComments((prev) => [...prev, { ...created, author: findUserById(users, created.author_id), post: undefined }]);
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p)));
+      toast.success("Reply posted");
+      logAction("Replied to post", postId);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't post this reply"));
+    }
+  }
+
   async function editComment(commentId: string, content: string) {
     try {
       await apiUpdateComment(commentId, content);
@@ -197,6 +210,8 @@ export function CommunityView({
       <TabsContent value="posts" className="mt-4">
         <PostsPanel
           posts={posts}
+          comments={comments}
+          users={users}
           onHide={hidePost}
           onUnhide={unhidePost}
           onRemovePhoto={removePhoto}
@@ -205,6 +220,9 @@ export function CommunityView({
           onTogglePin={togglePin}
           onToggleCommentsLocked={toggleCommentsLocked}
           onBanFromPosting={banFromPosting}
+          onReply={replyToPost}
+          onEditComment={editComment}
+          onDeleteComment={deleteComment}
         />
       </TabsContent>
       <TabsContent value="comments" className="mt-4">

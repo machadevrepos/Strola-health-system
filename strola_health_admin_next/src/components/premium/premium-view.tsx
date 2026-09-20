@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Crown, CurrencyGbp, Hourglass, UserCircle, TrendUp, TrendDown, Plus, X, MagnifyingGlass } from "@phosphor-icons/react";
+import { Crown, CurrencyDollar, Hourglass, UserCircle, TrendUp, TrendDown, Plus, X, MagnifyingGlass } from "@phosphor-icons/react";
 import { StatCard } from "@/components/shell/stat-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ import { ApiError } from "@/lib/api-client";
 import { logAction } from "@/lib/audit-log-store";
 import { LIFETIME_ISO, classifySubscription, subscriptionOverviewStats, userDisplayName } from "@/lib/data/queries";
 import type { SubscriptionSegment } from "@/lib/data/queries";
-import { formatCurrencyGBP, formatDate, formatNumber, formatPercent, initials, titleCase } from "@/lib/format";
+import { formatCurrencyUSD, formatDate, formatNumber, formatPercent, initials, titleCase } from "@/lib/format";
 import type { AnalyticsEvent, AppSettings, UserProfile } from "@/lib/types";
 
 function apiErrorMessage(err: unknown, fallback: string): string {
@@ -151,9 +151,9 @@ export function PremiumView({
         />
         <StatCard
           label="Monthly recurring revenue"
-          value={formatCurrencyGBP(stats.mrr)}
+          value={formatCurrencyUSD(stats.mrr)}
           hint="Paying subscribers only"
-          icon={<CurrencyGbp size={16} />}
+          icon={<CurrencyDollar size={16} />}
         />
         <StatCard label="Trial users" value={formatNumber(stats.trialUsers)} icon={<Hourglass size={16} />} />
         <StatCard label="Free users" value={formatNumber(stats.freeUsers)} icon={<UserCircle size={16} />} />

@@ -12,7 +12,7 @@ const ANDROID_FONT = 'Roboto, "Segoe UI", sans-serif';
 function AppGlyph({ size, radius }: { size: number; radius: number }) {
   return (
     <div
-      className="flex shrink-0 items-center justify-center bg-[#E07A7A] font-semibold text-white"
+      className="flex shrink-0 items-center justify-center bg-primary font-semibold text-white"
       style={{ width: size, height: size, borderRadius: radius, fontSize: size * 0.42 }}
     >
       S

@@ -19,7 +19,9 @@ export const addComment = onCall({ enforceAppCheck: APP_CHECK_ENFORCED }, async 
   const postSnap = await postRef.get();
   if (!postSnap.exists) notFound("Post not found.");
   const post = postSnap.data() as CommunityPost;
-  if (post.comments_locked) failedPrecondition("Comments are locked on this post.");
+  const role = getRole(request);
+  const isAdminCaller = role === "admin" || role === "super_admin";
+  if (post.comments_locked && !isAdminCaller) failedPrecondition("Comments are locked on this post.");
 
   const userSnap = await db.collection(Collections.users).doc(uid).get();
   const user = userSnap.data() as UserProfile | undefined;

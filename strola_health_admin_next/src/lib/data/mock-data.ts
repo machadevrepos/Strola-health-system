@@ -854,6 +854,9 @@ export const mockAnnouncements: Announcement[] = [
     ends_at: daysAgo(-20),
     created_by: "usr_016",
     created_at: daysAgo(10),
+    seen_count: 1204,
+    dismissed_count: 312,
+    clicked_count: 341,
   },
   {
     id: "ann_002",
@@ -868,6 +871,9 @@ export const mockAnnouncements: Announcement[] = [
     ends_at: daysAgo(21),
     created_by: "usr_017",
     created_at: daysAgo(36),
+    seen_count: 42,
+    dismissed_count: 9,
+    clicked_count: 15,
   },
   {
     id: "ann_003",
@@ -882,6 +888,9 @@ export const mockAnnouncements: Announcement[] = [
     ends_at: null,
     created_by: "usr_016",
     created_at: daysAgo(4),
+    seen_count: 86,
+    dismissed_count: 21,
+    clicked_count: 0, // no link_target — never a "clicked" event to fire
   },
 ];
 

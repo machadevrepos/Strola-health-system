@@ -84,7 +84,9 @@ class StepRing extends StatelessWidget {
                 axisLineStyle: AxisLineStyle(
                   thickness: 0.13,
                   thicknessUnit: GaugeSizeUnit.factor,
-                  color: AppColors.accentSecondary.withValues(alpha: 0.18),
+                  // Full-strength — this is the brief's named "Incomplete
+                  // progress ring" colour, not a faint tint of it.
+                  color: AppColors.cardBorder,
                   cornerStyle: CornerStyle.bothCurve,
                 ),
                 pointers: [

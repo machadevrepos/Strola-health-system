@@ -32,22 +32,25 @@ class FriendRepository {
         .get();
     if (snap.docs.isEmpty) return const [];
 
-    final otherIds = <String>{};
-    for (final doc in snap.docs) {
-      final uids = (doc.data()['uids'] as List).cast<String>();
-      otherIds.add(uids.firstWhere((id) => id != _uid));
-    }
+    // The "other participant" per doc, computed once — reused below instead
+    // of re-scanning each doc's 2-element `uids` list a second time to find
+    // the same id again.
+    final otherIdByDoc = {
+      for (final doc in snap.docs)
+        doc.id: (doc.data()['uids'] as List)
+            .cast<String>()
+            .firstWhere((id) => id != _uid),
+    };
     final profiles = {
-      for (final p in await _profiles.getMany(otherIds)) p.id: p,
+      for (final p in await _profiles.getMany(otherIdByDoc.values))
+        p.id: p,
     };
 
     return [
       for (final doc in snap.docs)
         FriendSummary(
           profile:
-              profiles[(doc.data()['uids'] as List).cast<String>().firstWhere(
-                (id) => id != _uid,
-              )] ??
+              profiles[otherIdByDoc[doc.id]] ??
               PublicProfile.unknown('unknown'),
           status: doc.data()['status'] == 'accepted'
               ? FriendshipStatus.accepted

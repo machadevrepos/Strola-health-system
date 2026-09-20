@@ -40,6 +40,7 @@ class AppBadge {
     required this.requirementMetric,
     required this.requirementValue,
     required this.earned,
+    this.earnedAt,
   });
 
   final String id;
@@ -50,12 +51,17 @@ class AppBadge {
   final int requirementValue;
   final bool earned;
 
+  /// When this user earned the badge (from `userBadges.awarded_at`) — null
+  /// when [earned] is false, or for badges awarded before this field existed.
+  final DateTime? earnedAt;
+
   /// [docId] is the Firestore document id (`badges/{badgeId}`) — used as a
   /// fallback when the document doesn't carry its own `id` field.
   factory AppBadge.fromFirestore(
     Map<String, dynamic> data,
     String docId, {
     required bool earned,
+    DateTime? earnedAt,
   }) {
     return AppBadge(
       id: data['id'] as String? ?? docId,
@@ -67,6 +73,7 @@ class AppBadge {
       ),
       requirementValue: (data['requirement_value'] as num?)?.toInt() ?? 0,
       earned: earned,
+      earnedAt: earnedAt,
     );
   }
 }

@@ -30,6 +30,18 @@
 				<string>strolahealth</string>
 			</array>
 		</dict>
+		<!-- Challenge invite deep links (app_links) — a separate scheme from
+		     strolahealth above (that one's reserved for the OAuth redirect).
+		     iOS's ASWebAuthenticationSession is session-scoped so reusing the
+		     same scheme is actually safe here unlike Android, but keeping
+		     them distinct keeps both platforms' behavior identical and this
+		     app_links stream unambiguous about what triggered it. -->
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>strolahealthlink</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>

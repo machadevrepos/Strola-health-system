@@ -16,6 +16,7 @@ import 'package:strola_health/data/repositories/public_profile_repository.dart';
 import 'package:strola_health/domain/entities/challenge.dart';
 import 'package:strola_health/domain/entities/friend.dart';
 import 'package:strola_health/domain/entities/public_profile.dart';
+import 'package:strola_health/presentation/providers/badge_providers.dart';
 import 'package:strola_health/presentation/providers/challenge_providers.dart';
 import 'package:strola_health/presentation/providers/community_providers.dart';
 import 'package:strola_health/presentation/providers/friend_providers.dart';
@@ -43,6 +44,7 @@ class ProfileScreen extends ConsumerWidget {
     final weekly = ref.watch(weeklyStepsProvider);
     final profile = ref.watch(userProfileProvider);
     final privacy = ref.watch(privacySettingsProvider);
+    final recentBadgesAsync = ref.watch(recentEarnedBadgesProvider);
 
     final distanceStr = ref.watch(distanceProvider);
     final calories = ref.watch(caloriesProvider);
@@ -485,61 +487,55 @@ class ProfileScreen extends ConsumerWidget {
                                   ],
                                 ),
                                 const SizedBox(height: AppTheme.sectionGap),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: const [
-                                    HexBadge(
-                                      big: '12',
-                                      small: 'DAY STREAK',
-                                      label: '12 Day Streak',
-                                      date: 'May 12, 2024',
-                                      gradient: [
-                                        AppColors.accent,
-                                        AppColors.error,
-                                      ],
+                                recentBadgesAsync.when(
+                                  loading: () => const SizedBox(
+                                    height: 96,
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.accent,
+                                      ),
                                     ),
-                                    HexBadge(
-                                      big: '100K',
-                                      small: 'STEPS',
-                                      label: '100K Steps',
-                                      date: 'Apr 28, 2024',
-                                      gradient: [
-                                        AppColors.success,
-                                        AppColors.success,
-                                      ],
+                                  ),
+                                  error: (_, __) => Text(
+                                    'Could not load achievements.',
+                                    style: AppTypography.bodyS.copyWith(
+                                      color: AppColors.textMuted,
                                     ),
-                                    HexBadge(
-                                      icon: AppIcons.earlyBird,
-                                      small: 'EARLY BIRD',
-                                      label: 'Early Bird',
-                                      date: 'Apr 15, 2024',
-                                      gradient: [
-                                        AppColors.goalAmber,
-                                        AppColors.accent,
+                                  ),
+                                  data: (badges) {
+                                    if (badges.isEmpty) {
+                                      return Text(
+                                        'No badges earned yet — keep moving '
+                                        'to unlock your first one!',
+                                        style: AppTypography.bodyS.copyWith(
+                                          color: AppColors.textMuted,
+                                        ),
+                                      );
+                                    }
+                                    return Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        for (final b in badges)
+                                          HexBadge(
+                                            big: b.emoji,
+                                            small: badgeSmallLabel(
+                                              b.requirementMetric,
+                                            ),
+                                            label: b.name,
+                                            date: b.earnedAt != null
+                                                ? Formatters.fullDateWithYear(
+                                                    b.earnedAt!,
+                                                  )
+                                                : null,
+                                            gradient: badgeGradient(
+                                              b.requirementMetric,
+                                            ),
+                                          ),
                                       ],
-                                    ),
-                                    HexBadge(
-                                      big: '7',
-                                      small: 'DAY STREAK',
-                                      label: '7 Day Streak',
-                                      date: 'Apr 7, 2024',
-                                      gradient: [
-                                        AppColors.goalAmber,
-                                        AppColors.goalAmber,
-                                      ],
-                                    ),
-                                    HexBadge(
-                                      big: '50K',
-                                      small: 'STEPS',
-                                      label: '50K Steps',
-                                      date: 'Mar 22, 2024',
-                                      gradient: [
-                                        AppColors.accentSecondary,
-                                        AppColors.accent,
-                                      ],
-                                    ),
-                                  ],
+                                    );
+                                  },
                                 ),
                               ],
                             ),

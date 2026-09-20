@@ -50,9 +50,11 @@ import {
 import { HidePostDialog } from "@/components/moderation/hide-post-dialog";
 import { EditPostDialog, type EditPostValues } from "@/components/moderation/edit-post-dialog";
 import { BanFromPostingDialog } from "@/components/moderation/ban-from-posting-dialog";
+import { PostDetailDialog } from "@/components/moderation/post-detail-dialog";
 import { userDisplayName } from "@/lib/data/queries";
 import { formatRelative, initials } from "@/lib/format";
-import type { EnrichedPost } from "@/lib/data/queries";
+import type { EnrichedComment, EnrichedPost } from "@/lib/data/queries";
+import type { UserProfile } from "@/lib/types";
 
 type Filter = "all" | "visible" | "hidden";
 
@@ -66,6 +68,8 @@ const PAGE_SIZE = 8;
 
 export function PostsPanel({
   posts,
+  comments,
+  users,
   onHide,
   onUnhide,
   onRemovePhoto,
@@ -74,8 +78,13 @@ export function PostsPanel({
   onTogglePin,
   onToggleCommentsLocked,
   onBanFromPosting,
+  onReply,
+  onEditComment,
+  onDeleteComment,
 }: {
   posts: EnrichedPost[];
+  comments: EnrichedComment[];
+  users: UserProfile[];
   onHide: (postId: string, reason: string) => void | Promise<void>;
   onUnhide: (postId: string) => void;
   onRemovePhoto: (postId: string) => void;
@@ -84,6 +93,9 @@ export function PostsPanel({
   onTogglePin: (postId: string, pinned: boolean) => void | Promise<void>;
   onToggleCommentsLocked: (postId: string, locked: boolean) => void | Promise<void>;
   onBanFromPosting: (userId: string, reason: string) => void | Promise<void>;
+  onReply: (postId: string, content: string) => void | Promise<void>;
+  onEditComment: (commentId: string, content: string) => void | Promise<void>;
+  onDeleteComment: (commentId: string) => void | Promise<void>;
 }) {
   const [filter, setFilter] = React.useState<Filter>("all");
   const [query, setQuery] = React.useState("");
@@ -93,6 +105,13 @@ export function PostsPanel({
   const [deleting, setDeleting] = React.useState(false);
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
   const [banTarget, setBanTarget] = React.useState<{ userId: string; userName: string } | null>(null);
+  const [detailTarget, setDetailTarget] = React.useState<EnrichedPost | null>(null);
+  const [detailTab, setDetailTab] = React.useState<"comments" | "likes">("comments");
+
+  function openDetail(post: EnrichedPost, tab: "comments" | "likes") {
+    setDetailTarget(post);
+    setDetailTab(tab);
+  }
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -173,6 +192,9 @@ export function PostsPanel({
                   <DotsThree size={18} weight="bold" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => openDetail(post, "comments")}>
+                    <ChatCircle size={14} /> View likes &amp; comments
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setEditTarget(post)}>
                     <PencilSimple size={14} /> Edit content
                   </DropdownMenuItem>
@@ -239,8 +261,20 @@ export function PostsPanel({
               </p>
             )}
             <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><Heart size={13} /> {post.likes_count}</span>
-              <span className="flex items-center gap-1"><ChatCircle size={13} /> {post.comments_count}</span>
+              <button
+                type="button"
+                onClick={() => openDetail(post, "likes")}
+                className="flex items-center gap-1 hover:text-foreground hover:underline"
+              >
+                <Heart size={13} /> {post.likes_count}
+              </button>
+              <button
+                type="button"
+                onClick={() => openDetail(post, "comments")}
+                className="flex items-center gap-1 hover:text-foreground hover:underline"
+              >
+                <ChatCircle size={13} /> {post.comments_count}
+              </button>
               {post.step_count != null && (
                 <span className="font-mono">{post.step_count.toLocaleString("en-GB")} steps</span>
               )}
@@ -281,6 +315,16 @@ export function PostsPanel({
           if (banTarget) await onBanFromPosting(banTarget.userId, reason);
           setBanTarget(null);
         }}
+      />
+      <PostDetailDialog
+        post={detailTarget}
+        initialTab={detailTab}
+        comments={comments}
+        users={users}
+        onOpenChange={(open) => !open && setDetailTarget(null)}
+        onReply={onReply}
+        onEditComment={onEditComment}
+        onDeleteComment={onDeleteComment}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

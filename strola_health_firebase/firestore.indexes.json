@@ -111,6 +111,12 @@
       { "fieldPath": "status", "order": "ASCENDING" },
       { "fieldPath": "end_date", "order": "DESCENDING" }
     ]},
+    { "collectionGroup": "challenges", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "status", "order": "ASCENDING" },
+      { "fieldPath": "visibility", "order": "ASCENDING" },
+      { "fieldPath": "is_official", "order": "ASCENDING" },
+      { "fieldPath": "start_date", "order": "ASCENDING" }
+    ]},
     { "collectionGroup": "participants", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "left_at", "order": "ASCENDING" },
       { "fieldPath": "steps", "order": "DESCENDING" }

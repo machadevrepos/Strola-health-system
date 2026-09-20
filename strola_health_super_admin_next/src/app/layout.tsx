@@ -5,8 +5,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth-context";
 
+// Kept loaded as the automatic fallback in the Arboria font stack (see
+// globals.css) rather than a bare system-ui fallback — reliably available
+// today (a real Google Font, no local files needed) and looks reasonable
+// on its own, so the panel doesn't regress visually while Arboria's actual
+// font files aren't in the repo yet. Renamed off "--font-sans" since that
+// Tailwind theme token now points at the Arboria stack instead.
 const geistSans = Geist({
-  variable: "--font-sans",
+  variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 

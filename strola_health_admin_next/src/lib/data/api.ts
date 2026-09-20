@@ -1,7 +1,7 @@
 import { limit, orderBy, where } from "firebase/firestore";
 import { IS_MOCK_MODE } from "@/lib/mock-mode";
 import * as mock from "@/lib/data/mock-api";
-import { callFn, getCollectionData, getCollectionGroupData, getDocData, getDocDataOrThrow, refetchDoc } from "@/lib/firestore-helpers";
+import { callFn, getCollectionData, getCollectionGroupData, getDocData, getDocDataOrThrow, getSubcollectionData, refetchDoc } from "@/lib/firestore-helpers";
 import { getOrFetch, invalidate, invalidateAfter } from "@/lib/data/cache";
 import type {
   AccountDeletionRequest,
@@ -24,6 +24,7 @@ import type {
   LegalAcceptance,
   LegalDocumentType,
   LegalDocumentVersion,
+  PostLike,
   PushLinkTarget,
   PushNotification,
   PushSegment,
@@ -265,6 +266,20 @@ export const deleteComment = async (id: string) => {
   await callFn("deleteComment", { postId, commentId: id });
   invalidate("comments");
 };
+// Admin reply — same callable end users hit; the backend lets an
+// admin/super_admin caller through even when comments_locked is set (see
+// comments.ts's addComment).
+export const addComment = async (postId: string, content: string): Promise<CommunityComment> => {
+  if (IS_MOCK_MODE) return invalidateAfter(mock.addComment(postId, content), "comments");
+  const result = await callFn<{ success: true; commentId: string }>("addComment", { postId, content });
+  invalidate("comments");
+  return refetchDoc<CommunityComment>(`communityPosts/${postId}/comments/${result.commentId}`);
+};
+// Not cached — always read fresh when an admin opens a post's likes list,
+// since likes/unlikes happen client-side directly against Firestore
+// (no callable to invalidate a cache key from).
+export const fetchPostLikes = (postId: string) =>
+  IS_MOCK_MODE ? mock.fetchPostLikes(postId) : getSubcollectionData<PostLike>(`communityPosts/${postId}/likes`);
 
 // ---------------------------------------------------------------------------
 // Reports
@@ -323,6 +338,11 @@ export const createChallenge = async (payload: object) => {
     visibility: p.visibility,
     winnerType: p.winner_type,
     imageUrl: p.image_url,
+    // Only ever honored server-side for an admin creating a public
+    // challenge — see createChallenge.ts. This is what lets "Prepare next
+    // month's challenge" create a challenge that doesn't go live or touch
+    // the current official one.
+    status: p.status,
   });
   invalidate("challenges");
   return refetchDoc<Challenge>(`challenges/${result.challengeId}`);

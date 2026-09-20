@@ -36,19 +36,22 @@ class BadgeRepository {
     final badgesSnapshot = results[0];
     final userBadgesSnapshot = results[1];
 
-    final earnedBadgeIds = userBadgesSnapshot.docs
-        .map((doc) => doc.data()['badge_id'] as String?)
-        .whereType<String>()
-        .toSet();
+    final earnedAtByBadgeId = <String, DateTime?>{
+      for (final doc in userBadgesSnapshot.docs)
+        if (doc.data()['badge_id'] is String)
+          doc.data()['badge_id'] as String:
+              (doc.data()['awarded_at'] as Timestamp?)?.toDate(),
+    };
 
     return [
       for (final doc in badgesSnapshot.docs)
         AppBadge.fromFirestore(
           doc.data(),
           doc.id,
-          earned: earnedBadgeIds.contains(
+          earned: earnedAtByBadgeId.containsKey(
             doc.data()['id'] as String? ?? doc.id,
           ),
+          earnedAt: earnedAtByBadgeId[doc.data()['id'] as String? ?? doc.id],
         ),
     ];
   }

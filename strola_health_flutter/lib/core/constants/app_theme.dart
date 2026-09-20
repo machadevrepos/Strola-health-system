@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:strola_health/core/constants/app_colors.dart';
 
 /// Strolla Health — spacing, sizing, shadow, and animation tokens.
 ///
 /// Rules:
 ///   • All spacing, border radii, icon sizes, and shadow values must come from
 ///     here. Never hard-code a magic number in a widget.
-///   • Shadow values use the coral accent at very low alpha so they feel warm,
+///   • Shadow values use AppColors.accent at very low alpha so they feel warm,
 ///     not generic grey.
 class AppTheme {
   AppTheme._();
@@ -57,43 +58,45 @@ class AppTheme {
   // ─────────────────────────────────────────────────────────────────────────
 
   static const double navBarHeight = 64.0;
-  static const double navFabSize = 57.2; // coral circle FAB diameter (+10%)
+  static const double navFabSize = 57.2; // accent circle FAB diameter (+10%)
   static const double navFabIconSize = 30.0;
   static const double navIconSize = 22.0;
   static const double navLabelSize = 10.0;
 
   // ─────────────────────────────────────────────────────────────────────────
   // SHADOWS
-  // Warm coral-tinted shadows — consistent warmth across the app.
+  // Warm accent-tinted shadows — derived from AppColors.accent rather than a
+  // hardcoded hex, so they stay in sync if the accent ever changes again.
+  // Getters, not const fields, since withValues() isn't a const call.
   // ─────────────────────────────────────────────────────────────────────────
 
   /// Flat card — very subtle lift, used on most content cards.
-  static const List<BoxShadow> cardShadow = [
+  static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Color(0x0AE07A7A), // accent at ~4 %
+      color: AppColors.accent.withValues(alpha: 0.04),
       blurRadius: 16,
       spreadRadius: 0,
-      offset: Offset(0, 4),
+      offset: const Offset(0, 4),
     ),
   ];
 
   /// Elevated element — buttons, FABs, banners.
-  static const List<BoxShadow> elevatedShadow = [
+  static List<BoxShadow> get elevatedShadow => [
     BoxShadow(
-      color: Color(0x1AE07A7A), // accent at ~10 %
+      color: AppColors.accent.withValues(alpha: 0.10),
       blurRadius: 24,
       spreadRadius: 0,
-      offset: Offset(0, 6),
+      offset: const Offset(0, 6),
     ),
   ];
 
   /// Avatar / icon circle — soft glow for profile and status indicators.
-  static const List<BoxShadow> glowShadow = [
+  static List<BoxShadow> get glowShadow => [
     BoxShadow(
-      color: Color(0x14E07A7A), // accent at ~8 %
+      color: AppColors.accent.withValues(alpha: 0.08),
       blurRadius: 12,
       spreadRadius: 0,
-      offset: Offset(0, 2),
+      offset: const Offset(0, 2),
     ),
   ];
 

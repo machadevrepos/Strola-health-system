@@ -54,7 +54,7 @@ import { AccountStatusBadge, RoleBadge, SubscriptionBadge } from "@/components/s
 import { BanUserDialog } from "@/components/users/ban-user-dialog";
 import { GrantPremiumConfirmDialog, type PendingGrant } from "@/components/users/grant-premium-confirm-dialog";
 import { SendEmailDialog } from "@/components/users/send-email-dialog";
-import { formatDate, formatRelative, initials } from "@/lib/format";
+import { formatDate, formatRelative, initials, TAG_LABEL } from "@/lib/format";
 import {
   TRACKER_STATUS_LABEL,
   LIFETIME_ISO,
@@ -108,11 +108,6 @@ const PLATFORM_FILTER_LABEL: Record<PlatformFilter, string> = {
   ios: "iPhone",
   android: "Android",
 };
-const TAG_LABEL: Record<string, string> = {
-  kickstarter: "Kickstarter",
-  beta_tester: "Beta tester",
-};
-
 const PAGE_SIZE = 10;
 const INACTIVE_THRESHOLD_DAYS = 30;
 

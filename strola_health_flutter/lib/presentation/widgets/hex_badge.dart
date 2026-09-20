@@ -1,6 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
+import 'package:strola_health/domain/entities/app_badge.dart';
+
+/// Short caption shown on a badge hexagon's second line — shared by the
+/// Achievements screen and the Profile "Achievements" preview strip so both
+/// surfaces describe the same badge identically.
+String badgeSmallLabel(BadgeRequirementMetric metric) {
+  switch (metric) {
+    case BadgeRequirementMetric.totalSteps:
+    case BadgeRequirementMetric.sessionSteps:
+      return 'STEPS';
+    case BadgeRequirementMetric.streakDays:
+      return 'DAY STREAK';
+    case BadgeRequirementMetric.challengesCompleted:
+      return 'CHALLENGES';
+    case BadgeRequirementMetric.unknown:
+      return '';
+  }
+}
+
+/// Gradient for a badge's hexagon face, grouped by requirement metric —
+/// used by the Profile preview strip, which (unlike the Achievements
+/// screen's per-section gradient) mixes badges from every category in one
+/// row and needs a per-badge color.
+List<Color> badgeGradient(BadgeRequirementMetric metric) {
+  switch (metric) {
+    case BadgeRequirementMetric.totalSteps:
+    case BadgeRequirementMetric.sessionSteps:
+      return const [AppColors.accent, AppColors.accentSecondary];
+    case BadgeRequirementMetric.streakDays:
+      return const [AppColors.accent, AppColors.error];
+    case BadgeRequirementMetric.challengesCompleted:
+      return const [AppColors.goalAmber, AppColors.accent];
+    case BadgeRequirementMetric.unknown:
+      return const [AppColors.textMuted, AppColors.textMuted];
+  }
+}
 
 /// Hexagon achievement badge (gamification — multicolor by design, the one
 /// intentional exception to the 5-color rule). Shared by the Profile

@@ -130,6 +130,19 @@ export function userDisplayName(user: UserProfile | undefined | null): string {
   return user.deleted ? "Deleted User" : user.name || user.username;
 }
 
+// Staff show up in the community as a shared official handle rather than
+// their personal name — gives an admin's reply an authoritative,
+// Instagram-style "verified account" presence instead of reading as one
+// more member's opinion. Only used where a comment/post author is rendered
+// to end users or in a community-moderation context — the Users table and
+// everywhere else identifying a specific admin account keeps using
+// userDisplayName.
+export function communityDisplayName(user: UserProfile | undefined | null): string {
+  if (user?.role === "super_admin") return "strolla_super_admin";
+  if (user?.role === "admin") return "strolla_admin";
+  return userDisplayName(user);
+}
+
 export function listStaff(users: UserProfile[]): UserProfile[] {
   return users.filter((u) => u.role === "admin" || u.role === "super_admin").sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
 }
@@ -1077,16 +1090,6 @@ export function announcementAudienceLabel(
   return ANNOUNCEMENT_AUDIENCE_LABEL[announcement.audience];
 }
 
-// Deterministic 0..1 fraction from a string (FNV-1a hash) — stable across
-// re-renders (unlike Math.random) while still looking varied per announcement.
-function seededFraction(seed: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return ((h >>> 0) % 10_000) / 10_000;
-}
 
 export interface AnnouncementStats {
   audience: number;
@@ -1099,28 +1102,18 @@ export interface AnnouncementStats {
 }
 
 /**
- * No real impression/dismiss/click pipeline is wired in yet. Reach grows
- * with how long the announcement has been active — a banner is only seen as
- * users open the app, so a same-day announcement has seen fewer people than
- * one that's been live a week — and dismiss/click fractions are deterministic
- * per announcement id (stable across renders, still reads as varied) rather
- * than measurements of anything real.
+ * Real counts (seen_count/dismissed_count/clicked_count), reported by the
+ * mobile app via trackAnnouncementEvent — the moment the banner actually
+ * shows, gets dismissed, or (for one with a link_target) gets tapped. Used
+ * to fabricate these from a seeded random fraction of the audience size;
+ * that's gone now that a real pipeline exists.
  */
 export function announcementStats(announcement: Announcement, users: UserProfile[]): AnnouncementStats {
   const audience = announcementAudienceIds(announcement, users).length;
-  const now = Date.now();
-  const startMs = +new Date(announcement.starts_at);
-  const endMs = announcement.ends_at ? +new Date(announcement.ends_at) : now;
-  const daysActive = Math.max(0, Math.min(now, endMs) - startMs) / 86_400_000;
-  const reachFraction = startMs > now ? 0 : Math.min(0.94, 0.3 + daysActive * 0.13);
-  const seen = Math.round(audience * reachFraction);
-
-  const dismissFraction = 0.25 + seededFraction(`${announcement.id}:dismiss`) * 0.3;
-  const dismissed = Math.round(seen * dismissFraction);
-
+  const seen = announcement.seen_count ?? 0;
+  const dismissed = announcement.dismissed_count ?? 0;
+  const clicked = announcement.clicked_count ?? 0;
   const hasLink = !!announcement.link_target;
-  const clickFraction = 0.12 + seededFraction(`${announcement.id}:click`) * 0.28;
-  const clicked = hasLink ? Math.round((seen - dismissed) * clickFraction) : 0;
 
   return {
     audience,

@@ -183,7 +183,8 @@ export function BadgeFormDialog({
           </div>
           <p className="text-xs text-muted-foreground">
             Raising this later (e.g. &quot;100k Steps&quot; → &quot;150k Steps&quot;) takes effect immediately, no app
-            update needed. Awarding a badge to a specific user is still done manually from their profile.
+            update needed. Members are awarded this automatically the moment they cross the threshold — you can
+            still award or revoke it for a specific user by hand from their profile as an override.
           </p>
           <div className="flex items-center justify-between rounded-md border border-border p-3">
             <div>

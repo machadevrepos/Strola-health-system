@@ -55,23 +55,28 @@ class Formatters {
     return '${meters.toInt()} m';
   }
 
-  static String fullDate(DateTime d) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[d.month - 1]} ${d.day}';
-  }
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  static String fullDate(DateTime d) => '${_months[d.month - 1]} ${d.day}';
+
+  /// e.g. "May 12, 2024" — used where the year matters, such as a badge's
+  /// earned date (unlike [fullDate]'s recent-activity context, where the
+  /// current year is implied).
+  static String fullDateWithYear(DateTime d) =>
+      '${_months[d.month - 1]} ${d.day}, ${d.year}';
 
   static String dayLabel(DateTime date) {
     final now = DateTime.now();

@@ -61,11 +61,12 @@ class MyChallengesNotifier extends AsyncNotifier<List<Challenge>> {
     );
   }
 
-  Future<void> join({String? challengeId, String? inviteCode}) async {
-    await ref
+  Future<String> join({String? challengeId, String? inviteCode}) async {
+    final joinedId = await ref
         .read(challengeRepositoryProvider)
         .joinChallenge(challengeId: challengeId, inviteCode: inviteCode);
     await refresh();
+    return joinedId;
   }
 
   Future<void> leave(String challengeId) async {

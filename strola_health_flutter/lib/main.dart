@@ -12,8 +12,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:strola_health/core/constants/app_colors.dart';
 import 'package:strola_health/core/constants/app_typography.dart';
 import 'package:strola_health/core/services/account_service.dart';
+import 'package:strola_health/core/services/deep_link_listener.dart';
 import 'package:strola_health/core/services/local_notification_service.dart';
 import 'package:strola_health/core/services/purchase_service.dart';
 import 'package:strola_health/core/services/push_message_listener.dart';
@@ -179,6 +181,12 @@ Future<void> main() async {
     // the app is already in the foreground.
     registerPushTapHandler(container, rootNavigatorKey);
     await routeInitialPushMessage(container, rootNavigatorKey);
+
+    // Challenge invite links (link.strollahealth.com/join/{code} or the
+    // strolahealth://join/{code} custom-scheme fallback) — same
+    // outside-the-widget-tree navigation pattern as the push handlers above.
+    registerDeepLinkListener(container, rootNavigatorKey);
+    await routeInitialDeepLink(container, rootNavigatorKey);
   }
 
   runApp(
@@ -203,14 +211,16 @@ class StrollaHealthApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final base = FlexThemeData.light(
       colors: const FlexSchemeColor(
-        primary: Color(0xFFE07A7A),
-        primaryContainer: Color(0xFFFFDADA),
-        secondary: Color(0xFFF6B1B1),
-        secondaryContainer: Color(0xFFFFE7E7),
-        tertiary: Color(0xFFE9B44C),
-        tertiaryContainer: Color(0xFFFFE8B8),
-        appBarColor: Color(0xFFFFFFFF),
-        error: Color(0xFFE25858),
+        primary: AppColors.accent,
+        // NOT in the brief — light container tints hand-derived from
+        // primary/secondary/tertiary. Flag for design sign-off.
+        primaryContainer: Color(0xFFF3DEDD),
+        secondary: AppColors.accentSecondary,
+        secondaryContainer: Color(0xFFFAF5F3),
+        tertiary: AppColors.supporting,
+        tertiaryContainer: Color(0xFFF3E4D9),
+        appBarColor: AppColors.bgSurface,
+        error: AppColors.error,
       ),
       surfaceMode: FlexSurfaceMode.highBackgroundLowScaffold,
       blendLevel: 8,

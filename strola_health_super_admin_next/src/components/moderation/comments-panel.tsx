@@ -18,7 +18,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { userDisplayName } from "@/lib/data/queries";
+import { CommunityAuthorBadge } from "@/components/shell/status-badges";
+import { communityDisplayName, userDisplayName } from "@/lib/data/queries";
 import { formatRelative, initials } from "@/lib/format";
 import type { EnrichedComment } from "@/lib/data/queries";
 
@@ -136,13 +137,14 @@ function CommentRow({
   return (
     <div className="flex gap-3 rounded-lg border border-border p-3">
       <Avatar className="size-8 shrink-0">
-        {c.author?.photo_url && <AvatarImage src={c.author.photo_url} alt={userDisplayName(c.author)} />}
-        <AvatarFallback className="text-xs">{initials(userDisplayName(c.author))}</AvatarFallback>
+        {c.author?.photo_url && <AvatarImage src={c.author.photo_url} alt={communityDisplayName(c.author)} />}
+        <AvatarFallback className="text-xs">{initials(communityDisplayName(c.author))}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <Link href={`/users/${c.author_id}`} className="text-sm font-medium text-foreground hover:underline">
-            {userDisplayName(c.author)}
+          <Link href={`/users/${c.author_id}`} className="flex items-center gap-1 text-sm font-medium text-foreground hover:underline">
+            {communityDisplayName(c.author)}
+            <CommunityAuthorBadge role={c.author?.role} />
           </Link>
           <span className="text-xs text-muted-foreground">{formatRelative(c.timestamp)}</span>
           {c.hidden && <Badge variant="destructive">Hidden</Badge>}

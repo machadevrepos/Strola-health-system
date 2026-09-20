@@ -26,7 +26,7 @@ import {
   trackerUsageStats,
   userFunnel,
 } from "@/lib/data/queries";
-import { formatCurrencyGBP, formatDuration, formatNumber, formatPercent } from "@/lib/format";
+import { formatCurrencyUSD, formatDuration, formatNumber, formatPercent } from "@/lib/format";
 import type {
   AnalyticsEvent,
   AppSettings,
@@ -181,8 +181,8 @@ export function AnalyticsView({
           <StatCard label="Conversion" value={formatPercent(premium.conversionRatePct)} />
           <StatCard label="Churn" value={formatPercent(premium.churnRatePct)} />
           <StatCard label="Renewal" value={formatPercent(premium.renewalRatePct)} />
-          <StatCard label="LTV" value={formatCurrencyGBP(premium.ltv)} />
-          <StatCard label="ARPU" value={formatCurrencyGBP(premium.arpu)} />
+          <StatCard label="LTV" value={formatCurrencyUSD(premium.ltv)} />
+          <StatCard label="ARPU" value={formatCurrencyUSD(premium.arpu)} />
         </div>
       </ChartCard>
 

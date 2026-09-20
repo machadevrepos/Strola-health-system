@@ -2,7 +2,7 @@ import { onCall } from "firebase-functions/v2/https";
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "../lib/admin";
 import { Collections } from "../lib/constants";
-import { requireAuth, invalidArgument } from "../lib/auth-helpers";
+import { requireAuth, invalidArgument, getRole } from "../lib/auth-helpers";
 import { enforceRateLimit, RateLimits } from "../lib/rateLimit";
 import { APP_CHECK_ENFORCED } from "../lib/appCheck";
 import { generateUniqueInviteCode } from "./inviteCode";
@@ -12,7 +12,17 @@ import type { ChallengeVisibility, UserProfile, WinnerType } from "../lib/types"
 /**
  * Function #21. The Flutter app's CreateChallengeScreen form (name/duration/
  * dates/winner-method/invite) was UI-only per the audit — this is what makes
- * it actually persist. Creator auto-joins their own challenge.
+ * it actually persist. Creator auto-joins their own challenge, except for
+ * the admin-only draft path below (prepping next month's official challenge
+ * ahead of time isn't "joining" it).
+ *
+ * `status: "draft"` is honored only for an admin/super_admin creating a
+ * public challenge — every other caller (regular members creating their own
+ * private challenge) always publishes immediately, same as before. This is
+ * what lets an admin prepare next month's official challenge ahead of time
+ * without it going live or touching the current one — see onChallengeStart,
+ * which promotes it automatically once its start_date arrives, and
+ * publishChallenge/setOfficialMonthlyChallenge for promoting it early.
  */
 export const createChallenge = onCall({ enforceAppCheck: APP_CHECK_ENFORCED }, async (request) => {
   const uid = requireAuth(request);
@@ -28,6 +38,7 @@ export const createChallenge = onCall({ enforceAppCheck: APP_CHECK_ENFORCED }, a
     visibility,
     winnerType,
     imageUrl,
+    status,
   } = (request.data ?? {}) as {
     title?: string;
     description?: string;
@@ -39,6 +50,7 @@ export const createChallenge = onCall({ enforceAppCheck: APP_CHECK_ENFORCED }, a
     visibility?: ChallengeVisibility;
     winnerType?: WinnerType;
     imageUrl?: string;
+    status?: "draft" | "published";
   };
 
   if (!title?.trim() || !goalSteps || !startDate || !endDate) {
@@ -48,6 +60,11 @@ export const createChallenge = onCall({ enforceAppCheck: APP_CHECK_ENFORCED }, a
 
   const visibilityValue: ChallengeVisibility = visibility === "public" ? "public" : "private";
   const inviteCode = visibilityValue === "private" ? await generateUniqueInviteCode() : null;
+
+  const role = getRole(request);
+  const isAdmin = role === "admin" || role === "super_admin";
+  const statusValue: "draft" | "published" =
+    isAdmin && status === "draft" && visibilityValue === "public" ? "draft" : "published";
 
   const ref = db.collection(Collections.challenges).doc();
   await ref.set({
@@ -68,15 +85,17 @@ export const createChallenge = onCall({ enforceAppCheck: APP_CHECK_ENFORCED }, a
     image_url: imageUrl ?? null,
     rules: null,
     winner_type: winnerType === "goal_completion_pct" ? "goal_completion_pct" : "most_steps",
-    status: "published",
+    status: statusValue,
     winner_user_id: null,
     admin_notes: null,
     leaderboard_top: [],
   });
 
-  const userSnap = await db.collection(Collections.users).doc(uid).get();
-  const dailyGoal = (userSnap.data() as UserProfile | undefined)?.daily_goal_steps ?? 10000;
-  await joinChallengeCore(ref.id, uid, dailyGoal);
+  if (statusValue !== "draft") {
+    const userSnap = await db.collection(Collections.users).doc(uid).get();
+    const dailyGoal = (userSnap.data() as UserProfile | undefined)?.daily_goal_steps ?? 10000;
+    await joinChallengeCore(ref.id, uid, dailyGoal);
+  }
 
   return { success: true, challengeId: ref.id, inviteCode };
 });

@@ -2,12 +2,47 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Arboria (2026-09-15) — same two-family system as the Flutter app's
+   AppTypography: Book for headings, Medium for body copy and numeric/
+   tabular data (replaces the dedicated Geist Mono face — the brief doesn't
+   call for a separate mono family, numbers just use Medium too). Files
+   aren't in the repo yet (licensed, same blocker as the mobile app — see
+   CLAUDE.md in strola_health_flutter) — plain @font-face rather than
+   next/font/local specifically because a missing file here just 404s and
+   falls back silently, instead of failing the build the way next/font's
+   compile-time file resolution would. Drop the two files into
+   public/fonts/ and both weights start rendering with no other change. */
+@font-face {
+  font-family: "Arboria Book";
+  src: url("/fonts/Arboria-Book.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Arboria Medium";
+  src: url("/fonts/Arboria-Medium.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Geist (loaded via next/font/google in layout.tsx) sits after Arboria in
+     both stacks purely as the fallback while the real files are missing —
+     once they're in place the browser picks Arboria and Geist never renders. */
+  --font-arboria-book: "Arboria Book", var(--font-geist-sans), -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-arboria-medium: "Arboria Medium", var(--font-geist-sans),
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-arboria-medium);
+  --font-mono: var(--font-arboria-medium);
+  --font-heading: var(--font-arboria-book);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -53,53 +88,58 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Light only. Colors are the mobile app's exact AppColors palette — accent
-   #E07A7A, accentSecondary #F6B1B1, bgDeep #FFF2F2, textPrimary #333333,
-   goalAmber #E9B44C, success #55A56B, error #E25858 — converted to OKLCH via
-   scripts/hex-to-oklch.mjs so the value is precise, not eyeballed. One brand
-   across every Strolla surface; see PRODUCT.md for why this superseded the
-   earlier neutral ops-tool direction. */
+/* Light only. Colors mirror the mobile app's exact AppColors palette (warm
+   cream / mocha-rose, 2026-09-14) — bgSurface #FFFFFF, bgCard #FFFCFA,
+   cardBorder/accentSecondary #F3E9E5, accent #C38381, supporting/goalAmber
+   #D9B6A0, textPrimary #4B342C, textSecondary #9C7063, success #55A56B,
+   error #E25858 — converted to OKLCH via scripts/hex-to-oklch.mjs so the
+   value is precise, not eyeballed. One brand across every Strolla surface;
+   see PRODUCT.md for why this superseded the earlier neutral ops-tool
+   direction, and see the Flutter app's app_colors.dart for the same
+   mapping decisions (card vs background split, border at full strength
+   rather than alpha, goalAmber repointed to the soft-peach supporting
+   color) applied here for parity. */
 :root {
-  --background: oklch(1 0 0);                    /* bgSurface #FFFFFF */
-  --foreground: oklch(0.321 0 0);                /* textPrimary #333333 */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.321 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.321 0 0);
-  --primary: oklch(0.693 0.127 20.85);            /* accent #E07A7A */
+  --background: oklch(1 0 0);                     /* bgSurface #FFFFFF */
+  --foreground: oklch(0.349 0.036 39.996);         /* textPrimary #4B342C */
+  --card: oklch(0.993 0.004 56.377);               /* bgCard #FFFCFA — distinct from background */
+  --card-foreground: oklch(0.349 0.036 39.996);
+  --popover: oklch(0.993 0.004 56.377);            /* bgCard #FFFCFA */
+  --popover-foreground: oklch(0.349 0.036 39.996);
+  --primary: oklch(0.674 0.08 21.359);             /* accent #C38381 */
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.971 0.014 17.398);         /* bgDeep #FFF2F2 */
-  --secondary-foreground: oklch(0.321 0 0);
-  --muted: oklch(0.971 0.014 17.398);             /* bgDeep #FFF2F2 */
-  --muted-foreground: oklch(0.545 0 0);           /* textSecondary, #333 @ 70% over white */
-  --accent: oklch(0.825 0.081 18.943 / 0.22);     /* accentSecondary #F6B1B1, tinted hover */
-  --accent-foreground: oklch(0.45 0.11 20);       /* darker coral for text on hover */
-  --destructive: oklch(0.641 0.173 23.304);       /* error #E25858 */
+  --secondary: oklch(0.941 0.012 43.276);          /* cardBorder/bgDeep #F3E9E5 */
+  --secondary-foreground: oklch(0.349 0.036 39.996);
+  --muted: oklch(0.941 0.012 43.276);              /* #F3E9E5 */
+  --muted-foreground: oklch(0.586 0.06 37.123);    /* textSecondary #9C7063 — now a standalone brand hex, not a blend */
+  --accent: oklch(0.941 0.012 43.276 / 0.22);      /* cardBorder tinted hover — reads softer now than the old blush */
+  --accent-foreground: oklch(0.454 0.07 21.359);   /* hand-derived darker accent for text on hover */
+  --destructive: oklch(0.641 0.173 23.304);        /* error #E25858 — unchanged, not in the brief */
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.825 0.081 18.943 / 0.25);     /* accentSecondary @ 25% — exact FlatCard border spec */
-  --input: oklch(0.825 0.081 18.943 / 0.25);
-  --ring: oklch(0.693 0.127 20.85);               /* accent #E07A7A */
-  --chart-1: oklch(0.693 0.127 20.85);            /* accent */
-  --chart-2: oklch(0.8 0.134 81.415);             /* goalAmber */
-  --chart-3: oklch(0.656 0.117 150.94);           /* success */
-  --chart-4: oklch(0.748 0 0);                    /* textMuted */
-  --chart-5: oklch(0.641 0.173 23.304);           /* error */
+  --border: oklch(0.941 0.012 43.276);             /* cardBorder #F3E9E5, full strength — the brief names this as a solid color, not an alpha tint */
+  --input: oklch(0.941 0.012 43.276);
+  --ring: oklch(0.674 0.08 21.359);                /* accent #C38381 */
+  --chart-1: oklch(0.674 0.08 21.359);             /* accent */
+  --chart-2: oklch(0.801 0.051 53.957);            /* supporting (was goalAmber) */
+  --chart-3: oklch(0.656 0.117 150.94);            /* success */
+  --chart-4: oklch(0.748 0 0);                     /* neutral grey — unchanged, not a brand color */
+  --chart-5: oklch(0.641 0.173 23.304);            /* error */
   --radius: 0.5rem;
-  --sidebar: oklch(0.971 0.014 17.398);           /* bgDeep #FFF2F2 */
-  --sidebar-foreground: oklch(0.321 0 0);
-  --sidebar-primary: oklch(0.693 0.127 20.85);
+  --sidebar: oklch(0.941 0.012 43.276);            /* bgDeep -> #F3E9E5 */
+  --sidebar-foreground: oklch(0.349 0.036 39.996);
+  --sidebar-primary: oklch(0.674 0.08 21.359);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.825 0.081 18.943 / 0.3);
-  --sidebar-accent-foreground: oklch(0.45 0.11 20);
-  --sidebar-border: oklch(0.825 0.081 18.943 / 0.25);
-  --sidebar-ring: oklch(0.693 0.127 20.85);
+  --sidebar-accent: oklch(0.941 0.012 43.276 / 0.3);
+  --sidebar-accent-foreground: oklch(0.454 0.07 21.359);
+  --sidebar-border: oklch(0.941 0.012 43.276);     /* full strength, same fix as --border */
+  --sidebar-ring: oklch(0.674 0.08 21.359);
 
   /* Brand/semantic — see DESIGN.md. */
-  --surface-2: oklch(0.94 0.025 18.5);            /* deeper blush than bgDeep, for nested panels */
-  --brand-accent: oklch(0.8 0.134 81.415);        /* goalAmber #E9B44C — goal-reached / highlight only */
-  --brand-accent-foreground: oklch(0.321 0 0);    /* dark text reads better than white at this lightness */
-  --brand-accent-strong: oklch(0.473 0.125 46.201); /* deep amber — text on light brand-accent tints (chips) */
-  --success: oklch(0.656 0.117 150.94);           /* success #55A56B — BLE-connected-equivalent status only */
+  --surface-2: oklch(0.91 0.023 43.276);           /* deeper cream than cardBorder, for nested panels — hand-derived, not in the brief */
+  --brand-accent: oklch(0.801 0.051 53.957);       /* supporting/soft peach #D9B6A0 — used selectively, per the brief, not as a primary color */
+  --brand-accent-foreground: oklch(0.349 0.036 39.996); /* textPrimary — dark text still reads better than white at this lightness */
+  --brand-accent-strong: oklch(0.741 0.046 54.674); /* deep peach #C3A490 — same hand-derived tone as the Flutter app's goalGradient 2nd stop */
+  --success: oklch(0.656 0.117 150.94);            /* success #55A56B — unchanged, functional not brand */
   --success-foreground: oklch(1 0 0);
 }
 

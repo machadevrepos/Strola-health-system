@@ -24,7 +24,7 @@ export default function ChallengesPage() {
     <div>
       <PageHeader
         title="Challenges"
-        description="The official monthly challenge, plus community challenges members create for themselves."
+        description="The official monthly challenge, plus private challenges members create for themselves."
       />
       {loading && <PageLoading />}
       {error && <PageError message={error} onRetry={reload} />}

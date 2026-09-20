@@ -14,14 +14,26 @@ import 'package:strola_health/core/constants/app_colors.dart';
 class AppTypography {
   AppTypography._();
 
+  /// Brief: "Arboria Book — headings". Registered in pubspec.yaml once the
+  /// two font files are dropped into assets/fonts/ — see that file's `fonts:`
+  /// block. Until then this family isn't registered and every style below
+  /// silently falls back to the platform default, so nothing breaks.
+  static const String fontFamilyBook = 'ArboriaBook';
+
+  /// Brief: "Arboria Medium — body copy and key numerical data such as step
+  /// counts". Same registration note as [fontFamilyBook].
+  static const String fontFamilyMedium = 'ArboriaMedium';
+
   // ─────────────────────────────────────────────────────────────────────────
   // DISPLAY — hero numbers only (step count, session distance, etc.)
-  // Never use for body copy or titles.
+  // Never use for body copy or titles. Brief classes these as "key
+  // numerical data" → Arboria Medium.
   // ─────────────────────────────────────────────────────────────────────────
 
   /// 52 px · w800 · hero step counter, primary KPI number
   static const TextStyle displayXL = TextStyle(
     color: AppColors.textPrimary,
+    fontFamily: fontFamilyMedium,
     fontSize: 52,
     fontWeight: FontWeight.w800,
     letterSpacing: -2.0,
@@ -32,6 +44,7 @@ class AppTypography {
   /// 36 px · w700 · session stats, large isolated metrics
   static const TextStyle displayL = TextStyle(
     color: AppColors.textPrimary,
+    fontFamily: fontFamilyMedium,
     fontSize: 36,
     fontWeight: FontWeight.w700,
     letterSpacing: -1.5,
@@ -42,6 +55,7 @@ class AppTypography {
   /// 28 px · w700 · card-level hero numbers (weekly total, challenge goal)
   static const TextStyle displayM = TextStyle(
     color: AppColors.textPrimary,
+    fontFamily: fontFamilyMedium,
     fontSize: 28,
     fontWeight: FontWeight.w700,
     letterSpacing: -1.0,
@@ -50,12 +64,14 @@ class AppTypography {
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // TITLE — screen headers, card section headers
+  // TITLE — screen headers, card section headers. Brief: "Arboria Book —
+  // headings".
   // ─────────────────────────────────────────────────────────────────────────
 
   /// 20 px · w600 · screen-level titles (e.g. "Workout Log")
   static const TextStyle titleL = TextStyle(
     color: AppColors.textPrimary,
+    fontFamily: fontFamilyBook,
     fontSize: 20,
     fontWeight: FontWeight.w600,
     letterSpacing: -0.4,
@@ -65,6 +81,7 @@ class AppTypography {
   /// 17 px · w600 · in-screen section headers, card titles
   static const TextStyle titleM = TextStyle(
     color: AppColors.textPrimary,
+    fontFamily: fontFamilyBook,
     fontSize: 17,
     fontWeight: FontWeight.w600,
     letterSpacing: -0.3,
@@ -74,6 +91,7 @@ class AppTypography {
   /// 15 px · w600 · sub-section labels, card row headers
   static const TextStyle titleS = TextStyle(
     color: AppColors.textPrimary,
+    fontFamily: fontFamilyBook,
     fontSize: 15,
     fontWeight: FontWeight.w600,
     letterSpacing: -0.2,
@@ -81,12 +99,13 @@ class AppTypography {
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // BODY — readable text content
+  // BODY — readable text content. Brief: "Arboria Medium — body copy".
   // ─────────────────────────────────────────────────────────────────────────
 
   /// 15 px · w500 · stat values, primary list item text
   static const TextStyle bodyL = TextStyle(
     color: AppColors.textPrimary,
+    fontFamily: fontFamilyMedium,
     fontSize: 15,
     fontWeight: FontWeight.w500,
     letterSpacing: -0.1,
@@ -96,6 +115,7 @@ class AppTypography {
   /// 14 px · w400 · secondary body copy, descriptions
   static const TextStyle bodyM = TextStyle(
     color: AppColors.textSecondary,
+    fontFamily: fontFamilyMedium,
     fontSize: 14,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.0,
@@ -105,6 +125,7 @@ class AppTypography {
   /// 13 px · w400 · supporting text, timestamps, metadata
   static const TextStyle bodyS = TextStyle(
     color: AppColors.textSecondary,
+    fontFamily: fontFamilyMedium,
     fontSize: 13,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.1,
@@ -112,12 +133,15 @@ class AppTypography {
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // LABEL — caps labels, chips, metadata tags
+  // LABEL — caps labels, chips, metadata tags. Grouped with body copy
+  // (Arboria Medium) rather than headings — these are supporting text, not
+  // headings, even though the brief doesn't name this tier directly.
   // ─────────────────────────────────────────────────────────────────────────
 
   /// 12 px · w500 · secondary metadata, tag text
   static const TextStyle labelM = TextStyle(
     color: AppColors.textMuted,
+    fontFamily: fontFamilyMedium,
     fontSize: 12,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.3,
@@ -127,6 +151,7 @@ class AppTypography {
   /// 11 px · w500 · unit labels below stat values, muted caps
   static const TextStyle labelS = TextStyle(
     color: AppColors.textMuted,
+    fontFamily: fontFamilyMedium,
     fontSize: 11,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.4,
@@ -137,9 +162,10 @@ class AppTypography {
   // BRAND
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// 26 px · w800 · "strolla" wordmark in coral — app bar only
+  /// 26 px · w800 · "strolla" wordmark in the accent colour — app bar only
   static const TextStyle brand = TextStyle(
     color: AppColors.accent,
+    fontFamily: fontFamilyBook,
     fontSize: 26,
     fontWeight: FontWeight.w800,
     letterSpacing: -0.8,

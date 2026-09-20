@@ -9,10 +9,11 @@ density, motion, Linear-feel) is unchanged from the original direction.
 ## Visual Theme
 
 Light only. One brand across every Strolla surface: the mobile app's exact
-`AppColors` palette (coral accent, blush secondary, blush-tinted background),
-reproduced precisely rather than approximated. Layout stays restrained/
-product-register (Linear-feel chrome, calm density, charts and tables doing
-the work) — only the color values changed, not the compositional rules.
+`AppColors` palette, reproduced precisely rather than approximated. As of
+2026-09-14 that palette is warm cream / mocha-rose (was coral/blush before).
+Layout stays restrained/product-register (Linear-feel chrome, calm density,
+charts and tables doing the work) — only the color values changed, not the
+compositional rules.
 
 ## Color Palette (OKLCH)
 
@@ -22,47 +23,71 @@ stylesheet is a format choice, the values themselves match the brand exactly.
 
 ```css
 :root {
-  /* Core — bgSurface / textPrimary */
-  --background: oklch(1 0 0);                 /* #FFFFFF */
-  --foreground: oklch(0.321 0 0);              /* #333333 */
-  --muted-foreground: oklch(0.545 0 0);        /* #333 @ 70% over white (textSecondary) */
+  /* Core — bgSurface / bgCard / textPrimary */
+  --background: oklch(1 0 0);                     /* #FFFFFF */
+  --card: oklch(0.993 0.004 56.377);               /* #FFFCFA — distinct from background */
+  --foreground: oklch(0.349 0.036 39.996);         /* #4B342C */
+  --muted-foreground: oklch(0.586 0.06 37.123);    /* #9C7063 — a standalone brand hex now, not a blend */
 
-  /* Brand — accent / accentSecondary / bgDeep */
-  --primary: oklch(0.693 0.127 20.85);         /* #E07A7A coral */
-  --secondary: oklch(0.971 0.014 17.398);      /* #FFF2F2 bgDeep */
-  --border: oklch(0.825 0.081 18.943 / 0.25);  /* #F6B1B1 @ 25% — exact FlatCard border spec */
+  /* Brand — accent / cardBorder(accentSecondary) */
+  --primary: oklch(0.674 0.08 21.359);             /* #C38381 mocha rose */
+  --secondary: oklch(0.941 0.012 43.276);          /* #F3E9E5 — also bgDeep and the border color below */
+  --border: oklch(0.941 0.012 43.276);             /* #F3E9E5, full strength — the brief names this as a solid card-border/incomplete-ring color, not an alpha tint */
 
-  /* Semantic — goalAmber / success / error */
-  --brand-accent: oklch(0.8 0.134 81.415);     /* #E9B44C — goal-reached / highlight only */
-  --success: oklch(0.656 0.117 150.94);        /* #55A56B — connected-equivalent status only */
-  --destructive: oklch(0.641 0.173 23.304);    /* #E25858 */
+  /* Semantic — supporting(goalAmber) / success / error */
+  --brand-accent: oklch(0.801 0.051 53.957);       /* #D9B6A0 soft peach — used selectively, never as a primary color */
+  --success: oklch(0.656 0.117 150.94);            /* #55A56B — unchanged, functional not brand */
+  --destructive: oklch(0.641 0.173 23.304);        /* #E25858 — unchanged, functional not brand */
 }
 ```
 
 Rules carried over unchanged: text on any filled `primary`/`destructive`/
-`success` surface is white; text on filled `brand-accent` (goalAmber, L 0.8)
-is dark — it reads as light gold, not a mid-tone, so dark text is more
-legible than white. No fourth color gets introduced; every hue on the page
-traces back to one of the five `AppColors` values.
+`success` surface is white; text on filled `brand-accent` (soft peach) is
+dark (`--brand-accent-foreground`, = `--foreground`) — it's a light tint, not
+a mid-tone, so dark text is more legible than white. No fourth color gets
+introduced; every hue on the page traces back to one of the `AppColors`
+values — see the Flutter app's `app_colors.dart` for the full mapping,
+including which admin-panel tokens double up on the same underlying hex
+(`--secondary`/`--border`/`--sidebar` all resolve to the one `#F3E9E5`, same
+as `cardBorder`/`accentSecondary`/`bgDeep` on the Flutter side).
 
 ## Typography
 
-One family carries everything (per product register guidance — no
-display/body pairing needed). **Geist Sans** for UI text and **Geist Mono**
-for tabular/numeric data (counts, dates, IDs, percentages) — loaded via
-`next/font/google` (Geist ships as a Google Font) or `geist` npm package.
+**2026-09-15: switched from the single-family Geist system (below, struck
+through for context) to Arboria — the same two-family system as the Flutter
+app's `AppTypography`, at the user's request to unify typography across
+every Strolla surface the way color already was.** This overrides the
+original product-register rationale ("one family, no display/body pairing
+needed") rather than extending it — worth knowing if a future call wants
+that restraint back for the admin panel specifically.
+
+**Arboria Book** for headings (`font-heading` — page titles, section
+headers, card/dialog/sheet titles; already wired into every shadcn title
+primitive, so this took effect panel-wide with no per-component changes)
+and **Arboria Medium** for body copy and numeric/tabular data alike
+(`font-sans`/`font-mono` both point at it — the brief has no separate mono
+face; step counts and other key numbers just use Medium, same as the
+Flutter app). Both are licensed files not yet in the repo (same blocker as
+`strola_health_flutter/CLAUDE.md` describes) — see the `@font-face` rules
+and comment at the top of `globals.css` for exactly what to drop in and
+where. Until then, Geist (still loaded via `next/font/google`) renders as
+the automatic fallback — not a plain system font, but not final either.
 Fixed rem scale, not fluid/clamp — this is a consistent-DPI desktop tool.
 
-| Token | Size | Weight | Use |
-|---|---|---|---|
-| `text-display` | 1.5rem / 24px | 600 | Page titles only |
-| `text-title` | 1.125rem / 18px | 600 | Section headers, card titles |
-| `text-body` | 0.9375rem / 15px | 400 | Default UI text |
-| `text-label` | 0.8125rem / 13px | 500 | Form labels, table headers, eyebrow-free section labels |
-| `text-caption` | 0.75rem / 12px | 400 | Timestamps, helper text, badge text |
-| `text-mono` | 0.875rem / 14px | 500 | Geist Mono — all numeric/tabular values |
+| Token | Size | Weight | Family | Use |
+|---|---|---|---|---|
+| `text-display` | 1.5rem / 24px | 600 | Book (`font-heading`) | Page titles only |
+| `text-title` | 1.125rem / 18px | 600 | Book (`font-heading`) | Section headers, card titles |
+| `text-body` | 0.9375rem / 15px | 400 | Medium (`font-sans`) | Default UI text |
+| `text-label` | 0.8125rem / 13px | 500 | Medium (`font-sans`) | Form labels, table headers, eyebrow-free section labels |
+| `text-caption` | 0.75rem / 12px | 400 | Medium (`font-sans`) | Timestamps, helper text, badge text |
+| `text-mono` | 0.875rem / 14px | 500 | Medium (`font-mono`) | All numeric/tabular values — no longer a distinct monospace face |
 
 Scale ratio ~1.15-1.2 between steps, per product-register tightness.
+
+~~One family carries everything (per product register guidance — no
+display/body pairing needed). Geist Sans for UI text and Geist Mono for
+tabular/numeric data (counts, dates, IDs, percentages).~~
 
 ## Spacing & Shape
 

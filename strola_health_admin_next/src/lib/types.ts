@@ -238,6 +238,14 @@ export interface CommunityComment {
   hidden: boolean;
 }
 
+// Doc id under communityPosts/{postId}/likes is the liker's uid — mirrors
+// the fields the Flutter client actually writes (community_repository.dart's
+// toggleLike: `user_id` + `created_at`, not `timestamp`).
+export interface PostLike {
+  user_id: string;
+  created_at: string;
+}
+
 export type ReportTargetType = "post" | "user";
 export type ReportStatus = "open" | "resolved" | "dismissed";
 export type ReportCategory =
@@ -529,6 +537,12 @@ export interface Announcement {
   ends_at: string | null;
   created_by: string | null;
   created_at: string;
+  // Real counts, via the mobile app's trackAnnouncementEvent calls (see
+  // announcement_repository.dart / announcement_banner.dart) — absent on
+  // older docs, treat as 0. See announcementStats below.
+  seen_count?: number;
+  dismissed_count?: number;
+  clicked_count?: number;
 }
 
 export type LegalDocumentType = "privacy_policy" | "terms" | "community_guidelines";

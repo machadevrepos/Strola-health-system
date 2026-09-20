@@ -30,6 +30,7 @@ import {
   Sparkle,
   Crown,
   CircleNotch,
+  Plus,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -100,7 +101,7 @@ import {
   updateUserPrivacy,
 } from "@/lib/data/api";
 import { ApiError } from "@/lib/api-client";
-import { ROLE_LABEL, formatDate, formatDateTime, formatDistance, formatNumber, formatRelative, initials, titleCase } from "@/lib/format";
+import { ROLE_LABEL, TAG_LABEL, formatDate, formatDateTime, formatDistance, formatNumber, formatRelative, initials, titleCase } from "@/lib/format";
 import type {
   AnalyticsEvent,
   Badge,
@@ -554,31 +555,55 @@ export function UserDetailView({
       </div>
 
       <Tabs defaultValue="profile">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <TabsList>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-            <TabsTrigger value="billing">Billing</TabsTrigger>
-            <TabsTrigger value="devices">Devices ({devices.length})</TabsTrigger>
-            <TabsTrigger value="badges">Achievements ({badges.length})</TabsTrigger>
-            <TabsTrigger value="challenges">Challenges ({participations.length})</TabsTrigger>
-            <TabsTrigger value="reports">Reports ({userReports.length})</TabsTrigger>
-            <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          </TabsList>
-          <div className="flex items-center gap-1.5">
-            {["kickstarter", "beta_tester"].map((tag) => {
-              const active = user.tags.includes(tag);
-              return (
-                <Button key={tag} variant={active ? "default" : "outline"} size="sm" onClick={() => toggleTag(tag)}>
-                  <Tag size={13} /> {tag === "kickstarter" ? "Kickstarter" : "Beta tester"}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
+        <TabsList>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="billing">Billing</TabsTrigger>
+          <TabsTrigger value="devices">Devices ({devices.length})</TabsTrigger>
+          <TabsTrigger value="badges">Achievements ({badges.length})</TabsTrigger>
+          <TabsTrigger value="challenges">Challenges ({participations.length})</TabsTrigger>
+          <TabsTrigger value="reports">Reports ({userReports.length})</TabsTrigger>
+          <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+        </TabsList>
 
         <TabsContent value="profile" className="mt-4 grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+          <Card className="border-border shadow-none lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Tags</CardTitle>
+              <CardDescription>
+                Cohort labels used for filtering on the Users list and for bulk actions like granting premium to a
+                cohort at once.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center gap-2">
+              {user.tags.length === 0 && <span className="text-sm text-muted-foreground">No tags yet.</span>}
+              {user.tags.map((tag) => (
+                <UiBadge key={tag} variant="outline" className="gap-1 py-1 pr-1 pl-2.5 text-xs">
+                  <Tag size={12} /> {TAG_LABEL[tag] ?? tag}
+                  <button
+                    type="button"
+                    onClick={() => toggleTag(tag)}
+                    aria-label={`Remove ${TAG_LABEL[tag] ?? tag} tag`}
+                    className="ml-0.5 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <X size={11} />
+                  </button>
+                </UiBadge>
+              ))}
+              {user.tags.length > 0 && Object.keys(TAG_LABEL).some((t) => !user.tags.includes(t)) && (
+                <Separator orientation="vertical" className="h-5" />
+              )}
+              {Object.keys(TAG_LABEL)
+                .filter((tag) => !user.tags.includes(tag))
+                .map((tag) => (
+                  <Button key={tag} variant="outline" size="sm" onClick={() => toggleTag(tag)}>
+                    <Plus size={13} /> {TAG_LABEL[tag]}
+                  </Button>
+                ))}
+            </CardContent>
+          </Card>
+
           <Card className="border-border shadow-none">
             <CardHeader>
               <CardTitle>Profile details</CardTitle>

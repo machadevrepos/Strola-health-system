@@ -24,7 +24,7 @@ export function exportLegalDocumentPdf(doc: { title: string; version: number; ef
   h3 { font-size: 17px; margin: 22px 0 6px; }
   p, ul, ol { font-size: 14px; margin: 0 0 10px; }
   ul, ol { padding-left: 22px; }
-  a { color: #E07A7A; }
+  a { color: #C38381; } /* accent — this print window is a standalone document.write() doc with no access to globals.css's CSS vars, so the hex has to be hand-kept in sync */
   .meta { color: #767676; font-size: 12px; margin: 0 0 28px; border-bottom: 1px solid #eee; padding-bottom: 16px; }
   @media print { body { margin: 0; padding: 24px; } }
 </style>

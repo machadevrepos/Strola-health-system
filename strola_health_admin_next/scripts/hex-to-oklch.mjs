@@ -46,13 +46,19 @@ function blendOverWhite(hex, alpha) {
   return `#${toHex(blend(r))}${toHex(blend(g))}${toHex(blend(b))}`;
 }
 
+// 2026-09-14 palette (warm cream / mocha-rose) — replaces the coral/blush
+// set above. textSecondary is now a standalone brand hex, not a blend of
+// textPrimary over white, so blendOverWhite() is unused for this palette;
+// left in place as it's still correct for the superseded set above.
 const colors = {
-  accent_E07A7A: "#E07A7A",
-  accentSecondary_F6B1B1: "#F6B1B1",
-  bgDeep_FFF2F2: "#FFF2F2",
   bgSurface_FFFFFF: "#FFFFFF",
-  textPrimary_333333: "#333333",
-  goalAmber_E9B44C: "#E9B44C",
+  bgCard_FFFCFA: "#FFFCFA",
+  cardBorder_F3E9E5: "#F3E9E5",
+  accent_C38381: "#C38381",
+  supporting_D9B6A0: "#D9B6A0",
+  supportingStrong_C3A490: "#C3A490", // hand-derived deep peach, matches the Flutter app's goalGradient 2nd stop
+  textPrimary_4B342C: "#4B342C",
+  textSecondary_9C7063: "#9C7063",
   success_55A56B: "#55A56B",
   error_E25858: "#E25858",
 };
@@ -61,11 +67,3 @@ console.log("--- Direct hex -> oklch ---");
 for (const [name, hex] of Object.entries(colors)) {
   console.log(name.padEnd(24), hexToOklch(hex));
 }
-
-console.log("\n--- textSecondary (70% #333333 over white) ---");
-const secondaryHex = blendOverWhite("#333333", 0.7);
-console.log(secondaryHex, hexToOklch(secondaryHex));
-
-console.log("\n--- textMuted (40% #333333 over white) ---");
-const mutedHex = blendOverWhite("#333333", 0.4);
-console.log(mutedHex, hexToOklch(mutedHex));

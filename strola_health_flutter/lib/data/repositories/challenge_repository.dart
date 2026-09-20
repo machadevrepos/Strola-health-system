@@ -193,11 +193,18 @@ class ChallengeRepository {
     ];
   }
 
-  Future<void> joinChallenge({String? challengeId, String? inviteCode}) =>
-      FirebaseClient.call('joinChallenge', {
-        if (challengeId != null) 'challengeId': challengeId,
-        if (inviteCode != null) 'inviteCode': inviteCode,
-      });
+  /// Returns the joined challenge's id — the caller only ever supplies one
+  /// of [challengeId]/[inviteCode], but a code resolves server-side to a
+  /// real id (see `joinChallenge` in functions/src/challenges/joinLeave.ts),
+  /// which callers need back to navigate straight to that challenge (e.g.
+  /// after redeeming an invite link).
+  Future<String> joinChallenge({String? challengeId, String? inviteCode}) async {
+    final result = await FirebaseClient.call('joinChallenge', {
+      if (challengeId != null) 'challengeId': challengeId,
+      if (inviteCode != null) 'inviteCode': inviteCode,
+    });
+    return result['challengeId'] as String;
+  }
 
   Future<void> leaveChallenge(String challengeId) =>
       FirebaseClient.call('leaveChallenge', {'challengeId': challengeId});

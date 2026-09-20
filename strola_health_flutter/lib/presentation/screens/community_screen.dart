@@ -38,12 +38,25 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen>
   late final TabController _tabController;
   String _sortMode = 'Latest';
 
+  // Which tabs have ever been shown. TabBarView builds every child in its
+  // `children` list immediately on first layout (it's a fixed-length
+  // PageView, not lazy-by-visibility) — left unguarded, that means
+  // _FriendsTab's `ref.watch(friendshipsProvider)` fires its own Firestore
+  // query the moment Community mounts, running concurrently with the Feed
+  // tab's postsProvider + blockedUsersProvider fetches and competing with
+  // them for the same first-paint budget, even though nobody's looking at
+  // Friends yet. Gating _FriendsTab behind "has this index ever been
+  // selected" defers that fetch to when it's actually needed.
+  final Set<int> _builtTabs = {0};
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) setState(() {});
+      if (!_tabController.indexIsChanging) {
+        setState(() => _builtTabs.add(_tabController.index));
+      }
     });
   }
 
@@ -138,7 +151,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen>
                     sortMode: _sortMode,
                     onSortChanged: (s) => setState(() => _sortMode = s),
                   ),
-                  const _FriendsTab(),
+                  _builtTabs.contains(1)
+                      ? const _FriendsTab()
+                      : const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.accent,
+                          ),
+                        ),
                 ],
               ),
             ),
@@ -1118,6 +1137,11 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
                         const SizedBox(height: AppTheme.spaceM),
                     itemBuilder: (_, i) {
                       final c = comments[i];
+                      final isSuperAdmin = c.author.isSuperAdmin;
+                      final isStaff = isSuperAdmin || c.author.isAdmin;
+                      final staffColor = isSuperAdmin
+                          ? AppColors.goalAmber
+                          : AppColors.accent;
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1125,16 +1149,18 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                              color: AppColors.accentSecondary.withValues(
-                                alpha: 0.25,
-                              ),
+                              color: isStaff
+                                  ? staffColor.withValues(alpha: 0.18)
+                                  : AppColors.accentSecondary.withValues(
+                                      alpha: 0.25,
+                                    ),
                               shape: BoxShape.circle,
                             ),
                             child: Center(
                               child: Text(
                                 c.initials,
                                 style: AppTypography.labelM.copyWith(
-                                  color: AppColors.accent,
+                                  color: isStaff ? staffColor : AppColors.accent,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -1145,12 +1171,27 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  c.authorName,
-                                  style: AppTypography.bodyS.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      c.authorName,
+                                      style: AppTypography.bodyS.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    if (isStaff) ...[
+                                      const SizedBox(width: 3),
+                                      Icon(
+                                        isSuperAdmin
+                                            ? AppIcons.premium
+                                            : AppIcons.badge,
+                                        size: AppTheme.iconXS,
+                                        color: staffColor,
+                                      ),
+                                    ],
+                                  ],
                                 ),
                                 const SizedBox(height: 2),
                                 Text(c.content, style: AppTypography.bodyM),

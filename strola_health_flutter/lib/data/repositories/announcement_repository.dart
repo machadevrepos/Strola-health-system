@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -60,10 +61,32 @@ class AnnouncementRepository {
     if (user == null) return null;
 
     for (final a in undismissed) {
-      if (_matchesAudience(a, user)) return a;
+      if (_matchesAudience(a, user)) {
+        // Best-effort — a failed seen-tracking call shouldn't stop the
+        // banner from showing. Fires once per actual determination
+        // (activeAnnouncementProvider only re-resolves on invalidation,
+        // not on every widget rebuild), which is the right granularity
+        // for an impression count.
+        unawaited(_track(a.id, 'seen'));
+        return a;
+      }
     }
     return null;
   }
+
+  Future<void> _track(String announcementId, String event) async {
+    try {
+      await FirebaseClient.call('trackAnnouncementEvent', {
+        'announcementId': announcementId,
+        'event': event,
+      });
+    } catch (_) {
+      // Best-effort — analytics, never worth surfacing to the user or
+      // blocking the banner's actual dismiss/navigate behavior on.
+    }
+  }
+
+  Future<void> trackClicked(String announcementId) => _track(announcementId, 'clicked');
 
   bool _matchesAudience(Announcement a, Map<String, dynamic> user) {
     switch (a.audience) {
@@ -102,11 +125,15 @@ class AnnouncementRepository {
     }
   }
 
+  /// Local prefs (this device's "don't show again") and the backend's
+  /// aggregate dismissed_count are two separate concerns — both happen
+  /// here, neither replaces the other.
   Future<void> dismiss(String announcementId) async {
     final dismissed =
         _prefs.getStringList(_dismissedKey)?.toSet() ?? <String>{};
     dismissed.add(announcementId);
     await _prefs.setStringList(_dismissedKey, dismissed.toList());
+    unawaited(_track(announcementId, 'dismissed'));
   }
 }
 

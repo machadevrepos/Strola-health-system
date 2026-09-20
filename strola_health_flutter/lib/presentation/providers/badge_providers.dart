@@ -44,3 +44,22 @@ final challengeBadgesProvider = Provider<AsyncValue<List<AppBadge>>>((ref) {
     BadgeRequirementMetric.challengesCompleted,
   );
 });
+
+/// The 5 most recently earned badges, newest first — feeds the Profile
+/// screen's "Achievements" preview strip. Unlike the section providers
+/// above, this crosses all requirement metrics, since the preview shows a
+/// user's overall recent progress rather than one category.
+final recentEarnedBadgesProvider = Provider<AsyncValue<List<AppBadge>>>((ref) {
+  return ref.watch(badgesProvider).whenData((list) {
+    final earned = list.where((b) => b.earned).toList()
+      ..sort((a, b) {
+        final aAt = a.earnedAt;
+        final bAt = b.earnedAt;
+        if (aAt == null && bAt == null) return 0;
+        if (aAt == null) return 1;
+        if (bAt == null) return -1;
+        return bAt.compareTo(aAt);
+      });
+    return earned.take(5).toList();
+  });
+});

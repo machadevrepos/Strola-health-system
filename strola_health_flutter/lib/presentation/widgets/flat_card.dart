@@ -19,11 +19,9 @@ class FlatCard extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(
-          color: AppColors.accentSecondary.withValues(alpha: 0.25),
-        ),
+        border: Border.all(color: AppColors.cardBorder),
         boxShadow: AppTheme.cardShadow,
       ),
       child: child,

@@ -1,6 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:strola_health/core/services/firebase_client.dart';
 import 'package:strola_health/core/utils/push_routing.dart';
 import 'package:strola_health/domain/entities/app_notification.dart';
 import 'package:strola_health/presentation/providers/navigation_providers.dart';
@@ -87,6 +88,18 @@ void _routeToPushTarget(
   GlobalKey<NavigatorState> navigatorKey,
   RemoteMessage message,
 ) {
+  // Best-effort, fire-and-forget — this is what moves the admin panel's
+  // Opened/CTR numbers off a permanent zero (see
+  // functions/src/push/trackPushOpened.ts). Never awaited: a flaky network
+  // right as the app is coming to foreground shouldn't delay or block
+  // routing the tap to its actual destination.
+  final notificationId = message.data['notification_id'] as String?;
+  if (notificationId != null && notificationId.isNotEmpty) {
+    FirebaseClient.call('trackPushOpened', {
+      'notificationId': notificationId,
+    }).catchError((_) => <String, dynamic>{});
+  }
+
   final tabIndex = tabIndexForLinkTarget(message.data['link_target'] as String?);
   if (tabIndex == null) return;
   // Whatever screen the tap landed on (could be several pushes deep, or a
